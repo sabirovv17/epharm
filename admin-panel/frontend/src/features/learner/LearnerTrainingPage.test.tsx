@@ -554,6 +554,78 @@ describe('learner training portal', () => {
     )
   })
 
+  it.each([
+    {
+      language: 'ru' as const,
+      tab: 'Рекомендации',
+      and: 'И',
+      mnn: 'МНН АСС',
+      sameItem: 'Все условия должны совпасть у одного сканируемого товара.',
+    },
+    {
+      language: 'kk' as const,
+      tab: 'Ұсынымдар',
+      and: 'ЖӘНЕ',
+      mnn: 'АСС ХПА',
+      sameItem: 'Барлық шарт бір сканерленген тауарға сәйкес келуі керек.',
+    },
+  ])(
+    'shows every readonly trigger factor as AND for the same scanned item ($language)',
+    async ({ language, tab, and, mnn, sameItem }) => {
+      useUiStore.setState({ language })
+      localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+        const path = String(input)
+        if (path === '/api/mobile/auth/me')
+          return json({
+            id: 'ph-1',
+            name: 'Айжан',
+            phone: '+77070000000',
+            pharmacyName: 'Аптека',
+            city: 'Алматы',
+          })
+        if (path === '/api/mobile/training')
+          return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
+        if (path === '/api/mobile/promotions') return json([])
+        if (path === '/api/mobile/me/balance') return json({ balanceKzt: 42000, currency: 'KZT' })
+        if (path === '/api/mobile/me/recommendations?page=0&size=20')
+          return json({
+            items: [
+              {
+                campaign: { id: 'compound', title: 'Точное сочетание' },
+                type: 'substitution',
+                trigger: {
+                  kind: 'acc_group',
+                  value: 'group-1',
+                  label: 'Выбранная группа',
+                  conditions: [
+                    { kind: 'acc_mnn', value: 'mnn-1', label: 'Выбранное вещество' },
+                    { kind: 'acc_subgroup', value: 'subgroup-fallback' },
+                  ],
+                },
+                triggerProducts: [],
+                offers: [],
+              },
+            ],
+            page: 0,
+            size: 20,
+            total: 1,
+          })
+        return json({ message: `Unexpected request: ${path}` }, 500)
+      })
+      renderPortal()
+      await userEvent.click(await screen.findByRole('button', { name: tab, exact: true }))
+      expect(await screen.findByText('Точное сочетание')).toBeInTheDocument()
+      expect(screen.getByText(/Выбранная группа/)).toBeInTheDocument()
+      expect(screen.getByText(`${and} ${mnn}: Выбранное вещество`)).toBeInTheDocument()
+      expect(screen.getByText(/subgroup-fallback/)).toBeInTheDocument()
+      expect(screen.getByText(sameItem)).toBeInTheDocument()
+      expect(fetchMock.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(
+        true,
+      )
+    },
+  )
+
   it('does not disguise a personal API error as a zero balance or empty feed', async () => {
     localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {

@@ -150,3 +150,5 @@ data class FulfillmentFeatureStatusDto(
     val deviceRegistrationEnabled: Boolean,
     val legacyPosmKeyEnabled: Boolean,
 )
+
+data class PosmFulfillmentCapabilitiesDto(val enabled: Boolean)

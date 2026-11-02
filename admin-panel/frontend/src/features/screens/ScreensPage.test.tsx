@@ -288,14 +288,16 @@ describe('ScreensPage — онлайн-кассы', () => {
     screenHooks.useConnectedScreens.mockReturnValue({
       data: {
         total: 4,
-        devices: ['authenticated', 'database_unavailable', rawStatus, null].map((staffAuthStatus, index) => ({
-          deviceId: `staff-${index}`,
-          pharmacyId: 'test-pharmacy',
-          pharmacyName: 'Тестовая аптека',
-          appVersion: '1.0.71.0',
-          lastSeen: '2026-10-21T10:00:00Z',
-          staffAuthStatus,
-        })),
+        devices: ['authenticated', 'database_unavailable', rawStatus, null].map(
+          (staffAuthStatus, index) => ({
+            deviceId: `staff-${index}`,
+            pharmacyId: 'test-pharmacy',
+            pharmacyName: 'Тестовая аптека',
+            appVersion: '1.0.71.0',
+            lastSeen: '2026-10-21T10:00:00Z',
+            staffAuthStatus,
+          }),
+        ),
       },
       isLoading: false,
       isError: false,
@@ -304,9 +306,15 @@ describe('ScreensPage — онлайн-кассы', () => {
 
     await user.click(screen.getByTestId('connected-registers-toggle'))
     expect(screen.getByTestId('connected-staff-0')).toHaveTextContent('Вход РПС: вход подтверждён')
-    expect(screen.getByTestId('connected-staff-1')).toHaveTextContent('Вход РПС: нет доступа к базе Стандарт‑Н')
-    expect(screen.getByTestId('connected-staff-2')).toHaveTextContent('Вход РПС: нет диагностики (обновите POSM)')
-    expect(screen.getByTestId('connected-staff-3')).toHaveTextContent('Вход РПС: нет диагностики (обновите POSM)')
+    expect(screen.getByTestId('connected-staff-1')).toHaveTextContent(
+      'Вход РПС: нет доступа к базе Стандарт‑Н',
+    )
+    expect(screen.getByTestId('connected-staff-2')).toHaveTextContent(
+      'Вход РПС: нет диагностики (обновите POSM)',
+    )
+    expect(screen.getByTestId('connected-staff-3')).toHaveTextContent(
+      'Вход РПС: нет диагностики (обновите POSM)',
+    )
     expect(screen.getByTestId('connected-registers').outerHTML).not.toContain(rawStatus)
     expect(screen.queryByText(/SMS secret/)).not.toBeInTheDocument()
     expect(screen.getByTestId('connected-export-excel')).toBeEnabled()
@@ -465,6 +473,54 @@ describe('ScreensPage — эфир (12 слотов)', () => {
     expect(screen.getByTestId('broadcast-view-list')).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByTestId('broadcast-list')).toBeInTheDocument()
     expect(screen.getAllByTestId(/^broadcast-slot-\d+$/)).toHaveLength(12)
+  })
+
+  it.each(['grid', 'list'])('удаляет занятый общий слот с подтверждением (%s)', async (mode) => {
+    const user = userEvent.setup()
+    setBroadcast({
+      ...profiles.pl_broadcast,
+      slides: [
+        {
+          id: 'sl_default',
+          url: 'https://m/default.mp4',
+          kind: 'video',
+          durationSec: 15,
+          title: 'Общий ролик',
+          position: 0,
+        },
+      ],
+    })
+    const confirmRemove = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    renderPage()
+    if (mode === 'list') await user.click(screen.getByTestId('broadcast-view-list'))
+    expect(screen.queryByTestId('broadcast-slot-2-remove')).not.toBeInTheDocument()
+    await user.click(screen.getByTestId('broadcast-slot-1-remove'))
+    expect(confirmRemove).toHaveBeenCalledWith(expect.stringContaining('слота 1'))
+    expect(removeMutate.mock.calls[0][0]).toEqual({ profileId: 'pl_broadcast', slot: 1 })
+    confirmRemove.mockRestore()
+  })
+
+  it('отмена удаления сохраняет общий ролик', async () => {
+    const user = userEvent.setup()
+    setBroadcast({
+      ...profiles.pl_broadcast,
+      slides: [
+        {
+          id: 'sl_default',
+          url: 'https://m/default.mp4',
+          kind: 'video',
+          durationSec: 15,
+          title: 'Общий ролик',
+          position: 0,
+        },
+      ],
+    })
+    const confirmRemove = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    renderPage()
+    await user.click(screen.getByTestId('broadcast-slot-1-remove'))
+    expect(removeMutate).not.toHaveBeenCalled()
+    expect(screen.getByTestId('broadcast-video-1')).toBeInTheDocument()
+    confirmRemove.mockRestore()
   })
 
   it('индивидуальный профиль отмечает наследование и позволяет убрать override', async () => {

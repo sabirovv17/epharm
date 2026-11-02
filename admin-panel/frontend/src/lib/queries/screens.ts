@@ -182,6 +182,10 @@ export function useRemoveBroadcastProfileSlot() {
       qc.invalidateQueries({ queryKey: screensKeys.playlistsRoot() })
       qc.invalidateQueries({ queryKey: screensKeys.slides() })
     },
+    onError: (_error, { profileId }) => {
+      // A response can be lost after the delete committed.
+      qc.invalidateQueries({ queryKey: screensKeys.broadcastProfile(profileId) })
+    },
   })
 }
 

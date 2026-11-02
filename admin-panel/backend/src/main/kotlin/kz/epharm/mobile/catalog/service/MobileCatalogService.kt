@@ -1,5 +1,9 @@
 package kz.epharm.mobile.catalog.service
 
+import kz.epharm.catalog.repository.ProductRepository
+import kz.epharm.catalog.service.AccCatalogTaxonomy
+import kz.epharm.catalog.service.AccScopeKind
+
 import kz.epharm.medusa.MedusaCatalogCache
 import kz.epharm.medusa.MedusaCatalogSnapshotRepository
 import kz.epharm.medusa.client.MedusaClient
@@ -51,6 +55,8 @@ class MobileCatalogService(
     private val ruleRepository: RuleRepository,
     private val snapshot: MedusaCatalogSnapshotRepository? = null,
     private val storefront: StorefrontCatalogClient? = null,
+    private val taxonomy: AccCatalogTaxonomy? = null,
+    private val products: ProductRepository? = null,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val retailPriceExecutor = Executors.newFixedThreadPool(RETAIL_PRICE_WORKERS) { runnable ->
@@ -304,11 +310,11 @@ class MobileCatalogService(
     private data class Partner(val productId: String, val rule: RuleEntity, val promoted: Boolean)
 
     /** Товар(ы)-триггер(ы) правила: product → [value]; product_any → список; mnn/прочее → пусто. */
-    private fun triggerProductIds(rule: RuleEntity): List<String> = when (rule.trigger.kind) {
+    private fun triggerProductIds(rule: RuleEntity): List<String> = (when (rule.trigger.kind) {
         "product" -> listOfNotNull(rule.trigger.value as? String)
         "product_any" -> (rule.trigger.value as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
         else -> emptyList()
-    }
+    }).filter { matchesConditions(rule, it) }
 
     /**
      * Medusa-id товаров, на которых есть активная кампания (PromoEntity со статусом active).
@@ -359,10 +365,21 @@ class MobileCatalogService(
     }
 
     /** Триггер правила указывает на этот товар? (mnn-триггеры пропускаем — нужен mnn товара, редкий legacy.) */
-    private fun triggerMatches(rule: RuleEntity, productId: String): Boolean = when (rule.trigger.kind) {
+    private fun triggerMatches(rule: RuleEntity, productId: String): Boolean = (when (rule.trigger.kind) {
         "product" -> (rule.trigger.value as? String) == productId
         "product_any" -> (rule.trigger.value as? List<*>)?.any { it == productId } == true
         else -> false
+    }) && matchesConditions(rule, productId)
+
+    private fun matchesConditions(rule: RuleEntity, productId: String): Boolean {
+        if (rule.trigger.conditions.isEmpty()) return true
+        val product = products?.findById(productId)?.orElse(null) ?: return false
+        return taxonomy?.unambiguousBarcodes(product.scanBarcodes())?.values?.any { classification ->
+            rule.trigger.conditions.all { condition ->
+                val kind = AccScopeKind.entries.firstOrNull { it.wire == condition.kind }
+                kind != null && classification.matches(kind, condition.value)
+            }
+        } == true
     }
 
     /**

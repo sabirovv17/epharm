@@ -54,7 +54,7 @@ namespace CustomerDisplay.Config
         public string OutboxDbPath { get; set; } = @"C:\Epharm\outbox.db";
         public int OutboxFlushSec { get; set; } = 5;
         /// <summary>Контур выдачи интернет-заказов. Backend также имеет независимый kill switch.</summary>
-        public bool FulfillmentEnabled { get; set; } = true;
+        public bool FulfillmentEnabled { get; set; } = false;
         /// <summary>
         /// Отдельный origin API выдачи заказов. Пустое значение наследует основной backend,
         /// поэтому действующие аптечные конфиги продолжают работать без переустановки.
@@ -218,8 +218,9 @@ namespace CustomerDisplay.Config
             cfg.DeviceId = Env("EPHARM_DEVICE_ID", cfg.DeviceId ?? "").Trim();
             cfg.PharmacistId = Env("EPHARM_PHARMACIST_ID", cfg.PharmacistId);
             cfg.PharmacyId = Env("EPHARM_PHARMACY_ID", cfg.PharmacyId);
-            if (Env("EPHARM_FULFILLMENT_ENABLED", cfg.FulfillmentEnabled ? "true" : "false") == "false")
-                cfg.FulfillmentEnabled = false;
+            cfg.FulfillmentEnabled = bool.TryParse(
+                Env("EPHARM_FULFILLMENT_ENABLED", cfg.FulfillmentEnabled ? "true" : "false"),
+                out var fulfillmentEnabled) && fulfillmentEnabled;
             cfg.FulfillmentBaseUrl = Env("EPHARM_FULFILLMENT_URL", cfg.FulfillmentBaseUrl);
             var fulfillmentFallbackUrls = Env("EPHARM_FULFILLMENT_FALLBACK_URLS", "");
             if (!string.IsNullOrWhiteSpace(fulfillmentFallbackUrls))

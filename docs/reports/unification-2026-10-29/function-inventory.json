@@ -2762,6 +2762,39 @@
     "owner": "ePharm unification integration owner"
   },
   {
+    "id": "H12.12",
+    "group": "H12",
+    "name": "Отдельное разрешение выдачи заказов на кассе",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "851f08ebab806b537710d22e5ec58d23249bfcb3",
+      "ui": [],
+      "api": ["GET /api/posm/fulfillment/capabilities"],
+      "jobs": [],
+      "data": ["fulfillment_devices", "fulfillment_pharmacy_links"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/controller/PosmFulfillmentController.kt",
+        "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/service/FulfillmentService.kt",
+        "App/MainWindow.Fulfillment.cs",
+        "App/Services/FulfillmentClient.cs"
+      ]
+    },
+    "target": {
+      "section": "Аптеки и товары",
+      "subsection": "Интернет-заказы / связи / устройства",
+      "actions": ["Разрешить или отключить кассовую выдачу независимо от приёма заказов"],
+      "scope": "Активное устройство и его аптека; настройка сервера не расширяет права"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Индивидуальный токен получает только enabled; без токена или после отзыва — 401",
+      "Запрет POSM закрывает его операции, сохраняя ingest/feed/admin, рекомендации, QR и ключи",
+      "Новый клиент не открывает кеш очереди без положительного разрешения; старые окна требуют обновления клиента"
+    ],
+    "risks": ["Офлайн-касса не подтверждает получение нового клиента"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
     "id": "H13.01",
     "group": "H13",
     "name": "Прочитать lift/pilot-control и исходные группы",
@@ -16385,7 +16418,12 @@
       "ui": ["admin-panel/frontend/src/features/settings/PasswordChangeForm.tsx"],
       "api": ["POST /api/admin/auth/password"],
       "jobs": [],
-      "data": ["admin_users", "refresh_tokens", "admin_password_change_audit", "admin_password_attempt_limits"],
+      "data": [
+        "admin_users",
+        "refresh_tokens",
+        "admin_password_change_audit",
+        "admin_password_attempt_limits"
+      ],
       "files": [
         "admin-panel/backend/src/main/kotlin/kz/epharm/auth/controller/AdminAuthController.kt",
         "admin-panel/backend/src/main/kotlin/kz/epharm/auth/service/AdminAuthService.kt",
@@ -16404,7 +16442,9 @@
       "Пароль, session version, отзыв refresh и аудит обновляются атомарно; старые access/refresh не действуют после commit; гонки login/refresh/password проверяются",
       "UI очищает секреты, завершает собственную сессию, показывает результат после перехода ко входу; нет persistence паролей"
     ],
-    "risks": ["V093 ещё не применена; DB-интеграции требуют CI; гарантия отзыва требует version-aware проверки на всех обслуживающих узлах"],
+    "risks": [
+      "V093 ещё не применена; DB-интеграции требуют CI; гарантия отзыва требует version-aware проверки на всех обслуживающих узлах"
+    ],
     "owner": "ePharm post-deploy integration owner"
   },
   {
@@ -16417,7 +16457,12 @@
       "ui": ["admin-panel/frontend/src/features/settings/AccessManagement.tsx"],
       "api": ["PUT /api/admin/access/accounts/{id}/status"],
       "jobs": [],
-      "data": ["admin_users", "unified_admin_profiles", "unified_admin_access_audit", "refresh_tokens"],
+      "data": [
+        "admin_users",
+        "unified_admin_profiles",
+        "unified_admin_access_audit",
+        "refresh_tokens"
+      ],
       "files": [
         "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessController.kt",
         "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessStore.kt",
@@ -16435,7 +16480,9 @@
       "Подтверждение включает текущую версию; при stale CAS требуется загрузить актуальные данные без автоматического повтора",
       "Блокировка отзывает refresh, закрывает действующий доступ и аудируется без секретов; собственная личность и владелец защищены"
     ],
-    "risks": ["Явная разблокировка может снова допустить старый неистёкший access JWT; действие не заявляется постоянным отзывом JWT; DB-гонки требуют проверки"],
+    "risks": [
+      "Явная разблокировка может снова допустить старый неистёкший access JWT; действие не заявляется постоянным отзывом JWT; DB-гонки требуют проверки"
+    ],
     "owner": "ePharm post-deploy integration owner"
   },
   {
@@ -16466,7 +16513,9 @@
       "Preview не создаёт курс, программу или media; показывает проверенное содержимое и SHA-256",
       "Пути, число и размеры файлов, XLSX-формулы, ссылки, MIME и обязательные поля проверяются; ошибки не раскрывают секреты"
     ],
-    "risks": ["Source coverage не доказывает production-приёмку или транзакционный rollback последующего импорта"],
+    "risks": [
+      "Source coverage не доказывает production-приёмку или транзакционный rollback последующего импорта"
+    ],
     "owner": "ePharm post-deploy integration owner"
   },
   {
@@ -16479,7 +16528,13 @@
       "ui": ["admin-panel/frontend/src/features/lms/LMSPage.tsx"],
       "api": ["POST /api/admin/lms/courses/import/package"],
       "jobs": [],
-      "data": ["courses", "course_lessons", "course_lesson_attachments", "training_programs", "course_package_import_receipts"],
+      "data": [
+        "courses",
+        "course_lessons",
+        "course_lesson_attachments",
+        "training_programs",
+        "course_package_import_receipts"
+      ],
       "files": [
         "admin-panel/backend/src/main/kotlin/kz/epharm/lms/controller/CoursePackageController.kt",
         "admin-panel/backend/src/main/kotlin/kz/epharm/lms/service/CoursePackageImportService.kt",
@@ -16498,7 +16553,9 @@
       "Точный повтор одного автора не создаёт дубль; права проверяются повторно; другой автор или изменённые байты не считаются тем же запросом",
       "Ошибки импорта и media должны откатываться без частичного курса; DB/concurrency сценарии выполняются отдельно перед выпуском"
     ],
-    "risks": ["V092 ещё не применена; семантическая дедупликация переупакованных ZIP не заявляется; DB rollback локально не проверен"],
+    "risks": [
+      "V092 ещё не применена; семантическая дедупликация переупакованных ZIP не заявляется; DB rollback локально не проверен"
+    ],
     "owner": "ePharm post-deploy integration owner"
   }
 ]

@@ -44,15 +44,17 @@ class PromoPublicationService(
     }
 
     @Transactional
-    fun save(id: String, request: SavePromoChangesRequest, actor: String): PromoChangesViewDto {
+    fun save(id: String, request: SavePromoChangesRequest, actor: String,
+        supportsTriggerConditions: Boolean = false): PromoChangesViewDto {
         requireView()
         requireEdit()
         if (request.discard && request.bundle != null || !request.discard && request.bundle == null) {
             invalid("Передайте подготовленные изменения или явное discard=true")
         }
         val promo = load(id, true)
-        rules.findAllByPromoIdForUpdate(id)
+        val currentRules = rules.findAllByPromoIdForUpdate(id)
         val previous = prepared(id)
+        campaignRules.requireTriggerEditor(id, request.bundle?.rules, supportsTriggerConditions, currentRules)
         requireRevision(previous, request.expectedRevision)
         if (request.discard) {
             write(id, previous, null, null, actor)
@@ -69,13 +71,15 @@ class PromoPublicationService(
     }
 
     @Transactional
-    fun apply(id: String, expectedRevision: Long, actor: String): PromoChangesViewDto {
+    fun apply(id: String, expectedRevision: Long, actor: String,
+        supportsTriggerConditions: Boolean = false): PromoChangesViewDto {
         requireView()
         scope.requireAllPermission(MotivationPermissions.campaignPublish)
         scope.requireAllPermission(MotivationPermissions.recommendationPublish)
         val promo = load(id, true)
-        rules.findAllByPromoIdForUpdate(id)
+        val currentRules = rules.findAllByPromoIdForUpdate(id)
         val previous = prepared(id)
+        campaignRules.requireTriggerEditor(id, previous?.bundle?.rules, supportsTriggerConditions, currentRules)
         requireRevision(previous, expectedRevision)
         val bundle = previous?.bundle ?: conflict("Нет сохранённых изменений для применения")
         if (promo.status == PromoStatus.archived) invalid("Нельзя применять изменения к архивной кампании")
@@ -134,6 +138,11 @@ class PromoPublicationService(
                 else -> false
             }
         }) add("Для запуска нужна хотя бы одна корректная включённая рекомендация")
+        try {
+            addAll(campaignRules.publicationTriggerIssues(bundle.rules))
+        } catch (e: AppException) {
+            add(e.message.orEmpty())
+        }
         if (bundle.campaign.dateEnd?.isBefore(LocalDate.now(ZoneId.of("Asia/Almaty"))) == true) {
             add("Период акции уже закончился")
         }
@@ -178,10 +187,12 @@ class PromoPublicationService(
 
     private fun fingerprint(promo: PromoEntity): String {
         val bundle = currentBundle(promo)
-        fun ordered(refs: List<PromoRuleProductRefDto>) = refs.sortedWith(
+        fun ordered(refs: List<PromoRuleProductRefDto>) = refs.map { ref ->
+            ref.copy(triggerConditions = ref.triggerConditions.sortedBy { it.kind })
+        }.sortedWith(
             compareBy<PromoRuleProductRefDto> { it.triggerKind }.thenBy {
                 if (it.triggerKind == "product") it.medusaProductId else it.triggerValue.orEmpty()
-            },
+            }.thenBy { it.triggerConditions.joinToString("&") { condition -> "${condition.kind}:${condition.value}" } },
         )
         val stableBundle = bundle.copy(rules = bundle.rules.copy(replacements = ordered(bundle.rules.replacements),
             crossSells = ordered(bundle.rules.crossSells)))

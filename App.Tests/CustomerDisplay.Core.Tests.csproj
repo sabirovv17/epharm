@@ -29,6 +29,8 @@
     <Compile Include="..\Models\Posm\Cdp.cs" Link="Models\Cdp.cs" />
     <Compile Include="..\Models\Posm\RecommendationPopupModel.cs" Link="Models\RecommendationPopupModel.cs" />
     <Compile Include="..\Models\ReceiptItem.cs" Link="Models\ReceiptItem.cs" />
+    <Compile Include="..\App\MainWindow.Screen.cs" Link="Playback\MainWindow.Screen.cs" />
+    <Compile Include="..\App\Services\MediaCache.cs" Link="Services\MediaCache.cs" />
     <Compile Include="..\App\Services\EpharmJson.cs" Link="Services\EpharmJson.cs" />
     <Compile Include="..\App\Services\OfflineOutbox.cs" Link="Services\OfflineOutbox.cs" />
     <Compile Include="..\App\Services\OutboxFlusher.cs" Link="Services\OutboxFlusher.cs" />

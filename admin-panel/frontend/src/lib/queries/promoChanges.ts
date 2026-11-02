@@ -41,10 +41,14 @@ export function useSavePromoChanges() {
       discard?: true
     }) =>
       api
-        .put<PromoChangesViewDto>(`/api/admin/promo/${encodeURIComponent(id)}/changes`, {
-          expectedRevision,
-          ...(discard ? { discard: true } : { bundle }),
-        })
+        .put<PromoChangesViewDto>(
+          `/api/admin/promo/${encodeURIComponent(id)}/changes`,
+          {
+            expectedRevision,
+            ...(discard ? { discard: true } : { bundle }),
+          },
+          { headers: { 'X-Epharm-Trigger-Conditions': '1' } },
+        )
         .then((response) => response.data),
     onSuccess: (result) => client.setQueryData(promoChangesKeys.detail(result.promoId), result),
   })
@@ -55,9 +59,13 @@ export function useApplyPromoChanges() {
   return useMutation({
     mutationFn: ({ id, expectedRevision }: { id: string; expectedRevision: number }) =>
       api
-        .post<PromoChangesViewDto>(`/api/admin/promo/${encodeURIComponent(id)}/changes/apply`, {
-          expectedRevision,
-        })
+        .post<PromoChangesViewDto>(
+          `/api/admin/promo/${encodeURIComponent(id)}/changes/apply`,
+          {
+            expectedRevision,
+          },
+          { headers: { 'X-Epharm-Trigger-Conditions': '1' } },
+        )
         .then((response) => response.data),
     onSuccess: (result) => {
       client.setQueryData(promoChangesKeys.detail(result.promoId), result)

@@ -204,10 +204,15 @@ separate trusted origin, set `FulfillmentBaseUrl`/`FulfillmentFallbackBaseUrls` 
 playlist, heartbeat, or updater routes.
 
 This feature is independent from recommendations, sales capture and the customer display. POSM
-v1.0.51 enables its local polling path by default so existing pharmacy-specific `posm.json` files do
-not need to be replaced. The backend feature flag and closed device-registration gate keep the
-feature dark until operations explicitly opens a controlled rollout. Set
-`fulfillmentEnabled=false` or `EPHARM_FULFILLMENT_ENABLED=false` for a local emergency disable.
+now defaults to `fulfillmentEnabled=false`, including older JSON files that omit the setting.
+New pharmacy packages also leave it disabled. An explicit local opt-in
+(`fulfillmentEnabled=true` or `EPHARM_FULFILLMENT_ENABLED=true`) still requires authenticated
+`/api/posm/fulfillment/capabilities` to return `enabled=true` before cache/tray access.
+Each polling cycle rechecks permission. A disabled/missing capability or denied access closes the
+order windows and tray while preserving cached data and credentials. Backend
+`FULFILLMENT_POSM_ENABLED=false` also denies old clients' order list/card/actions without
+disabling the storefront transport or revoking the shared individual POSM credential.
+This cannot close an old client's already cached window before that client is updated.
 
 Before installation, HQ provisions the approved `(pharmacyId, deviceId)` in **Исполнение → Кассы**.
 The one-time token is copied into that cash desk's `DeviceKey`; POSM protects the fulfillment copy

@@ -180,6 +180,30 @@ class AccCatalogTaxonomy(private val jdbc: JdbcTemplate) {
         ).firstOrNull() ?: invalidScope(kind, clean)
     }
 
+    /** A real common package must exist; separate cart rows never satisfy an intersection. */
+    fun hasMatchingFactors(factors: Collection<Pair<AccScopeKind, String>>, barcodes: Collection<String>? = null): Boolean {
+        val selected = factors.distinct()
+        if (selected.isEmpty() || selected.groupBy { it.first }.any { it.value.size > 1 }) return false
+        val codes = barcodes?.map(String::trim)?.filter(String::isNotEmpty)?.distinct()
+        if (codes != null && codes.isEmpty()) return false
+        val args = selected.map { it.second }.toMutableList()
+        val filter = selected.joinToString(" AND ") { "b.${it.first.keyColumn} = ?" }
+        val barcodeFilter = codes?.let {
+            args.addAll(it)
+            " AND b.barcode IN (${it.joinToString(",") { "?" }})"
+        }.orEmpty()
+        return jdbc.queryForObject("""
+            SELECT EXISTS (
+                SELECT 1 FROM acc_catalog_barcodes b
+                JOIN acc_catalog_state state ON state.active_snapshot_id=b.snapshot_id AND state.singleton=1
+                WHERE $filter $barcodeFilter AND NOT EXISTS (
+                    SELECT 1 FROM acc_catalog_barcodes other
+                    WHERE other.snapshot_id=b.snapshot_id AND other.barcode=b.barcode AND other.ware_id<>b.ware_id
+                )
+            )
+        """.trimIndent(), Boolean::class.java, *args.toTypedArray()) == true
+    }
+
     /** Exact EAN lookup only. Missing and duplicate source barcodes are absent from the result. */
     fun unambiguousBarcodes(barcodes: Collection<String>): Map<String, AccCatalogClassification> {
         val clean = barcodes.map(String::trim).filter(String::isNotEmpty).distinct()

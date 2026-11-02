@@ -5,6 +5,42 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-02
+
+### Added
+
+- Combined ACC trigger factors with same-product AND matching in campaign creation, editing and
+  read-only pharmacist recommendations; existing product/group/subgroup/INN triggers remain compatible.
+- Confirmed video removal from occupied general broadcast slots in both screen-management views.
+- A separate server gate for POSM order fulfillment, preserving incoming website orders,
+  administrative history, device credentials and other cash-desk modules.
+
+### Fixed
+
+- Preserve campaign budget edits without catalogue-prefill false dirty state; validate both save
+  actions, distinguish prepared/published budget and reject conflicting replacement/cross-sell pairs.
+- Preserve distinct recommendation pairs and their history when editing compound conditions;
+  equivalent reordered conjunctions cannot bypass conflict or authorization checks.
+- Refuse stale admin writes to compound campaigns until the editor is refreshed, preventing
+  older cached tabs from silently deduplicating or broadening saved conditions.
+- POSM 1.0.74 candidate stops removed cached videos on successful playlist refresh, including an
+  authoritative empty playlist, while retaining allowed cache during a network failure.
+- POSM order fulfillment is opt-in locally and requires a positive authenticated server capability
+  before opening cached queues; production disables this capability independently of order ingestion.
+
+### Deployment
+
+- V094 adds a JSON-shape constraint and durable compound-trigger rollback boundary. Install the
+  reviewed shared release verifier before migration; older condition-unaware backend images must
+  not serve this database. No production activation or POSM fleet rollout is performed by this change.
+
+### Security
+
+- Update vulnerable frontend redirect/glob dependencies and the modern storefront minimatch branch.
+- Keep production npm findings forbidden. Pin and verify the legacy development-only minimatch
+  implementation for the narrowly reviewed advisory until the existing November 6 deadline;
+  unknown advisories, changed sources and modern vulnerable branches remain blocked.
+
 ## [0.2.2] - 2026-10-31
 
 ### Added

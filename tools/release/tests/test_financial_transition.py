@@ -21,7 +21,8 @@ class FinancialTransitionTests(unittest.TestCase):
 
     def artifact(self,resource=True,missing=None,obsolete=None,partial=False,
                  access=False,access_missing=None,access_obsolete=None,
-                 session=False,session_missing=None,session_obsolete=None):
+                 session=False,session_missing=None,session_obsolete=None,
+                 compound=False,compound_missing=None,compound_obsolete=None):
         with zipfile.ZipFile(self.jar,'w') as jar:
             if resource:
                 jar.writestr(guard.RESOURCE,'\n'.join(f'{key}={value}' for key,value in guard.CAPABILITY.items()))
@@ -41,6 +42,12 @@ class FinancialTransitionTests(unittest.TestCase):
                     if name==session_missing: continue
                     jar.writestr('BOOT-INF/classes/'+name,' '.join(
                         marker for marker in markers if session_obsolete!=(name,marker)))
+            if compound:
+                jar.writestr('BOOT-INF/classes/db/migration/V094__compound_recommendation_triggers.sql','compound schema')
+                for name,markers in guard.COMPOUND_CLASSES.items():
+                    if name==compound_missing: continue
+                    jar.writestr('BOOT-INF/classes/'+name,' '.join(
+                        marker for marker in markers if compound_obsolete!=(name,marker)))
         return self.jar
 
     def test_legacy_artifact_only_allowed_before_protected_schema(self):
@@ -107,6 +114,47 @@ class FinancialTransitionTests(unittest.TestCase):
         self.assertTrue(guard.verify(self.jar,True,True,True))
         self.artifact(resource=False)
         self.assertFalse(guard.verify(self.jar,False,False,False))
+
+    def test_compound_schema_rejects_old_artifact_even_before_any_compound_rule_exists(self):
+        self.artifact(access=True,session=True)
+        self.assertTrue(guard.verify(self.jar,True,True,True,False))
+        with self.assertRaisesRegex(ValueError,'compound-trigger'):
+            guard.verify(self.jar,True,True,True,True)
+
+    def test_new_compound_migration_cannot_bypass_guard_on_a_legacy_database(self):
+        self.artifact(access=True,session=True)
+        with zipfile.ZipFile(self.jar,'a') as jar:
+            jar.writestr('BOOT-INF/classes/db/migration/V094__compound_recommendation_triggers.sql','new compound schema')
+        with self.assertRaisesRegex(ValueError,'compound-trigger'):
+            guard.verify(self.jar,False)
+
+    def test_reviewed_compound_chain_supported_before_and_after_schema_migration(self):
+        self.artifact(access=True,session=True,compound=True)
+        self.assertTrue(guard.verify(self.jar,False,False,False,False))
+        self.assertTrue(guard.verify(self.jar,True,True,True,True))
+
+    def test_every_compound_component_and_enforcement_marker_is_required(self):
+        for name,markers in guard.COMPOUND_CLASSES.items():
+            with self.subTest(component=name):
+                self.artifact(access=True,session=True,compound=True,compound_missing=name)
+                with self.assertRaisesRegex(ValueError,'compound-trigger'):
+                    guard.verify(self.jar,True,True,True,True)
+            for marker in markers:
+                with self.subTest(component=name,marker=marker):
+                    self.artifact(access=True,session=True,compound=True,compound_obsolete=(name,marker))
+                    with self.assertRaisesRegex(ValueError,'compound-trigger'):
+                        guard.verify(self.jar,False,False,False,False)
+
+    def test_compound_support_cannot_weaken_financial_access_or_session_guards(self):
+        self.artifact(access=True,session=True,compound=True,missing=next(iter(guard.WRITERS)))
+        with self.assertRaisesRegex(ValueError,'financial writer'):
+            guard.verify(self.jar,True,True,True,True)
+        self.artifact(session=True,compound=True)
+        with self.assertRaisesRegex(ValueError,'managed-access'):
+            guard.verify(self.jar,True,True,True,True)
+        self.artifact(access=True,compound=True)
+        with self.assertRaisesRegex(ValueError,'session-version'):
+            guard.verify(self.jar,True,True,True,True)
 
     def test_every_session_component_and_enforcement_marker_is_required(self):
         for name,markers in guard.SESSION_CLASSES.items():
@@ -208,6 +256,32 @@ class FinancialTransitionTests(unittest.TestCase):
             with patch.object(guard.subprocess,'run',return_value=subprocess.CompletedProcess([],0,output,'')):
                 with self.assertRaises(ValueError): guard.session_schema_is_protected()
 
+    def test_compound_probe_uses_durable_named_check_without_reading_rule_rows(self):
+        with patch.object(guard.subprocess,'run',return_value=subprocess.CompletedProcess([],0,'protected\n','')) as run:
+            self.assertTrue(guard.compound_schema_is_protected())
+        sql=run.call_args.kwargs['input'].lower()
+        self.assertIn('information_schema.table_constraints',sql)
+        self.assertIn("table_schema='public'",sql)
+        self.assertIn("table_name='rules'",sql)
+        self.assertIn("constraint_name='rules_trigger_conditions_shape'",sql)
+        self.assertIn("constraint_type='check'",sql)
+        for forbidden in ('count(', 'from rules', 'jsonb', 'insert ', 'update ', 'delete ', 'drop ', 'alter '):
+            self.assertNotIn(forbidden,sql)
+        self.assertNotIn('password',' '.join(run.call_args.args[0]).lower())
+        with patch.object(guard.subprocess,'run',return_value=subprocess.CompletedProcess([],0,'legacy\n','')):
+            self.assertFalse(guard.compound_schema_is_protected())
+        for output in ('','0','protected\nlegacy','private-unexpected-value'):
+            with patch.object(guard.subprocess,'run',return_value=subprocess.CompletedProcess([],0,output,'')):
+                with self.assertRaises(ValueError): guard.compound_schema_is_protected()
+
+    def test_oversized_compound_class_is_denied_without_reading_it(self):
+        name=next(iter(guard.COMPOUND_CLASSES))
+        self.artifact(access=True,session=True,compound=True,compound_missing=name)
+        with zipfile.ZipFile(self.jar,'a') as jar:
+            jar.writestr('BOOT-INF/classes/'+name,'x'*(2*1024*1024+1))
+        with self.assertRaisesRegex(ValueError,'compound-trigger'):
+            guard.verify(self.jar,True,True,True,True)
+
     def test_image_inspection_never_starts_backend_and_cleans_container_after_denial(self):
         source=self.artifact(resource=False)
         image='sha256:'+'a'*64
@@ -220,6 +294,7 @@ class FinancialTransitionTests(unittest.TestCase):
         with patch.object(guard,'schema_is_protected',return_value=True), \
              patch.object(guard,'access_schema_is_protected',return_value=False), \
              patch.object(guard,'session_schema_is_protected',return_value=False), \
+             patch.object(guard,'compound_schema_is_protected',return_value=False), \
              patch.object(guard.subprocess,'check_output',return_value=container) as create, \
              patch.object(guard.subprocess,'run',side_effect=run):
             with self.assertRaises(ValueError): guard.verify_image(image)
@@ -237,6 +312,7 @@ class FinancialTransitionTests(unittest.TestCase):
         with patch.object(guard,'schema_is_protected',return_value=True) as wallet, \
              patch.object(guard,'access_schema_is_protected',return_value=True) as access, \
              patch.object(guard,'session_schema_is_protected',return_value=False), \
+             patch.object(guard,'compound_schema_is_protected',return_value=False), \
              patch.object(guard.subprocess,'check_output',return_value='b'*64), \
              patch.object(guard.subprocess,'run',side_effect=run):
             with self.assertRaisesRegex(ValueError,'managed-access'):
@@ -254,6 +330,7 @@ class FinancialTransitionTests(unittest.TestCase):
         with patch.object(guard,'schema_is_protected',return_value=True), \
              patch.object(guard,'access_schema_is_protected',return_value=True), \
              patch.object(guard,'session_schema_is_protected',return_value=True) as session, \
+             patch.object(guard,'compound_schema_is_protected',return_value=False), \
              patch.object(guard.subprocess,'check_output',return_value='b'*64), \
              patch.object(guard.subprocess,'run',side_effect=run):
             with self.assertRaisesRegex(ValueError,'session-version'):
@@ -280,6 +357,35 @@ class FinancialTransitionTests(unittest.TestCase):
         self.assertNotIn('private-password',str(error.exception))
         create.assert_not_called()
 
+    def test_image_live_compound_probe_rejects_old_matcher_and_cleans_container(self):
+        source=self.artifact(access=True,session=True)
+        calls=[]
+        def run(command,**kwargs):
+            calls.append(command)
+            if command[1]=='cp': shutil.copyfile(source,command[-1])
+            return subprocess.CompletedProcess(command,0,'','')
+        with patch.object(guard,'schema_is_protected',return_value=True), \
+             patch.object(guard,'access_schema_is_protected',return_value=True), \
+             patch.object(guard,'session_schema_is_protected',return_value=True), \
+             patch.object(guard,'compound_schema_is_protected',return_value=True) as compound, \
+             patch.object(guard.subprocess,'check_output',return_value='b'*64), \
+             patch.object(guard.subprocess,'run',side_effect=run):
+            with self.assertRaisesRegex(ValueError,'compound-trigger'):
+                guard.verify_image('sha256:'+'a'*64)
+        compound.assert_called_once()
+        self.assertEqual(calls[-1],['docker','rm','b'*64])
+
+    def test_failed_compound_probe_stops_before_image_inspection_without_echoing_credentials(self):
+        with patch.object(guard,'schema_is_protected',return_value=True), \
+             patch.object(guard,'access_schema_is_protected',return_value=True), \
+             patch.object(guard,'session_schema_is_protected',return_value=True), \
+             patch.object(guard,'compound_schema_is_protected',side_effect=subprocess.CalledProcessError(1,['docker'],stderr='private-password')), \
+             patch.object(guard.subprocess,'check_output') as create, \
+             patch('sys.argv',['guard','--image','sha256:'+'a'*64]):
+            with self.assertRaises(SystemExit) as error: guard.main()
+        self.assertNotIn('private-password',str(error.exception))
+        create.assert_not_called()
+
     def test_real_cli_access_flag_rejects_wallet_only_and_accepts_typed_scope_fixture(self):
         command=['python3',str(Path(SPEC.origin)),'--jar',str(self.jar),'--schema-protected','--access-protected']
         self.artifact()
@@ -295,10 +401,30 @@ class FinancialTransitionTests(unittest.TestCase):
         self.artifact(access=True,session=True)
         self.assertEqual(0,subprocess.run(command,capture_output=True).returncode)
 
+    def test_real_cli_compound_flag_rejects_old_matcher_and_accepts_reviewed_chain(self):
+        command=['python3',str(Path(SPEC.origin)),'--jar',str(self.jar),
+                 '--schema-protected','--access-protected','--session-protected','--compound-protected']
+        self.artifact(access=True,session=True)
+        denied=subprocess.run(command,capture_output=True,text=True)
+        self.assertNotEqual(0,denied.returncode)
+        self.assertIn('compound',denied.stderr)
+        self.artifact(access=True,session=True,compound=True)
+        accepted=subprocess.run(command,capture_output=True,text=True)
+        self.assertEqual(0,accepted.returncode)
+        self.assertIn('compound-trigger guards checked',accepted.stdout)
+
+    def test_wrong_artifact_fails_closed_with_compound_flag(self):
+        self.jar.write_bytes(b'not a Java archive')
+        result=subprocess.run(['python3',str(Path(SPEC.origin)),'--jar',str(self.jar),'--compound-protected'],
+                              capture_output=True,text=True)
+        self.assertNotEqual(0,result.returncode)
+        self.assertIn('state unknown',result.stderr)
+
     def test_exact_image_required_and_live_schema_probe_cannot_be_overridden(self):
         for args in (['--image','epharm/backend:latest'],['--image','sha256:'+'a'*64,'--schema-protected'],
                      ['--image','sha256:'+'a'*64,'--access-protected'],
-                     ['--image','sha256:'+'a'*64,'--session-protected']):
+                     ['--image','sha256:'+'a'*64,'--session-protected'],
+                     ['--image','sha256:'+'a'*64,'--compound-protected']):
             with patch('sys.argv',['guard']+args),patch.object(guard,'verify_image') as inspect:
                 with self.assertRaises(SystemExit): guard.main()
                 inspect.assert_not_called()

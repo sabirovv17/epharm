@@ -13,6 +13,7 @@ import kz.epharm.rules.entity.RuleEntity
 import kz.epharm.rules.entity.RuleCard
 import kz.epharm.rules.entity.RuleStatus
 import kz.epharm.rules.entity.RuleType
+import kz.epharm.rules.entity.RuleTriggerCondition
 import kz.epharm.rules.repository.RuleRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
@@ -87,7 +88,7 @@ class RuleService(
         }
         val nextBonus = req.bonus ?: entity.bonus
         val bonusChanged = nextBonus != entity.bonus
-        val nextTrigger = req.trigger?.toEntity() ?: entity.trigger
+        val nextTrigger = req.trigger?.let(::canonicalTrigger) ?: entity.trigger
         val nextAbTest = when {
             req.clearAbTest -> null
             req.abTest != null -> req.abTest.toEntity()
@@ -96,7 +97,7 @@ class RuleService(
         val hasPaidTerms = nextBonus != 0 || entity.bonus != 0 ||
             (nextCard?.goalBonus ?: 0) != 0 || (entity.card?.goalBonus ?: 0) != 0
         val paidConditionChanged = hasPaidTerms && (req.recommend?.let { it != entity.recommend } == true ||
-            nextTrigger.copy(label = null) != entity.trigger.copy(label = null) || nextAbTest != entity.abTest)
+            nextTrigger.identity() != entity.trigger.identity() || nextAbTest != entity.abTest)
         val paidGoalChanged = (nextCard?.goalBonus ?: 0) != (entity.card?.goalBonus ?: 0) ||
             nextCard?.goalTarget != entity.card?.goalTarget &&
             ((nextCard?.goalBonus ?: 0) != 0 || (entity.card?.goalBonus ?: 0) != 0)
@@ -130,7 +131,7 @@ class RuleService(
             )
         }
         req.trigger?.let {
-            entity.trigger = canonicalTrigger(it)
+            entity.trigger = nextTrigger
         }
         req.recommend?.let {
             ensureProductExists(it)
@@ -142,12 +143,11 @@ class RuleService(
             triggerValue = entity.trigger.value,
             recommend = entity.recommend,
         )
-        if (req.status == RuleStatus.active && entity.trigger.kind.startsWith("acc_")) {
-            // A snapshot may have changed since this draft was created. Do not activate an
-            // orphaned taxonomy key through a status-only PATCH.
-            accCatalogTaxonomy.requireActiveOption(
-                AccScopeKind.parse(entity.trigger.kind), entity.trigger.value as String,
-            )
+        if (req.status == RuleStatus.active) {
+            entity.trigger = canonicalTrigger(TriggerDto(entity.trigger.kind, entity.trigger.value,
+                entity.trigger.exclude, entity.trigger.label, entity.trigger.conditions.map {
+                    kz.epharm.rules.dto.TriggerConditionDto(it.kind, it.value, it.label)
+                }))
         }
         req.status?.let { entity.status = it }
         req.bonus?.let { entity.bonus = it }
@@ -265,12 +265,23 @@ class RuleService(
 
     private fun canonicalTrigger(trigger: TriggerDto): kz.epharm.rules.entity.RuleTrigger {
         validateTriggerShape(trigger)
-        if (!trigger.kind.startsWith("acc_")) return trigger.toEntity()
+        if (trigger.conditions.size > 3 || trigger.conditions.map { it.kind }.distinct().size != trigger.conditions.size ||
+            trigger.conditions.any { it.kind == trigger.kind } ||
+            trigger.conditions.isNotEmpty() && trigger.kind !in setOf("product", "acc_group", "acc_subgroup", "acc_mnn")) {
+            throw AppException(ErrorCode.VALIDATION_FAILED, "Условия триггера должны иметь разные признаки", HttpStatus.BAD_REQUEST)
+        }
+        val conditions = trigger.conditions.sortedBy { it.kind }.map {
+            val option = accCatalogTaxonomy.requireActiveOption(AccScopeKind.parse(it.kind), it.value)
+            RuleTriggerCondition(it.kind, option.key,
+                (option.parentLabel?.let { parent -> "$parent / ${option.label}" } ?: option.label).take(255))
+        }
+        val base = trigger.toEntity().copy(conditions = conditions)
+        if (!trigger.kind.startsWith("acc_")) return base
         val selected = accCatalogTaxonomy.requireActiveOption(
             AccScopeKind.parse(trigger.kind), trigger.value as String,
         )
         val label = selected.parentLabel?.let { "$it / ${selected.label}" } ?: selected.label
-        return trigger.toEntity().copy(value = selected.key, label = label.take(255))
+        return base.copy(value = selected.key, label = label.take(255))
     }
 
     /**

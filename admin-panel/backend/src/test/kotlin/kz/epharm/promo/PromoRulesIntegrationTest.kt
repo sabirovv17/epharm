@@ -9,6 +9,8 @@ import kz.epharm.auth.dto.LoginResponse
 import kz.epharm.auth.entity.AdminUserEntity
 import kz.epharm.auth.repository.AdminUserRepository
 import kz.epharm.catalog.entity.ProductEntity
+import kz.epharm.catalog.service.AccCatalogTaxonomy
+import kz.epharm.catalog.service.AccScopeKind
 import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.promo.entity.PromoEntity
 import kz.epharm.promo.entity.PromoStatus
@@ -19,6 +21,7 @@ import kz.epharm.rules.entity.RuleTrigger
 import kz.epharm.rules.entity.RuleType
 import kz.epharm.rules.repository.RuleRepository
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -26,6 +29,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.ConnectionCallback
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -80,6 +84,7 @@ class PromoRulesIntegrationTest {
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
     @Autowired private lateinit var entityManager: EntityManager
     @Autowired private lateinit var jdbc: JdbcTemplate
+    @Autowired private lateinit var taxonomy: AccCatalogTaxonomy
 
     private lateinit var bearer: String
 
@@ -750,4 +755,196 @@ class PromoRulesIntegrationTest {
             adminUserRepository.deleteAll()
         }
     }
+    private fun compoundSnapshot() {
+        val snapshot = UUID.randomUUID()
+        jdbc.update("INSERT INTO acc_catalog_snapshots(id,sha256,source_name,item_count,barcode_count) VALUES (?,?,?,?,?)",
+            snapshot, "d".repeat(64), "acc-test.xlsx", 3, 3)
+        listOf(
+            listOf("WARE-A", "4879876543104", "grp_a", "mnn_a"),
+            listOf("WARE-B", "4879876543111", "grp_b", "mnn_b"),
+            listOf("WARE-C", "4879876543128", "grp_a", "mnn_b"),
+        ).forEach { row ->
+            jdbc.update("""INSERT INTO acc_catalog_barcodes(snapshot_id,ware_id,barcode,group_key,group_label,
+                subgroup_key,subgroup_label,mnn_key,mnn_label) VALUES (?,?,?,?,?,?,?,?,?)""",
+                snapshot, row[0], row[1], row[2], "Группа ${row[2]}", "sub_a", "Подгруппа", row[3], "МНН ${row[3]}")
+        }
+        jdbc.update("UPDATE acc_catalog_state SET active_snapshot_id=? WHERE singleton=1", snapshot)
+    }
+
+    @Test
+    fun `compound factors roundtrip separately and preserve IDs on reordered condition fields`() {
+        compoundSnapshot()
+        val ref = mapOf("medusaProductId" to "", "triggerKind" to "acc_group", "triggerValue" to "grp_a",
+            "triggerConditions" to listOf(mapOf("kind" to "acc_subgroup", "value" to "sub_a", "label" to "fake"),
+                mapOf("kind" to "acc_mnn", "value" to "mnn_b", "label" to "fake")), "bonus" to 0)
+        val second = ref + ("triggerConditions" to listOf(mapOf("kind" to "acc_mnn", "value" to "mnn_a")))
+        fun save(refs: List<Map<String, Any>>) = mockMvc.perform(put("/api/admin/promo/pr_camp/rules")
+            .header("Authorization", bearer).header("X-Epharm-Trigger-Conditions", "1").contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(mapOf("replacements" to refs))))
+        save(listOf(ref, second)).andExpect(status().isOk)
+            .andExpect(jsonPath("$.ruleCount").value(2))
+            .andExpect(jsonPath("$.config.replacements.length()").value(2))
+        entityManager.flush(); entityManager.clear()
+        val initial = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")
+        assertThat(initial.map { it.trigger.conditions.map { condition -> condition.kind } })
+            .contains(listOf("acc_mnn", "acc_subgroup"), listOf("acc_mnn"))
+        assertThat(initial.flatMap { it.trigger.conditions }.map { it.label }).doesNotContain("fake")
+        initial.forEach { it.impressions = 17 }; ruleRepository.saveAllAndFlush(initial)
+        val reversed = ref + ("triggerConditions" to (ref.getValue("triggerConditions") as List<*>).reversed())
+        save(listOf(second, reversed)).andExpect(status().isOk)
+        entityManager.flush(); entityManager.clear()
+        val updated = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")
+        assertThat(updated.map { it.id }).containsExactlyInAnyOrderElementsOf(initial.map { it.id })
+        assertThat(updated.map { it.impressions }).containsOnly(17)
+        val swappedBase = mapOf("medusaProductId" to "", "triggerKind" to "acc_mnn", "triggerValue" to "mnn_b",
+            "triggerConditions" to listOf(mapOf("kind" to "acc_group", "value" to "grp_a"),
+                mapOf("kind" to "acc_subgroup", "value" to "sub_a")), "bonus" to 0)
+        save(listOf(second, swappedBase)).andExpect(status().isOk)
+        entityManager.flush(); entityManager.clear()
+        assertThat(ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp").map { it.id })
+            .containsExactlyInAnyOrderElementsOf(initial.map { it.id })
+        save(listOf(ref, swappedBase)).andExpect(status().isBadRequest)
+        assertThat(ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp").map { it.id })
+            .containsExactlyInAnyOrderElementsOf(initial.map { it.id })
+    }
+
+    @Test
+    fun `compound configuration rejects duplicate factor kinds missing scopes and unsupported factor kinds`() {
+        compoundSnapshot()
+        val badConditions = listOf(
+            """[{"kind":"acc_group","value":"grp_a"}]""",
+            """[{"kind":"acc_mnn","value":"absent"}]""",
+            """[{"kind":"product","value":"prod_trigger"}]""",
+            """[{"kind":"acc_mnn","value":"mnn_a"},{"kind":"acc_mnn","value":"mnn_b"}]""",
+        )
+        badConditions.forEach { conditions ->
+            mockMvc.perform(put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer).header("X-Epharm-Trigger-Conditions", "1")
+                .contentType(MediaType.APPLICATION_JSON).content("""{"replacements":[{"medusaProductId":"",
+                "triggerKind":"acc_group","triggerValue":"grp_a","triggerConditions":$conditions}]}"""))
+                .andExpect(status().isBadRequest)
+        }
+        assertThat(ruleRepository.count()).isZero()
+    }
+
+    @Test
+    fun `HTTP authored compound recommendation reaches unchanged POSM API only for one matching row`() {
+        compoundSnapshot()
+        jdbc.update("""INSERT INTO chains(id,name,color,"group",points) VALUES('compound-chain','Test','#000000','pilot',0)""")
+        jdbc.update("""INSERT INTO pharmacies(id,name,chain_id,chain_name,city,district,addr,"group")
+            VALUES('compound-pharmacy','Test','compound-chain','Test','Test','','','pilot')""")
+        mockMvc.perform(put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer).header("X-Epharm-Trigger-Conditions", "1")
+            .contentType(MediaType.APPLICATION_JSON).content("""{"replacements":[{"medusaProductId":"",
+                "triggerKind":"acc_group","triggerValue":"grp_a","triggerConditions":[{"kind":"acc_mnn","value":"mnn_b"}]}]}"""))
+            .andExpect(status().isOk)
+        fun recommend(session: String, codes: List<String>) = mockMvc.perform(post("/api/posm/recommend")
+            .header("X-Posm-Key", "dev-posm-key").contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(mapOf("pharmacyId" to "compound-pharmacy", "sessionId" to session,
+                "scannedBarcode" to codes.last(), "cart" to codes.map { mapOf("barcode" to it, "name" to "Товар $it") }))))
+        recommend("and-no-cross-row", listOf("4879876543104", "4879876543111"))
+            .andExpect(status().isOk).andExpect(jsonPath("$.recommendations.length()").value(0))
+        recommend("and-same-row", listOf("4879876543104", "4879876543128"))
+            .andExpect(status().isOk).andExpect(jsonPath("$.recommendations.length()").value(1))
+            .andExpect(jsonPath("$.recommendations[0].recommendSku").value("prod_promoted"))
+            .andExpect(jsonPath("$.recommendations[0].triggerBarcode").value("4879876543128"))
+            .andExpect(jsonPath("$.recommendations[0].triggerName").value("Товар 4879876543128"))
+    }
+
+    @Test
+    fun `legacy save rejects active contradictory pairs and an incomplete goal without losing rules`() {
+        val ref = """{"medusaProductId":"prod_comp1","name":"Триггер"}"""
+        listOf(
+            """{"replacements":[$ref],"crossSells":[$ref]}""",
+            """{"replacements":[$ref],"goalLabel":"Продажи","goalBonus":100}""",
+        ).forEach { body ->
+            mockMvc.perform(put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer).header("X-Epharm-Trigger-Conditions", "1")
+                .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest)
+        }
+        assertThat(ruleRepository.count()).isZero()
+    }
+
+    @Test
+    fun `durable compound boundary accepts legacy triggers and rejects malformed conditions`() {
+        productRepository.saveAndFlush(ProductEntity(id = "condition-guard-offer", name = "Synthetic offer"))
+        jdbc.update("""INSERT INTO rules(id,type,status,trigger,recommend)
+            VALUES('condition-guard','substitution','draft','{"kind":"product","value":"legacy"}'::jsonb,'condition-guard-offer')""")
+        jdbc.execute(ConnectionCallback<Unit> { connection ->
+            listOf("{}", "null", "[{}, {}, {}, {}]").forEach { conditions ->
+                val savepoint = connection.setSavepoint()
+                try {
+                    assertThatThrownBy {
+                        connection.prepareStatement("update rules set trigger=?::jsonb where id='condition-guard'").use { statement ->
+                            statement.setString(1, """{"kind":"product","value":"legacy","conditions":$conditions}""")
+                            statement.executeUpdate()
+                        }
+                    }.isInstanceOf(java.sql.SQLException::class.java).hasMessageContaining("rules_trigger_conditions_shape")
+                } finally {
+                    connection.rollback(savepoint)
+                    connection.releaseSavepoint(savepoint)
+                }
+            }
+        })
+        assertThat(jdbc.update("""update rules set trigger='{"kind":"product","value":"legacy","conditions":[]}'::jsonb
+            where id='condition-guard'""")).isEqualTo(1)
+    }
+
+    @Test
+    fun `ACC intersection uses one active unambiguous package and optional exact barcode filter`() {
+        compoundSnapshot()
+        assertThat(taxonomy.hasMatchingFactors(listOf(AccScopeKind.GROUP to "grp_a", AccScopeKind.MNN to "mnn_b"))).isTrue()
+        assertThat(taxonomy.hasMatchingFactors(listOf(AccScopeKind.GROUP to "grp_b", AccScopeKind.MNN to "mnn_a"))).isFalse()
+        assertThat(taxonomy.hasMatchingFactors(listOf(AccScopeKind.GROUP to "grp_a", AccScopeKind.MNN to "mnn_a"),
+            listOf("4879876543111"))).isFalse()
+        assertThat(taxonomy.hasMatchingFactors(listOf(AccScopeKind.GROUP to "grp_a", AccScopeKind.MNN to "mnn_a"),
+            listOf("4879876543104"))).isTrue()
+        assertThat(taxonomy.hasMatchingFactors(listOf(AccScopeKind.GROUP to "grp_a", AccScopeKind.GROUP to "grp_b"))).isFalse()
+        assertThat(taxonomy.hasMatchingFactors(emptyList())).isFalse()
+        assertThat(taxonomy.hasMatchingFactors(listOf(AccScopeKind.GROUP to "grp_a"), emptyList())).isFalse()
+        jdbc.update("""insert into acc_catalog_barcodes(snapshot_id,ware_id,barcode,group_key,group_label)
+            select active_snapshot_id,'WARE-D','4879876543128','grp_a','Group A' from acc_catalog_state where singleton=1""")
+        assertThat(taxonomy.hasMatchingFactors(listOf(AccScopeKind.GROUP to "grp_a", AccScopeKind.MNN to "mnn_b"))).isFalse()
+    }
+
+    @Test
+    fun `legacy live save rejects overlapping broad paths and empty conjunction but keeps drafts editable`() {
+        compoundSnapshot()
+        val overlap = """{"replacements":[{"medusaProductId":"","triggerKind":"acc_group","triggerValue":"grp_a"}],
+            "crossSells":[{"medusaProductId":"","triggerKind":"acc_mnn","triggerValue":"mnn_b"}]}"""
+        val empty = """{"replacements":[{"medusaProductId":"","triggerKind":"acc_group","triggerValue":"grp_b",
+            "triggerConditions":[{"kind":"acc_mnn","value":"mnn_a"}]}]}"""
+        for (body in listOf(overlap, empty)) {
+            mockMvc.perform(put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer).header("X-Epharm-Trigger-Conditions", "1")
+                .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest)
+        }
+        assertThat(ruleRepository.count()).isZero()
+        promoRepository.findById("pr_camp").orElseThrow().also { it.status = PromoStatus.draft; promoRepository.saveAndFlush(it) }
+        mockMvc.perform(put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer).header("X-Epharm-Trigger-Conditions", "1")
+            .contentType(MediaType.APPLICATION_JSON).content(empty)).andExpect(status().isOk)
+            .andExpect(jsonPath("$.config.replacements[0].triggerConditions[0].value").value("mnn_a"))
+            .andExpect(jsonPath("$.activeCount").value(0))
+    }
+
+    @Test
+    fun `legacy cached editor cannot erase published or prepared compound conditions`() {
+        compoundSnapshot()
+        val compound = """{"replacements":[{"medusaProductId":"","triggerKind":"acc_group","triggerValue":"grp_a",
+            "triggerConditions":[{"kind":"acc_mnn","value":"mnn_a"}]}]}"""
+        fun save(body: String, capable: Boolean) = mockMvc.perform(put("/api/admin/promo/pr_camp/rules")
+            .header("Authorization", bearer).also { if (capable) it.header("X-Epharm-Trigger-Conditions", "1") }
+            .contentType(MediaType.APPLICATION_JSON).content(body))
+        save(compound, false).andExpect(status().isConflict)
+            .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Обновите страницу")))
+        assertThat(ruleRepository.count()).isZero()
+        save(compound, true).andExpect(status().isOk)
+        val before = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp").map { it.id }
+        save("{}", false).andExpect(status().isConflict)
+        assertThat(ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp").map { it.id }).isEqualTo(before)
+        save("{}", true).andExpect(status().isOk)
+        val pending = """{"rules":$compound}"""
+        jdbc.update("insert into promo_publication_changes(promo_id,revision,base_fingerprint,bundle_json,updated_by) values(?,?,?,?,?)",
+            "pr_camp", 4, "f".repeat(64), pending, "synthetic-actor")
+        save("{}", false).andExpect(status().isConflict)
+        assertThat(jdbc.queryForObject("select revision from promo_publication_changes where promo_id='pr_camp'", Long::class.java)).isEqualTo(4)
+        assertThat(jdbc.queryForObject("select bundle_json from promo_publication_changes where promo_id='pr_camp'", String::class.java)).isEqualTo(pending)
+    }
+
 }

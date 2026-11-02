@@ -35,13 +35,28 @@ enum class RuleStatus { active, paused, draft, archived }
  * зеркалит структуру.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
+data class RuleTriggerCondition(val kind: String, val value: String, val label: String? = null)
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
 data class RuleTrigger(
     val kind: String,
     val value: Any,
     val exclude: List<String>? = null,
     /** Snapshot label is presentation-only; matching always uses the stable ACC key in value. */
     val label: String? = null,
-)
+    /** Additional ACC factors; every factor must match the same concrete scanned item. */
+    val conditions: List<RuleTriggerCondition> = emptyList(),
+) {
+    fun identity(): RuleTrigger {
+        val factors = conditions.map { it.copy(label = null) }
+        if (kind.startsWith("acc_") && value is String) {
+            val ordered = (factors + RuleTriggerCondition(kind, value)).sortedWith(compareBy({ it.kind }, { it.value }))
+            return copy(kind = ordered.first().kind, value = ordered.first().value, label = null,
+                conditions = ordered.drop(1))
+        }
+        return copy(label = null, conditions = factors.sortedWith(compareBy({ it.kind }, { it.value })))
+    }
+}
 
 /**
  * AB-тест. null означает «прод-вариант всем 100%». Когда задан — фронт

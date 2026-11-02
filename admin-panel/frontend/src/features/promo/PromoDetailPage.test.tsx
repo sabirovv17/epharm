@@ -241,6 +241,34 @@ describe('PromoDetailPage — рендер', () => {
 })
 
 describe('PromoDetailPage — редактирование', () => {
+  it.each(['promo-changes-save', 'promo-rules-save'])(
+    '%s не округляет дробный бюджет и не сохраняет невалидные денежные поля',
+    async (saveButton) => {
+      const mutate = vi.fn()
+      changesHooks.useSavePromoChanges.mockReturnValue({ mutate, isPending: false })
+      const user = userEvent.setup()
+      renderDetail()
+      const budget = screen.getByDisplayValue('1000000')
+      await user.clear(budget)
+      await user.type(budget, '123.45')
+      await user.click(screen.getByTestId(saveButton))
+      expect(mutate).not.toHaveBeenCalled()
+      expect(budget).toHaveAttribute('aria-invalid', 'true')
+      expect(screen.getByRole('alert')).toHaveTextContent(/Бюджет.*целое/i)
+    },
+  )
+
+  it('верхняя кнопка проверяет незаполненную цель рекомендаций до сохранения', async () => {
+    const mutate = vi.fn()
+    changesHooks.useSavePromoChanges.mockReturnValue({ mutate, isPending: false })
+    const user = userEvent.setup()
+    renderDetail()
+    await user.type(screen.getByTestId('pr-goal-label'), 'Продать 10')
+    await user.click(screen.getByTestId('promo-changes-save'))
+    expect(mutate).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent(/цел/i)
+  })
+
   it.each(['prod_multi', null])(
     'обычное редактирование кампании %s сохраняет все штрихкоды из ответа сервера',
     async (medusaProductId) => {
@@ -303,7 +331,7 @@ describe('PromoDetailPage — редактирование', () => {
     )
   })
 
-  it('Medusa: описание/характеристики предзаполнены, изменённые попадают в патч, неизменённые → null', async () => {
+  it('описание и характеристики каталога показаны подсказками, ручные правки попадают в патч', async () => {
     const mutate = vi.fn()
     changesHooks.useSavePromoChanges.mockReturnValue({ mutate, isPending: false })
     promoHooks.usePromo.mockReturnValue({
@@ -322,9 +350,8 @@ describe('PromoDetailPage — редактирование', () => {
     })
     const user = userEvent.setup()
     renderDetail()
-    // Предзаполнение из Medusa
-    expect(await screen.findByDisplayValue('Описание из Medusa')).toBeInTheDocument()
-    const charsField = screen.getByDisplayValue(/Форма: спрей/)
+    expect(await screen.findByPlaceholderText('Описание из Medusa')).toHaveValue('')
+    const charsField = screen.getByPlaceholderText(/Форма: спрей/)
     expect(charsField).toBeInTheDocument()
     // Меняем только характеристики
     await user.clear(charsField)
@@ -529,6 +556,20 @@ describe('D28 — подготовка и явное применение', () =
     })
     return { data, refetch }
   }
+
+  it('загрузка данных каталога не создаёт ложные правки и не блокирует применение бюджета', () => {
+    const promo = mkPromo({ medusaProductId: 'prod_1' })
+    const { data } = prepared(promo)
+    data.bundle.campaign.budget = 2_000_000
+    storefrontHooks.useStorefrontProduct.mockReturnValue({
+      data: { description: 'Текущее описание', keyFacts: ['Состав из каталога'] },
+    })
+    renderDetail()
+    expect(screen.getByDisplayValue('2000000')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Проверить и применить' })).toBeEnabled()
+    expect(screen.queryByText(/Есть несохранённые поля/)).not.toBeInTheDocument()
+    expect(screen.getByTestId('promo-prepared-budget')).toHaveTextContent('2 000 000')
+  })
 
   it('проверяет именно сохранённый bundle и применяет только его ревизию отдельным запросом', async () => {
     const { data } = prepared()

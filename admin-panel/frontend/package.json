@@ -59,6 +59,9 @@
   },
   "overrides": {
     "postcss-selector-parser": "7.1.6",
-    "source-map-js": "1.2.2"
+    "source-map-js": "1.2.2",
+    "minimatch": "11.0.4",
+    "follow-redirects": "1.16.2",
+    "glob": "14.0.3"
   }
 }

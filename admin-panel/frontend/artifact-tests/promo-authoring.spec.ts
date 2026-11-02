@@ -81,6 +81,28 @@ test('built artifact exact-product trigger requires a scan identity while offere
   })
 })
 
+test('built artifact keeps group AND INN together through create and saved editor', async ({
+  page,
+  artifactApi,
+}) => {
+  await page.getByRole('radio', { name: 'Группа ACC', exact: true }).click()
+  await page.getByTestId('create-trigger-option-acc_group:sorbents').click()
+  await page.getByRole('button', { name: 'Добавить условие «И»', exact: true }).click()
+  const conditions = page.getByTestId('trigger-conditions')
+  await conditions.getByRole('radio', { name: 'МНН ACC', exact: true }).click()
+  await conditions.getByTestId('create-trigger-option-acc_mnn:sorbents').click()
+  await expect(page.getByRole('radio', { name: 'Группа ACC', exact: true })).toBeChecked()
+  await chooseOffer(page, 'Замена')
+  await page.getByRole('button', { name: /Создать черновик/ }).click()
+  await expect(page).toHaveURL(/\/promo\/artifact-draft$/)
+  expect(artifactApi.drafts[0].initialRecommendation.trigger).toMatchObject({
+    triggerKind: 'acc_group',
+    triggerValue: 'acc_group:sorbents',
+    triggerConditions: [{ kind: 'acc_mnn', value: 'acc_mnn:sorbents', label: 'Сорбенты' }],
+  })
+  await expect(page.getByTestId('trigger-conditions')).toContainText('МНН ACC: Сорбенты')
+})
+
 test('built artifact resets the new-campaign modal after closing it', async ({ page }) => {
   await page.getByRole('radio', { name: 'Конкретный товар', exact: true }).click()
   await page.getByPlaceholder(/Поиск товара/).fill('для сканирования')

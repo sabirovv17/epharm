@@ -1,11 +1,55 @@
 using CustomerDisplay.Config;
 using CustomerDisplay.Services;
+using CustomerDisplay.Models.Posm;
+using System.Text.Json;
 using Xunit;
 
 namespace CustomerDisplay.Core.Tests;
 
 public sealed class FulfillmentConfigurationTests
 {
+    [Fact]
+    public void ExistingConfigurationWithoutFulfillmentFlagNowDefaultsToDisabled()
+    {
+        Assert.False(new EpharmConfig().FulfillmentEnabled);
+        var existing = JsonSerializer.Deserialize<EpharmConfig>("{\"PharmacyId\":\"test-pharmacy\"}")!;
+        Assert.False(existing.FulfillmentEnabled);
+        Assert.True(JsonSerializer.Deserialize<EpharmConfig>("{\"FulfillmentEnabled\":true}")!.FulfillmentEnabled);
+    }
+
+    [Theory]
+    [InlineData("{}", "true", true)]
+    [InlineData("{\"FulfillmentEnabled\":true}", "false", false)]
+    [InlineData("{}", "invalid", false)]
+    public void ExplicitEnvironmentOptInAndDisableOverrideFile(string json, string enabled, bool expected)
+    {
+        var path = Path.GetTempFileName();
+        var previousPath = Environment.GetEnvironmentVariable("EPHARM_POSM_CONFIG");
+        var previousEnabled = Environment.GetEnvironmentVariable("EPHARM_FULFILLMENT_ENABLED");
+        try
+        {
+            File.WriteAllText(path, json);
+            Environment.SetEnvironmentVariable("EPHARM_POSM_CONFIG", path);
+            Environment.SetEnvironmentVariable("EPHARM_FULFILLMENT_ENABLED", enabled);
+            Assert.Equal(expected, EpharmConfig.Load().FulfillmentEnabled);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("EPHARM_POSM_CONFIG", previousPath);
+            Environment.SetEnvironmentVariable("EPHARM_FULFILLMENT_ENABLED", previousEnabled);
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void CachedQueueNeedsExplicitLocalOptInAndConfirmedServerCapability()
+    {
+        Assert.False(FulfillmentRules.CanDisplayQueue(true, null));
+        Assert.False(FulfillmentRules.CanDisplayQueue(true, new FulfillmentCapabilities()));
+        Assert.False(FulfillmentRules.CanDisplayQueue(false, new FulfillmentCapabilities { Enabled = true }));
+        Assert.True(FulfillmentRules.CanDisplayQueue(true, new FulfillmentCapabilities { Enabled = true }));
+    }
+
     [Fact]
     public void FulfillmentInheritsExistingBackendEndpoints()
     {

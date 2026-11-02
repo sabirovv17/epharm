@@ -30,6 +30,7 @@ import { useT } from '@/i18n'
 import { MultiProductPicker } from './PromoProductPicker'
 import { PromoTriggerPicker } from './PromoTriggerPicker'
 import { promoTriggerDomId, promoTriggerKey, promoTriggerKind } from './promoTrigger'
+import { PromoTriggerConditions } from './PromoTriggerConditions'
 import { collectProductBarcodes } from '@/lib/productBarcodes'
 import {
   extractPromoRulesFieldErrors,
@@ -142,6 +143,7 @@ function InlineValidatedField({
 
 function OfferBonusInput({
   id,
+  htmlId = id,
   value,
   fallback,
   disabled,
@@ -150,6 +152,7 @@ function OfferBonusInput({
   onChange,
 }: {
   id: string
+  htmlId?: string
   value?: number | null
   fallback: number
   disabled: boolean
@@ -160,11 +163,11 @@ function OfferBonusInput({
   const t = useT()
   return (
     <div className="min-w-0" data-validation-path={path}>
-      <label htmlFor={id} className="mb-1 block text-[11px] font-semibold text-ink-600">
+      <label htmlFor={htmlId} className="mb-1 block text-[11px] font-semibold text-ink-600">
         {t('pr.offerBonus')}
       </label>
       <Input
-        id={id}
+        id={htmlId}
         type="number"
         min={0}
         max={PROMO_RULE_LIMITS.maxInt}
@@ -299,11 +302,22 @@ export function PromoRulesEditor({
       [key]: c[key].filter((r) => promoTriggerKey(r) !== identity),
     }))
   }
-  const updatePair = (key: ListKey, identity: string, patch: Partial<PromoRuleProductRef>) =>
+  const updatePair = (key: ListKey, identity: string, patch: Partial<PromoRuleProductRef>) => {
+    const current = cfg[key].find((ref) => promoTriggerKey(ref) === identity)
+    if (!current) return
+    const nextIdentity = promoTriggerKey({ ...current, ...patch })
+    if (
+      nextIdentity !== identity &&
+      cfg[key].some((ref) => promoTriggerKey(ref) === nextIdentity)
+    ) {
+      toast.push(t('pr.duplicateTrigger'))
+      return
+    }
     setCfg((c) => ({
       ...c,
       [key]: c[key].map((r) => (promoTriggerKey(r) === identity ? { ...r, ...patch } : r)),
     }))
+  }
 
   const onSave = () => {
     const config = normalizePromoRulesConfig(cfg, promotedProductId)
@@ -709,6 +723,23 @@ function PairCard({
           )}
         </div>
 
+        <div data-validation-path={`${pathPrefix}.triggerConditions`}>
+          <PromoTriggerConditions
+            baseKind={promoTriggerKind(r)}
+            value={r.triggerConditions ?? []}
+            onChange={(triggerConditions) => {
+              onClearError()
+              onPatch({ triggerConditions })
+            }}
+            disabled={disabled}
+          />
+          {errors[`${pathPrefix}.triggerConditions`] && (
+            <p role="alert" className="text-[11px] text-accent-danger">
+              {errors[`${pathPrefix}.triggerConditions`]}
+            </p>
+          )}
+        </div>
+
         {cardError && (
           <div className="text-[11px] font-semibold text-accent-danger" role="alert">
             {cardError}
@@ -860,6 +891,7 @@ function PairCard({
               <div className="col-span-2">
                 <OfferBonusInput
                   id={`pr-bonus-primary-${domId}`}
+                  htmlId={`pr-bonus-primary-${kind}-${domId}`}
                   value={r.bonus}
                   fallback={bonus}
                   disabled={disabled}
@@ -915,6 +947,7 @@ function PairCard({
                   <div className="col-span-3">
                     <OfferBonusInput
                       id={`pr-bonus-${domId}-${offer.medusaProductId}`}
+                      htmlId={`pr-bonus-${kind}-${domId}-${offer.medusaProductId}`}
                       value={offer.bonus}
                       fallback={bonus}
                       disabled={disabled}

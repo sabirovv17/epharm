@@ -1181,6 +1181,8 @@ namespace CustomerDisplay
         {
             private readonly object _gate = new();
             public void Invoke(Action action) { lock (_gate) action(); }
+            public Task InvokeAsync(Action action) { Invoke(action); return Task.CompletedTask; }
+            public void BeginInvoke(Action action) => Invoke(action);
         }
         internal sealed class ReceiptProbeBlock : IDisposable
         {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject legacy financial writers, access control or admin sessions on a forward-migrated database.
+"""Reject legacy financial, access, session or compound-trigger handling on a forward-migrated DB.
 
 Artifact markers guard known regressions; they do not approve a fallback release or
 replace exact-source review, forward-schema rehearsal, or physical POSM acceptance.
@@ -47,6 +47,18 @@ SESSION_CLASSES = {
     'kz/epharm/auth/security/AdminSessionLoader.class':
         ('getSessionVersion', 'getStatusRaw', 'kz/epharm/auth/security/AdminPrincipal'),
 }
+COMPOUND_CLASSES = {
+    'kz/epharm/rules/entity/RuleTrigger.class':
+        ('getConditions', 'identity', 'kz/epharm/rules/entity/RuleTriggerCondition'),
+    'kz/epharm/rules/entity/RuleTriggerCondition.class': ('getKind', 'getValue'),
+    'kz/epharm/posm/service/RulesEngineService.class':
+        ('matchesConditions', 'getConditions', 'kz/epharm/rules/entity/RuleTriggerCondition'),
+    'kz/epharm/promo/service/PromoRulesService.class':
+        ('getTriggerConditions', 'getConditions', 'identity'),
+    'kz/epharm/rules/service/RuleService.class':
+        ('canonicalTrigger', 'getConditions', 'identity'),
+    'kz/epharm/promo/dto/PromoRuleProductRefDto.class': ('getTriggerConditions',),
+}
 SCHEMA_PROBE = """SELECT CASE WHEN
   to_regclass('public.pharmacist_wallet_entries') IS NOT NULL OR
   to_regclass('public.pharmacist_wallet_checkpoints') IS NOT NULL OR
@@ -68,10 +80,15 @@ SESSION_SCHEMA_PROBE = """SELECT CASE WHEN
   EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public'
          AND table_name='admin_users' AND column_name='session_version')
 THEN 'protected' ELSE 'legacy' END;\n"""
+COMPOUND_SCHEMA_PROBE = """SELECT CASE WHEN
+  EXISTS(SELECT 1 FROM information_schema.table_constraints WHERE table_schema='public'
+         AND table_name='rules' AND constraint_name='rules_trigger_conditions_shape'
+         AND constraint_type='CHECK')
+THEN 'protected' ELSE 'legacy' END;\n"""
 
 
 def verify(jar_path: Path, schema_protected: bool, access_protected: bool = False,
-           session_protected: bool = False) -> bool:
+           session_protected: bool = False, compound_protected: bool = False) -> bool:
     with zipfile.ZipFile(jar_path) as jar:
         entries = jar.namelist()
         names = set(entries)
@@ -100,6 +117,17 @@ def verify(jar_path: Path, schema_protected: bool, access_protected: bool = Fals
                 body = jar.read(path)
                 if any(marker.encode('ascii') not in body for marker in markers):
                     raise ValueError('Target contains obsolete admin session-version handling')
+        compound_code = any(re.fullmatch(r'BOOT-INF/classes/db/migration/V0*94__[^/]+\.sql', name)
+                            for name in names)
+        # The durable schema fence also protects an empty rule set before the first compound rule is saved.
+        if compound_protected or compound_code:
+            for name, markers in COMPOUND_CLASSES.items():
+                path = 'BOOT-INF/classes/' + name
+                if path not in names or jar.getinfo(path).file_size > 2 * 1024 * 1024:
+                    raise ValueError('Target lacks the reviewed compound-trigger implementation')
+                body = jar.read(path)
+                if any(marker.encode('ascii') not in body for marker in markers):
+                    raise ValueError('Target contains obsolete compound-trigger handling')
         if RESOURCE not in names:
             financial_code = f'BOOT-INF/classes/{WALLET}.class' in names or any(
                 re.fullmatch(r'BOOT-INF/classes/db/migration/V0*(62|63|64)__[^/]+\.sql', name)
@@ -146,10 +174,15 @@ def session_schema_is_protected() -> bool:
     return _schema_is_protected(SESSION_SCHEMA_PROBE, 'admin-session')
 
 
+def compound_schema_is_protected() -> bool:
+    return _schema_is_protected(COMPOUND_SCHEMA_PROBE, 'compound-trigger')
+
+
 def verify_image(image: str) -> bool:
     protected = schema_is_protected()
     access_protected = access_schema_is_protected()
     session_protected = session_schema_is_protected()
+    compound_protected = compound_schema_is_protected()
     container = subprocess.check_output(['docker', 'create', '--network', 'none', image],
         text=True, stderr=subprocess.DEVNULL, timeout=15).strip()
     if not re.fullmatch(r'[a-f0-9]{64}', container):
@@ -159,7 +192,7 @@ def verify_image(image: str) -> bool:
             jar = Path(directory) / 'app.jar'
             subprocess.run(['docker', 'cp', f'{container}:/app/app.jar', str(jar)],
                 check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
-            return verify(jar, protected, access_protected, session_protected)
+            return verify(jar, protected, access_protected, session_protected, compound_protected)
     finally:
         subprocess.run(['docker', 'rm', container], check=True, stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL, timeout=15)
@@ -173,16 +206,17 @@ def main() -> None:
     parser.add_argument('--schema-protected', action='store_true', help='Offline --jar fixture represents migrated DB')
     parser.add_argument('--access-protected', action='store_true', help='Offline --jar fixture represents the V066 access schema')
     parser.add_argument('--session-protected', action='store_true', help='Offline --jar fixture represents the V093 admin-session schema')
+    parser.add_argument('--compound-protected', action='store_true', help='Offline --jar fixture represents the V094 compound-trigger schema')
     args = parser.parse_args()
-    if args.image and (args.schema_protected or args.access_protected or args.session_protected or
+    if args.image and (args.schema_protected or args.access_protected or args.session_protected or args.compound_protected or
                        not re.fullmatch(r'sha256:[a-f0-9]{64}', args.image)):
         parser.error('Production checks require an exact image ID and live read-only DB probe')
     try:
         capable = verify_image(args.image) if args.image else verify(
-            args.jar, args.schema_protected, args.access_protected, args.session_protected)
+            args.jar, args.schema_protected, args.access_protected, args.session_protected, args.compound_protected)
     except (OSError, ValueError, KeyError, UnicodeError, RuntimeError, zipfile.BadZipFile, subprocess.SubprocessError):
-        raise SystemExit('ERROR: financial/access/session transition denied or state unknown; keep current pins and use a reviewed wallet/RBAC/session-capable forward image') from None
-    print('Financial transition contract OK: ' + ('wallet-capable artifact' if capable else 'legacy schema/artifact') + '; managed-access and admin-session guards checked')
+        raise SystemExit('ERROR: financial/access/session/compound-trigger transition denied or state unknown; keep current pins and use a reviewed wallet/RBAC/session/compound-capable forward image') from None
+    print('Financial transition contract OK: ' + ('wallet-capable artifact' if capable else 'legacy schema/artifact') + '; managed-access, admin-session and compound-trigger guards checked')
 
 
 if __name__ == '__main__':

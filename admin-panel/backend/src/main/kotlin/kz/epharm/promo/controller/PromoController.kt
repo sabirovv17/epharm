@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
@@ -58,11 +59,15 @@ class PromoController(
 
     @PutMapping("/{id}/changes")
     fun prepare(@PathVariable id: String, @Valid @RequestBody req: SavePromoChangesRequest,
-        @AuthenticationPrincipal principal: AdminPrincipal?) = publication.save(id, req, requireUserId(principal))
+        @AuthenticationPrincipal principal: AdminPrincipal?,
+        @RequestHeader(name = "X-Epharm-Trigger-Conditions", required = false) triggerConditions: String? = null,
+    ) = publication.save(id, req, requireUserId(principal), supportsTriggerConditions = triggerConditions == "1")
 
     @PostMapping("/{id}/changes/apply")
     fun applyChanges(@PathVariable id: String, @Valid @RequestBody req: ApplyPromoChangesRequest,
-        @AuthenticationPrincipal principal: AdminPrincipal?) = publication.apply(id, req.expectedRevision, requireUserId(principal))
+        @AuthenticationPrincipal principal: AdminPrincipal?,
+        @RequestHeader(name = "X-Epharm-Trigger-Conditions", required = false) triggerConditions: String? = null,
+    ) = publication.apply(id, req.expectedRevision, requireUserId(principal), supportsTriggerConditions = triggerConditions == "1")
 
     @PostMapping
     fun create(
@@ -94,7 +99,9 @@ class PromoController(
         @PathVariable id: String,
         @Valid @RequestBody req: PromoRulesConfigDto,
         @AuthenticationPrincipal principal: AdminPrincipal?,
-    ): PromoRulesViewDto = promoRulesService.replace(id, req, createdBy = requireUserId(principal))
+        @RequestHeader(name = "X-Epharm-Trigger-Conditions", required = false) triggerConditions: String? = null,
+    ): PromoRulesViewDto = promoRulesService.replace(id, req, createdBy = requireUserId(principal),
+        supportsTriggerConditions = triggerConditions == "1")
 
     private fun requireUserId(principal: AdminPrincipal?): String =
         principal?.userId?.toString()

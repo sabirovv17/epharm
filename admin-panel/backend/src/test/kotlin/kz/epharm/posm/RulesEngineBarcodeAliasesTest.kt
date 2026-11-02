@@ -13,6 +13,7 @@ import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.rules.entity.RuleEntity
 import kz.epharm.rules.entity.RuleStatus
 import kz.epharm.rules.entity.RuleTrigger
+import kz.epharm.rules.entity.RuleTriggerCondition
 import kz.epharm.rules.repository.RuleRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -130,6 +131,53 @@ class RulesEngineBarcodeAliasesTest {
         )
         active.single().trigger = RuleTrigger(kind = "acc_group", value = "group")
         assertThat(engine.match(listOf(CartItemDto(barcode = SECONDARY, name = trigger.name))).matches).isEmpty()
+    }
+
+    @Test
+    fun `AND factors must belong to one barcode rather than different cart rows`() {
+        val groupOnly = "4600000000300"
+        val mnnOnly = "4600000000301"
+        val both = "4600000000302"
+        every { taxonomy.unambiguousBarcodes(any()) } returns mapOf(
+            groupOnly to AccCatalogClassification("ware_g", groupOnly, "group", null, "other"),
+            mnnOnly to AccCatalogClassification("ware_m", mnnOnly, "other", null, "mnn"),
+            both to AccCatalogClassification("ware_b", both, "group", null, "mnn"),
+        )
+        active.single().trigger = RuleTrigger("acc_group", "group",
+            conditions = listOf(RuleTriggerCondition("acc_mnn", "mnn")))
+        assertThat(engine.match(listOf(CartItemDto(barcode = groupOnly), CartItemDto(barcode = mnnOnly))).matches).isEmpty()
+        val match = engine.match(listOf(CartItemDto(barcode = groupOnly), CartItemDto(barcode = both)), both).matches.single()
+        assertThat(match.triggerBarcode).isEqualTo(both)
+        assertThat(match.triggerSku).startsWith("acc_")
+    }
+
+    @Test
+    fun `exact product plus ACC constraints require same exact unambiguous barcode`() {
+        active.single().trigger = RuleTrigger("product", trigger.id,
+            conditions = listOf(RuleTriggerCondition("acc_mnn", "mnn")))
+        every { taxonomy.unambiguousBarcodes(any()) } returns mapOf(
+            SECONDARY to AccCatalogClassification("ware_20", SECONDARY, "group", "subgroup", "wrong"),
+            THIRD to AccCatalogClassification("ware_20", THIRD, "group", "subgroup", "mnn"),
+        )
+        assertThat(engine.match(listOf(CartItemDto(barcode = SECONDARY))).matches).isEmpty()
+        assertThat(engine.match(listOf(CartItemDto(sku = "SN20", name = trigger.name))).matches).isEmpty()
+        val match = engine.match(listOf(CartItemDto(barcode = SECONDARY), CartItemDto(barcode = THIRD)), THIRD).matches.single()
+        assertThat(match.triggerBarcode).isEqualTo(THIRD)
+        assertThat(match.triggerSku).isEqualTo(trigger.id)
+        every { taxonomy.unambiguousBarcodes(any()) } returns emptyMap()
+        assertThat(engine.match(listOf(CartItemDto(barcode = THIRD))).matches).isEmpty()
+    }
+
+    @Test
+    fun `all three ACC factors apply to crosssell and collisions still suppress`() {
+        active.single().type = kz.epharm.rules.entity.RuleType.crosssell
+        active.single().trigger = RuleTrigger("acc_group", "group", conditions = listOf(
+            RuleTriggerCondition("acc_subgroup", "subgroup"), RuleTriggerCondition("acc_mnn", "mnn")))
+        every { taxonomy.unambiguousBarcodes(any()) } returns mapOf(
+            SECONDARY to AccCatalogClassification("ware_20", SECONDARY, "group", "subgroup", "mnn"))
+        assertThat(engine.match(listOf(CartItemDto(barcode = SECONDARY))).matches).hasSize(1)
+        catalog += ProductEntity(id = "collision", name = "Different medicine", barcode = SECONDARY)
+        assertThat(engine.match(listOf(CartItemDto(barcode = SECONDARY))).matches).isEmpty()
     }
 
     companion object {

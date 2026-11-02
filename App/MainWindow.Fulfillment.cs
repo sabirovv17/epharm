@@ -28,6 +28,7 @@ namespace CustomerDisplay
         private readonly Dictionary<string, FulfillmentOrderWindow> _fulfillmentCards = new(StringComparer.Ordinal);
         private System.Windows.Forms.NotifyIcon? _fulfillmentTray;
         private bool _fulfillmentOnline;
+        private volatile bool _fulfillmentAvailable;
         private string? _lastFulfillmentError;
         private DateTimeOffset _lastFulfillmentErrorAt;
         private int _credentialMigrationRestartScheduled;
@@ -49,12 +50,6 @@ namespace CustomerDisplay
                     _posmConfig.FulfillmentCachePath,
                     _posmConfig.PharmacyId,
                     _posmConfig.ResolveDeviceId());
-                foreach (var order in _fulfillmentCache.Load().Where(x => x.IsActive && x.IsPickupCash))
-                {
-                    _fulfillmentOrders[order.OrderId] = order;
-                    if (order.Status == "submitted") _knownSubmittedOrders.Add(order.OrderId);
-                }
-                CreateFulfillmentTray();
                 _fulfillmentCts = new CancellationTokenSource();
                 _ = Task.Run(() => FulfillmentLoopAsync(_fulfillmentCts.Token));
                 Log($"Интернет-заказы POSM запущены: poll={_posmConfig.FulfillmentPollSec}с, " +
@@ -85,6 +80,18 @@ namespace CustomerDisplay
             if (_fulfillmentClient == null || _posmConfig == null) return;
             var credential = await EnsureFulfillmentCredentialAsync(ct).ConfigureAwait(false);
             if (credential == null) return;
+
+            var capabilities = await _fulfillmentClient.CapabilitiesAsync(credential.Token, ct).ConfigureAwait(false);
+            if (!capabilities.IsSuccess || capabilities.Value == null)
+            {
+                if (capabilities.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden || capabilities.IsUnauthorized)
+                    await Dispatcher.InvokeAsync(() => SetFulfillmentAvailability(false));
+                HandleFulfillmentFailure(capabilities);
+                return;
+            }
+            var available = FulfillmentRules.CanDisplayQueue(_posmConfig.FulfillmentEnabled, capabilities.Value);
+            await Dispatcher.InvokeAsync(() => SetFulfillmentAvailability(available));
+            if (!available) return;
 
             var submitted = await LoadAllFulfillmentOrdersAsync(credential.Token, "submitted", ct).ConfigureAwait(false);
             if (!submitted.IsSuccess || submitted.Value == null)
@@ -312,13 +319,47 @@ namespace CustomerDisplay
             });
         }
 
+        private void SetFulfillmentAvailability(bool available)
+        {
+            if (_fulfillmentAvailable == available) return;
+            _fulfillmentAvailable = available;
+            if (available)
+            {
+                lock (_fulfillmentSync)
+                {
+                    foreach (var order in _fulfillmentCache?.Load().Where(x => x.IsActive && x.IsPickupCash) ?? Enumerable.Empty<FulfillmentOrder>())
+                    {
+                        _fulfillmentOrders[order.OrderId] = order;
+                        if (order.Status == "submitted") _knownSubmittedOrders.Add(order.OrderId);
+                    }
+                }
+                CreateFulfillmentTray();
+                return;
+            }
+            lock (_fulfillmentSync)
+            {
+                _fulfillmentOnline = false;
+                _fulfillmentOrders.Clear();
+                _knownSubmittedOrders.Clear();
+            }
+            _fulfillmentNotice?.Close();
+            _fulfillmentQueue?.Close();
+            foreach (var card in _fulfillmentCards.Values.ToList()) card.Close();
+            _fulfillmentTray?.Dispose();
+            _fulfillmentTray = null;
+            _pharmacistNotices.FulfillmentDismissed();
+            Log("Выдача интернет-заказов POSM отключена сервером; локальные данные и ключ сохранены.");
+        }
+
         private List<FulfillmentOrder> FulfillmentSnapshot()
         {
+            if (!_fulfillmentAvailable) return new List<FulfillmentOrder>();
             lock (_fulfillmentSync) return _fulfillmentOrders.Values.Where(x => x.IsActive && x.IsPickupCash).ToList();
         }
 
         private void ShowFulfillmentNotice(int count)
         {
+            if (!_fulfillmentAvailable || !_fulfillmentOnline) return;
             if (!_pharmacistNotices.TryShowFulfillment(count, out var visibleCount))
             {
                 Log($"Уведомление о заказе отложено до закрытия рекомендации: новых={count}.");
@@ -367,6 +408,7 @@ namespace CustomerDisplay
 
         private void ShowFulfillmentQueue()
         {
+            if (!_fulfillmentAvailable) return;
             if (_fulfillmentQueue == null)
             {
                 var queue = new FulfillmentQueueWindow(PharmacistScreen());
@@ -382,6 +424,7 @@ namespace CustomerDisplay
 
         private void ShowFulfillmentOrder(FulfillmentOrder order)
         {
+            if (!_fulfillmentAvailable) return;
             if (!order.IsPickupCash) return;
             if (_fulfillmentCards.TryGetValue(order.OrderId, out var existing))
             {
@@ -400,6 +443,8 @@ namespace CustomerDisplay
             FulfillmentOrder current,
             FulfillmentActionRequest action)
         {
+            if (!_fulfillmentAvailable)
+                return new FulfillmentApiResult<FulfillmentOrder> { Message = "Выдача интернет-заказов POSM выключена." };
             if (!current.IsPickupCash)
                 return new FulfillmentApiResult<FulfillmentOrder> { Message = "Для выдачи доступны только заказы с самовывозом и оплатой наличными." };
             if (_fulfillmentClient == null || _fulfillmentCredential == null || !_fulfillmentOnline)

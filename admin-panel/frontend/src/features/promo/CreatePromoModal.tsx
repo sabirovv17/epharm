@@ -4,7 +4,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Field, Input, Modal } from '@/ui'
 import { IconCheck } from '@/ui/icons'
-import type { CreatePromoRequest, PromoRuleProductRef, PromoTriggerKind } from '@/lib/api-types'
+import type {
+  CreatePromoRequest,
+  PromoRuleProductRef,
+  PromoTriggerCondition,
+  PromoTriggerKind,
+} from '@/lib/api-types'
 import { formatKzt } from '@/mocks/fixtures'
 import { proxyMedia } from '@/lib/media'
 import { useStorefrontProduct } from '@/lib/queries/storefront'
@@ -12,6 +17,7 @@ import { useT } from '@/i18n'
 import { ProductGallery } from './ProductGallery'
 import { PromoProductPicker, type SelectedProduct } from './PromoProductPicker'
 import { PromoInitialTriggerPicker, type InitialTrigger } from './PromoInitialTriggerPicker'
+import { PromoTriggerConditions } from './PromoTriggerConditions'
 import { PROMO_RULE_LIMITS } from './promoRulesValidation'
 import { collectProductBarcodes } from '@/lib/productBarcodes'
 
@@ -25,6 +31,7 @@ interface CreatePromoModalProps {
 interface FormState {
   triggerKind: PromoTriggerKind | null
   trigger: InitialTrigger | null
+  triggerConditions: PromoTriggerCondition[]
   recommendationType: 'substitution' | 'crosssell' | null
   product: SelectedProduct | null
   title: string
@@ -42,6 +49,7 @@ interface FormState {
 const initial = (): FormState => ({
   triggerKind: null,
   trigger: null,
+  triggerConditions: [],
   recommendationType: null,
   product: null,
   title: '',
@@ -70,7 +78,10 @@ function initialTriggerRef(trigger: InitialTrigger): PromoRuleProductRef {
       price: product.price,
       barcode: barcodes[0] ?? null,
       barcodes,
-      ipartId: product.ipartId && product.ipartId.length <= PROMO_RULE_LIMITS.ipartId ? product.ipartId : null,
+      ipartId:
+        product.ipartId && product.ipartId.length <= PROMO_RULE_LIMITS.ipartId
+          ? product.ipartId
+          : null,
       active: false,
     }
   }
@@ -146,6 +157,11 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
   }, [open])
 
   const datesOk = !form.dateStart || !form.dateEnd || form.dateStart <= form.dateEnd
+  const pharmacistBonus = Number(form.pharmacistBonus || 0)
+  const bonusOk =
+    Number.isInteger(pharmacistBonus) &&
+    pharmacistBonus >= 0 &&
+    pharmacistBonus <= PROMO_RULE_LIMITS.maxInt
   const sameProduct =
     form.trigger?.kind === 'product' &&
     form.trigger.product.medusaProductId === form.product?.medusaProductId
@@ -155,7 +171,8 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
     form.product !== null &&
     !sameProduct &&
     form.title.trim().length > 0 &&
-    datesOk
+    datesOk &&
+    bonusOk
 
   // Деталь выбранного товара витрины — источник фото Medusa для галереи (выбор
   // обложки прямо при создании). Хук вызываем безусловно (id=null → disabled).
@@ -182,13 +199,16 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
 
   const submit = () => {
     if (!valid || !form.product || !form.trigger || !form.recommendationType) return
-    const barcodes = collectProductBarcodes({ barcode: form.barcode, barcodes: form.product.barcodes })
+    const barcodes = collectProductBarcodes({
+      barcode: form.barcode,
+      barcodes: form.product.barcodes,
+    })
     onCreate({
       title: form.title.trim(),
       status: 'draft',
       initialRecommendation: {
         type: form.recommendationType,
-        trigger: initialTriggerRef(form.trigger),
+        trigger: { ...initialTriggerRef(form.trigger), triggerConditions: form.triggerConditions },
       },
       cover: form.cover,
       medusaProductId: form.product.medusaProductId,
@@ -201,7 +221,7 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
       barcode: form.barcode.trim() || null,
       barcodes,
       ipartId: form.ipartId.trim() || null,
-      pharmacistBonus: Math.max(0, Math.trunc(Number(form.pharmacistBonus) || 0)),
+      pharmacistBonus,
       overrideImage: form.overrideImage.trim() || null,
       overrideDescription: form.overrideDescription.trim() || null,
       dateStart: form.dateStart || null,
@@ -235,7 +255,10 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
       <div className="flex flex-col gap-5">
         <section aria-labelledby="create-promo-trigger-heading" className="space-y-3">
           <div>
-            <h3 id="create-promo-trigger-heading" className="text-[14px] font-extrabold text-ink-900">
+            <h3
+              id="create-promo-trigger-heading"
+              className="text-[14px] font-extrabold text-ink-900"
+            >
               {t('pr.triggerType')}
             </h3>
             <p className="mt-1 text-[12px] text-ink-500">{t('pm.triggerFirstHint')}</p>
@@ -243,21 +266,45 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
           <PromoInitialTriggerPicker
             kind={form.triggerKind}
             value={form.trigger}
-            onKindChange={(kind) => setForm((current) => ({ ...current, triggerKind: kind, trigger: null }))}
+            onKindChange={(kind) =>
+              setForm((current) => ({
+                ...current,
+                triggerKind: kind,
+                trigger: null,
+                triggerConditions: [],
+              }))
+            }
             onChange={(trigger) => setForm((current) => ({ ...current, trigger }))}
           />
+          {form.trigger && (
+            <PromoTriggerConditions
+              baseKind={form.trigger.kind}
+              value={form.triggerConditions}
+              onChange={(triggerConditions) =>
+                setForm((current) => ({ ...current, triggerConditions }))
+              }
+            />
+          )}
         </section>
 
         {form.trigger && (
-          <section aria-labelledby="create-promo-offer-heading" className="space-y-3 border-t border-ink-100 pt-4">
+          <section
+            aria-labelledby="create-promo-offer-heading"
+            className="space-y-3 border-t border-ink-100 pt-4"
+          >
             <div>
-              <h3 id="create-promo-offer-heading" className="text-[14px] font-extrabold text-ink-900">
+              <h3
+                id="create-promo-offer-heading"
+                className="text-[14px] font-extrabold text-ink-900"
+              >
                 {t('pm.offerSection')}
               </h3>
               <p className="mt-1 text-[12px] text-ink-500">{t('pm.offerHint')}</p>
             </div>
             <fieldset>
-              <legend className="mb-2 text-[12px] font-semibold text-ink-700">{t('pm.recommendationType')}</legend>
+              <legend className="mb-2 text-[12px] font-semibold text-ink-700">
+                {t('pm.recommendationType')}
+              </legend>
               <div className="grid grid-cols-2 gap-2">
                 {(['substitution', 'crosssell'] as const).map((type) => (
                   <label
@@ -273,7 +320,9 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
                       name="initial-recommendation-type"
                       value={type}
                       checked={form.recommendationType === type}
-                      onChange={() => setForm((current) => ({ ...current, recommendationType: type }))}
+                      onChange={() =>
+                        setForm((current) => ({ ...current, recommendationType: type }))
+                      }
                     />
                     {t(type === 'substitution' ? 'pm.typeReplacement' : 'pm.typeCrossSell')}
                   </label>
@@ -291,7 +340,8 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
                       product: p,
                       title: current.titleTouched ? current.title : p.productName.slice(0, 255),
                       barcode: p.barcode ?? '',
-                      ipartId: p.ipartId && p.ipartId.length <= PROMO_RULE_LIMITS.ipartId ? p.ipartId : '',
+                      ipartId:
+                        p.ipartId && p.ipartId.length <= PROMO_RULE_LIMITS.ipartId ? p.ipartId : '',
                     }))
                   }
                 />
@@ -299,7 +349,8 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
             )}
             {form.product && (
               <p className="text-[12px] text-ink-500">
-                {t('pm.fldPrice')}: <span className="font-semibold text-ink-700">
+                {t('pm.fldPrice')}:{' '}
+                <span className="font-semibold text-ink-700">
                   {form.product.price == null ? t('sf.priceNa') : formatKzt(form.product.price)}
                 </span>
               </p>
@@ -313,9 +364,15 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
         )}
 
         {form.trigger && form.recommendationType && form.product && (
-          <section aria-labelledby="create-promo-details-heading" className="space-y-3 border-t border-ink-100 pt-4">
+          <section
+            aria-labelledby="create-promo-details-heading"
+            className="space-y-3 border-t border-ink-100 pt-4"
+          >
             <div>
-              <h3 id="create-promo-details-heading" className="text-[14px] font-extrabold text-ink-900">
+              <h3
+                id="create-promo-details-heading"
+                className="text-[14px] font-extrabold text-ink-900"
+              >
                 {t('pm.campaignDetails')}
               </h3>
               <p className="mt-1 text-[12px] text-ink-500">{t('pm.draftReviewHint')}</p>
@@ -329,10 +386,16 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
                 placeholder={t('pm.titlePh')}
               />
             </Field>
-            <Field label={t('pm.fldBonus')} hint={t('pm.bonusHint')}>
+            <Field
+              label={t('pm.fldBonus')}
+              hint={t('pm.bonusHint')}
+              error={!bonusOk ? t('pr.validationNonNegativeInteger') : undefined}
+            >
               <Input
                 type="number"
                 min={0}
+                max={PROMO_RULE_LIMITS.maxInt}
+                step={1}
                 value={form.pharmacistBonus}
                 onChange={(e) => setForm({ ...form, pharmacistBonus: e.target.value })}
               />

@@ -32,6 +32,74 @@ def make_site(root: Path, *, index=INDEX, entry=ENTRY_BODY, promo=PROMO_BODY) ->
 
 
 class AdminArtifactTests(unittest.TestCase):
+    def test_split_picker_markers_are_verified_only_through_reachable_js_dependencies(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            site = Path(temporary)
+            make_site(site, promo=(b'import{picker}from"./SharedPicker-hash.js";'
+                                   b'initialRecommendation:{type:t,trigger:ref}'))
+            picker = site / 'assets' / 'SharedPicker-hash.js'
+            picker.write_bytes(PROMO_BODY.replace(b'initialRecommendation:', b'other:'))
+            self.assertIn('assets/SharedPicker-hash.js', artifact.verify(site))
+            picker.write_bytes(b'export const picker=1')
+            (site / 'assets' / 'UnusedPicker-hash.js').write_bytes(PROMO_BODY)
+            with self.assertRaises(ValueError):
+                artifact.verify(site)
+            # Root route entry markers cannot stand in for the reachable picker implementation.
+            (site / 'assets' / ENTRY).write_bytes(ENTRY_BODY + b';' + PROMO_BODY)
+            with self.assertRaises(ValueError):
+                artifact.verify(site)
+
+    def test_dynamic_imports_cycles_and_root_entry_do_not_expand_other_routes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            site = Path(temporary)
+            make_site(site, promo=(b'import("./SharedPicker-hash.js");'
+                                   b'initialRecommendation:{type:t,trigger:ref}'))
+            (site / 'assets' / 'SharedPicker-hash.js').write_bytes(
+                f'import{{value}}from"./{PROMO}";import{{root}}from"./{ENTRY}";'.encode() + PROMO_BODY)
+            (site / 'assets' / ENTRY).write_bytes(ENTRY_BODY + b';import("./OtherPage-missing.js")')
+            assets = artifact.verify(site)
+            self.assertIn('assets/SharedPicker-hash.js', assets)
+            self.assertNotIn('assets/OtherPage-missing.js', assets)
+            # Submission must remain in PromoPage itself, not merely a dependency.
+            (site / 'assets' / PROMO).write_bytes(b'import("./SharedPicker-hash.js")')
+            with self.assertRaises(ValueError):
+                artifact.verify(site)
+
+    def test_reachable_import_safety_and_graph_limits_fail_closed(self):
+        for dependency in ('https://example.com/picker.js', '//example.com/picker.js',
+                           '../picker.js', './nested/../picker.js', './missing.js',
+                           './picker.js?version=1', './picker%2ejs'):
+            with self.subTest(dependency=dependency), tempfile.TemporaryDirectory() as temporary:
+                site = Path(temporary)
+                make_site(site, promo=f'import("{dependency}");'.encode() + PROMO_BODY)
+                with self.assertRaises((ValueError, FileNotFoundError)):
+                    artifact.verify(site)
+        with tempfile.TemporaryDirectory() as temporary:
+            site = Path(temporary)
+            make_site(site, promo=b'import"./SharedPicker-hash.js";' + PROMO_BODY)
+            shared = site / 'assets' / 'SharedPicker-hash.js'
+            shared.symlink_to(site / 'assets' / PROMO)
+            with self.assertRaises(ValueError):
+                artifact.verify(site)
+            shared.unlink()
+            shared.write_bytes(b'export const picker=1')
+            with patch.object(artifact, 'MAX_ASSETS', 4):
+                with self.assertRaises(ValueError):
+                    artifact.verify(site)
+            with patch.object(artifact, 'MAX_TOTAL', len(INDEX) + 2):
+                with self.assertRaises(ValueError):
+                    artifact.verify(site)
+
+    def test_static_external_and_computed_or_template_dynamic_imports_are_not_trusted(self):
+        for module in (b'import{picker}from"https://example.com/picker.js";',
+                       b'export{picker}from"../picker.js";',
+                       b'import(pickerPath);', b'import(`./${pickerName}.js`);'):
+            with self.subTest(module=module), tempfile.TemporaryDirectory() as temporary:
+                site = Path(temporary)
+                make_site(site, promo=module + PROMO_BODY)
+                with self.assertRaises(ValueError):
+                    artifact.verify(site)
+
     def test_valid_reachable_bundle_and_old_product_only_bundle(self):
         with tempfile.TemporaryDirectory() as temporary:
             site = Path(temporary)
@@ -94,12 +162,14 @@ class AdminArtifactTests(unittest.TestCase):
     def test_public_comparison_rejects_changed_bytes_and_redirects(self):
         with tempfile.TemporaryDirectory() as temporary:
             site = Path(temporary)
-            make_site(site)
+            make_site(site, promo=b'import{picker}from"./SharedPicker-hash.js";' + PROMO_BODY)
+            (site / 'assets' / 'SharedPicker-hash.js').write_bytes(b'export const picker=1')
             assets = artifact.verify(site)
 
             class Handler(BaseHTTPRequestHandler):
                 redirect = False
                 stale_promo = False
+                stale_picker = False
 
                 def do_GET(self):
                     if self.path == '/index.html' and Handler.redirect:
@@ -111,6 +181,8 @@ class AdminArtifactTests(unittest.TestCase):
                     body = assets['index.html'] if name in ('', 'promo') else assets.get(name)
                     if name == 'promo' and Handler.stale_promo:
                         body = b'old product-only shell'
+                    if name == 'assets/SharedPicker-hash.js' and Handler.stale_picker:
+                        body = b'old shared picker'
                     if body is None:
                         self.send_error(404)
                         return
@@ -131,6 +203,10 @@ class AdminArtifactTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     artifact.compare_public(url, assets)
                 Handler.stale_promo = False
+                Handler.stale_picker = True
+                with self.assertRaises(ValueError):
+                    artifact.compare_public(url, assets)
+                Handler.stale_picker = False
                 with self.assertRaises(ValueError):
                     artifact.compare_public(url, {**assets, 'index.html': b'old index'})
                 with self.assertRaises(ValueError):

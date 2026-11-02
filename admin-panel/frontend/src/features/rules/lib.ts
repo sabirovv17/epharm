@@ -12,24 +12,34 @@ export function ruleTriggerDisplay(
   t?: Translate,
 ): string {
   const get = (id: string | undefined) => lookup?.(id)
+  if (trigger.conditions?.length) {
+    return [
+      ruleTriggerDisplay({ ...trigger, conditions: [] }, lookup, t),
+      ...trigger.conditions.map((condition) => ruleTriggerDisplay(condition, lookup, t)),
+    ].join(' ∩ ')
+  }
   switch (trigger.kind) {
     case 'product':
       return get(trigger.value as string)?.name ?? (trigger.value as string)
     case 'product_any':
-      return (trigger.value as string[])
-        .map((id) => get(id)?.name ?? id)
-        .join(', ')
+      return (trigger.value as string[]).map((id) => get(id)?.name ?? id).join(', ')
     case 'mnn':
       return `МНН: ${trigger.value as string}`
     case 'acc_group':
-      return t?.('rules.accGroupPrefix', { v: trigger.label || (trigger.value as string) })
-        ?? `Группа ACC: ${trigger.label || trigger.value}`
+      return (
+        t?.('rules.accGroupPrefix', { v: trigger.label || (trigger.value as string) }) ??
+        `Группа ACC: ${trigger.label || trigger.value}`
+      )
     case 'acc_subgroup':
-      return t?.('rules.accSubgroupPrefix', { v: trigger.label || (trigger.value as string) })
-        ?? `Подгруппа ACC: ${trigger.label || trigger.value}`
+      return (
+        t?.('rules.accSubgroupPrefix', { v: trigger.label || (trigger.value as string) }) ??
+        `Подгруппа ACC: ${trigger.label || trigger.value}`
+      )
     case 'acc_mnn':
-      return t?.('rules.accMnnPrefix', { v: trigger.label || (trigger.value as string) })
-        ?? `МНН ACC: ${trigger.label || trigger.value}`
+      return (
+        t?.('rules.accMnnPrefix', { v: trigger.label || (trigger.value as string) }) ??
+        `МНН ACC: ${trigger.label || trigger.value}`
+      )
   }
 }
 
@@ -40,8 +50,9 @@ export function ruleTriggerDisplay(
  */
 export function ruleSummary(r: Rule, lookup?: ProductLookup, t?: Translate): string {
   const get = (id: string | undefined) => lookup?.(id)
-  const trig =
-    r.trigger.kind === 'product'
+  const trig = r.trigger.conditions?.length
+    ? ruleTriggerDisplay(r.trigger, lookup, t)
+    : r.trigger.kind === 'product'
       ? (get(r.trigger.value as string)?.name ?? '—')
       : r.trigger.kind === 'product_any'
         ? (r.trigger.value as string[])

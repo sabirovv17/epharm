@@ -96,6 +96,7 @@ jobs:
           python3 -m unittest discover -s tools/release/tests -p 'test_admin_artifact.py'
           python3 -m unittest discover -s tools/release/tests -p 'test_release_source.py'
           python3 -m unittest discover -s tools/release/tests -p 'test_financial_transition.py'
+          python3 -m unittest discover -s tools/release/tests -p 'test_posm_package_defaults.py'
           bash tools/release/tests/prepare-deploy-contract.sh
       - name: Verify backend-only release and rollback
         run: bash tools/release/tests/backend-only-contract.sh
@@ -216,6 +217,8 @@ jobs:
           cache: npm
           cache-dependency-path: storefront/package-lock.json
       - run: npm ci
+      - name: Verify fail-closed dependency triage
+        run: node --test ../tools/check-frontend-audit.test.mjs
       - run: node ../tools/check-frontend-audit.mjs
       - run: npm run lint
       - run: npm test
