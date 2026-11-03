@@ -12,6 +12,8 @@ data class StaffContext(
     @field:NotBlank @field:Size(max=128) val standardNSessionId: String,
     @field:NotBlank @field:Size(max=128) val workstationId: String,
     @field:NotBlank @field:Size(max=256) val processInstanceId: String,
+    @field:Pattern(regexp="[0-9]{12}") val standardNIin: String? = null,
+    @field:Pattern(regexp="available|missing|invalid|unavailable|ambiguous") val standardNIinStatus: String = "unavailable",
 )
 data class StaffLoginRequest(
     @field:Iin @field:NotBlank @field:Size(min=12,max=12) val iin: String,
@@ -30,6 +32,7 @@ data class StaffPasswordRequest(
     @field:Size(max=32) @field:Pattern(regexp="[+0-9 ()\\-]{6,32}") val phone: String,
     @field:Size(min=8,max=128) val password: String,
     @field:Size(min=3,max=255) val name: String? = null,
+    @field:Valid val context: StaffContext? = null,
 )
 data class StaffPerson(val id: String,val name: String)
 data class StaffSessionResponse(

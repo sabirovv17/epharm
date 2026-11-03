@@ -1748,7 +1748,7 @@
       "response": {
         "server": "map",
         "client": "StaffCapabilities",
-        "keyFields": ["enabled", "protocolVersion=1"]
+        "keyFields": ["enabled", "protocolVersion=2"]
       },
       "errors": [
         {
@@ -1970,12 +1970,18 @@
       "request": {
         "server": "StaffPasswordRequest",
         "client": "StaffPasswordRequest anonymous body",
-        "keyFields": ["challengeId", "code", "iin", "phone", "password", "name?"]
+        "keyFields": ["challengeId", "code", "iin", "phone", "password", "name?", "context?"]
       },
       "response": {
-        "server": "map",
+        "server": "StaffSessionResponse with context; pending map without context",
         "client": "StaffRegistrationResponse",
-        "keyFields": ["status:pending"]
+        "keyFields": [
+          "status:pending|authenticated",
+          "sessionToken?",
+          "expiresAt?",
+          "pharmacist?",
+          "context?"
+        ]
       },
       "errors": [
         {
@@ -2004,7 +2010,9 @@
           "when": "Disabled."
         }
       ],
-      "sideEffects": ["Registration creates pending pharmacist, not active login."],
+      "sideEffects": [
+        "Without context creates pending unassigned pharmacist (legacy). With exact context from individual authenticated pharmacy device creates active assigned pharmacist and context-bound session. Never assigns financial seller identity."
+      ],
       "requiredInvariant": [
         "Human password/OTP is not logged, cached, outboxed, forwarded through redirect, or silently retried.",
         "New activation/registration must not grant administrative privileges."
@@ -2031,7 +2039,10 @@
           "anchor": "private async Task<T> PostAsync<T>"
         }
       ],
-      "positiveChecks": ["Isolated correct-purpose fake OTP succeeds once with expected response."],
+      "positiveChecks": [
+        "Isolated correct-purpose fake OTP succeeds once with expected response.",
+        "Contextual SMS registration closes the current window only after generation/context/grant validation; old requests remain pending."
+      ],
       "negativeChecks": [
         "Changed device/pharmacy/purpose/person/phone or replayed challenge fails.",
         "Weak/oversized password and exhausted OTP budget rejected."
@@ -2212,10 +2223,10 @@
         "boundary": "Individual device key plus optional human session token, server feature gate.",
         "valuesIncluded": false
       },
-      "identity": "Exact current StaffContext and device/pharmacy/password fingerprint/active status must match.",
+      "identity": "Legacy four-field context, device/pharmacy/password fingerprint/active status must match; stored full context is returned.",
       "request": {
         "server": "StaffContext query",
-        "client": "ValidateAsync",
+        "client": "Legacy POSM GET; new clients use STAFF_SESSION_CHECK",
         "keyFields": ["standardNUserId", "standardNSessionId", "workstationId", "processInstanceId"]
       },
       "response": {
@@ -2260,6 +2271,80 @@
           "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
           "line": 139,
           "anchor": "fun session("
+        }
+      ],
+      "positiveChecks": ["Correct session/context validates without returning raw token again."],
+      "negativeChecks": [
+        "Any changed Standard-N context field, password fingerprint, pharmacist pharmacy/status, expiry or revoke ->401."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "STAFF_SESSION_CHECK",
+      "method": "POST",
+      "path": "/api/posm/staff/session/check",
+      "auth": {
+        "headers": ["X-Posm-Key", "X-Staff-Session"],
+        "boundary": "Individual device key plus optional human session token, server feature gate.",
+        "valuesIncluded": false
+      },
+      "identity": "Exact current StaffContext and device/pharmacy/password fingerprint/active status must match.",
+      "request": {
+        "server": "StaffContext JSON body",
+        "client": "ValidateAsync",
+        "keyFields": [
+          "standardNUserId",
+          "standardNSessionId",
+          "workstationId",
+          "processInstanceId",
+          "standardNIin?",
+          "standardNIinStatus"
+        ]
+      },
+      "response": {
+        "server": "StaffSessionResponse",
+        "client": "StaffAuthResponse",
+        "keyFields": ["status", "sessionToken:null", "expiresAt", "pharmacist", "context"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 401,
+          "code": "INVALID_CREDENTIALS",
+          "when": "Expired/revoked/mismatched context/password/person/pharmacy."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Disabled."
+        }
+      ],
+      "sideEffects": [],
+      "requiredInvariant": [
+        "Do not interpret self-reported heartbeat staffAuthStatus as this authorization proof.",
+        "Changing cashier process/session invalidates grant; no token persistence in generic outbox.",
+        "Observed IIN never appears in a URL; the full stored context must match. Unknown IIN is not a mismatch or financial identity proof."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+          "line": 41,
+          "anchor": "fun checkSession("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+          "line": 139,
+          "anchor": "fun session("
         },
         {
           "path": "App/Services/StaffAuthClient.cs",
@@ -2269,7 +2354,8 @@
       ],
       "positiveChecks": ["Correct session/context validates without returning raw token again."],
       "negativeChecks": [
-        "Any changed Standard-N context field, password fingerprint, pharmacist pharmacy/status, expiry or revoke ->401."
+        "Any changed Standard-N context field, password fingerprint, pharmacist pharmacy/status, expiry or revoke ->401.",
+        "Changed source IIN/status is rejected; a legacy backend cannot trigger GET fallback or replay."
       ],
       "state": "source_confirmed",
       "origin": "https://epharm.inkar.kz"
@@ -4173,8 +4259,8 @@
     }
   ],
   "inventorySummary": {
-    "contractCount": 48,
-    "sourceConfirmedCount": 31,
+    "contractCount": 49,
+    "sourceConfirmedCount": 32,
     "needsVerificationCount": 17,
     "runtimeChecksExecuted": 0
   }

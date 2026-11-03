@@ -3587,7 +3587,7 @@
     "name": "Сохранить staff-auth capability/session/API в выключенном production-потоке",
     "source": {
       "repo": "sabirovv17/epharm",
-      "revision": "b946592549db9eab8d108c6c5bdbd7022915a655",
+      "revision": "d925ff0ae4ed5822acce2f45f326221560ad79a3",
       "ui": [],
       "api": [
         "GET /api/posm/staff/capabilities",
@@ -3596,7 +3596,8 @@
         "POST /api/posm/staff/register",
         "POST /api/posm/staff/password/{purpose:reset|activate}",
         "GET /api/posm/staff/session",
-        "POST /api/posm/staff/logout"
+        "POST /api/posm/staff/logout",
+        "POST /api/posm/staff/session/check"
       ],
       "jobs": [],
       "data": [
@@ -3625,7 +3626,10 @@
     "state": "source_confirmed",
     "acceptance": [
       "Объединение не включает обязательное окно РПС и не блокирует Стандарт-Н",
-      "Capability/disable работает независимо от админских сессий"
+      "Capability/disable работает независимо от админских сессий",
+      "Контекстный POST проверяет ИИН в body; старый GET остаётся совместимым без ИИН в URL",
+      "Контекстная SMS-регистрация создаёт активный профиль аптеки кассы без финансовой перепривязки; старый запрос сохраняет pending",
+      "Сбой допускает работу с диагностикой без staff grant; production release gate остаётся выключенным"
     ],
     "risks": ["Существование API не разрешает включение функции на кассах"],
     "owner": "ePharm unification integration owner"

@@ -213,11 +213,14 @@ class UnifiedAdminAccessIntegrationTest {
     }
 
     @Test fun `status filter never cancels assigned pharmacist scope and personal financial fields are null`() {
+        jdbc.update("UPDATE pharmacists SET standard_n_iin_match_status='MISMATCH',standard_n_iin_checked_at=now() WHERE id='staff-a'")
         grants(grant("pharmacists", "registry", "view"))
         mvc.perform(get("/api/admin/pharmacists?status=active").header("Authorization", auth()))
             .andExpect(status().isOk).andExpect(jsonPath("$.length()").value(1))
             .andExpect(jsonPath("$[0].id").value("staff-a"))
             .andExpect(jsonPath("$[0].iin").doesNotExist()).andExpect(jsonPath("$[0].phone").doesNotExist())
+            .andExpect(jsonPath("$[0].standardNIinMatchStatus").doesNotExist())
+            .andExpect(jsonPath("$[0].standardNIinCheckedAt").doesNotExist())
             .andExpect(jsonPath("$[0].balance").doesNotExist())
         mvc.perform(get("/api/admin/pharmacists?status=active&pharmacyId=scope-b").header("Authorization", auth()))
             .andExpect(status().isOk).andExpect(jsonPath("$.length()").value(0))
@@ -225,9 +228,12 @@ class UnifiedAdminAccessIntegrationTest {
     }
 
     @Test fun `personal grant is separate and cannot expose financial fields`() {
+        jdbc.update("UPDATE pharmacists SET standard_n_iin_match_status='MISMATCH',standard_n_iin_checked_at=now() WHERE id='staff-a'")
         grants(grant("pharmacists", "registry", "view"), grant("pharmacists", "registry", "personal_data"))
         mvc.perform(get("/api/admin/pharmacists/staff-a").header("Authorization", auth())).andExpect(status().isOk)
             .andExpect(jsonPath("$.iin").value("000000000001")).andExpect(jsonPath("$.balance").doesNotExist())
+            .andExpect(jsonPath("$.standardNIinMatchStatus").value("MISMATCH"))
+            .andExpect(jsonPath("$.standardNIinCheckedAt").exists())
     }
 
     @Test fun `local financial permission cannot reveal global wallet history and pharmacy money has separate permission`() {

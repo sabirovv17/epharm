@@ -31,6 +31,8 @@ data class PharmacistDto(
     val joinedAt: LocalDate,
     val createdAt: Instant,
     val updatedAt: Instant,
+    val standardNIinMatchStatus: String? = "UNKNOWN",
+    val standardNIinCheckedAt: Instant? = null,
 ) {
     companion object {
         fun of(e: PharmacistEntity): PharmacistDto = PharmacistDto(
@@ -44,6 +46,8 @@ data class PharmacistDto(
             status = e.status, joinedAt = e.joinedAt,
             hasPassword = !e.passwordHash.isNullOrBlank(),
             createdAt = e.createdAt, updatedAt = e.updatedAt,
+            standardNIinMatchStatus = e.standardNIinMatchStatus,
+            standardNIinCheckedAt = e.standardNIinCheckedAt,
         )
     }
 }

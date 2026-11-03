@@ -590,7 +590,7 @@ export default function PromoDetailPage() {
     >
       <div className="grid grid-cols-3 gap-5" data-testid="promo-detail">
         {/* Левая колонка: редактор */}
-        <div className="col-span-2 flex flex-col gap-4">
+        <div className="col-span-2 flex min-w-0 flex-col gap-4">
           <div className="card flex flex-col gap-3 p-4" data-testid="promo-publication-state">
             {(!changesQuery.isFetchedAfterMount || changesQuery.isFetching) && (
               <p role="status">Проверяем сохранённые условия и права…</p>
@@ -940,7 +940,7 @@ export default function PromoDetailPage() {
         </div>
 
         {/* Правая колонка: превью + бюджет + мета */}
-        <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           <div
             className="relative h-36 overflow-hidden rounded-xl"
             data-testid="promo-detail-cover"

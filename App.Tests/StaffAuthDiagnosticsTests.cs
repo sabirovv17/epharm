@@ -8,6 +8,17 @@ namespace CustomerDisplay.Core.Tests;
 public sealed class StaffAuthDiagnosticsTests
 {
     [Theory]
+    [InlineData("staff_bypass_service_unavailable")]
+    [InlineData("staff_bypass_sms_unavailable")]
+    [InlineData("staff_bypass_sms_wait")]
+    [InlineData("staff_bypass_identity_unavailable")]
+    public void BypassedSignInKeepsAFixedDiagnosticInsteadOfAuthenticated(string status)
+    {
+        Assert.Equal(status, StaffAuthDiagnostics.Normalize(status));
+        Assert.NotEqual("authenticated", StaffAuthDiagnostics.Normalize(status));
+    }
+
+    [Theory]
     [InlineData("authenticated", "authenticated")]
     [InlineData("login_visible", "login_visible")]
     [InlineData("database_unavailable", "database_unavailable")]
@@ -36,9 +47,10 @@ public sealed class StaffAuthDiagnosticsTests
     [Fact]
     public void CapabilityDistinguishesServerDisabledAndUnsupportedProtocol()
     {
-        Assert.Equal(new(true, "enabled"), StaffAuthDiagnostics.Capability(new(true, 1)));
-        Assert.Equal(new(false, "server_disabled"), StaffAuthDiagnostics.Capability(new(false, 1)));
-        Assert.Equal(new(false, "unsupported_protocol"), StaffAuthDiagnostics.Capability(new(true, 2)));
+        Assert.Equal(new(true, "enabled"), StaffAuthDiagnostics.Capability(new(true, 2)));
+        Assert.Equal(new(false, "server_disabled"), StaffAuthDiagnostics.Capability(new(false, 2)));
+        Assert.Equal(new(false, "unsupported_protocol"), StaffAuthDiagnostics.Capability(new(true, 1)));
+        Assert.Equal(new(false, "unsupported_protocol"), StaffAuthDiagnostics.Capability(new(true, 3)));
         Assert.Equal(new(false, "unsupported_protocol"), StaffAuthDiagnostics.Capability(null));
     }
 

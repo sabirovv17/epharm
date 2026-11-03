@@ -139,6 +139,44 @@ catalog product ids.
 
 ## Config
 
+### Staff identity candidate (3 November 2026, not enabled in production)
+
+The reviewed candidate reads `USERS.INN` only for the exact local `SESSIONS.USER_ID`
+in the same read-only Firebird snapshot. Missing/invalid/unreadable/ambiguous values
+remain unknown. The observed IIN/status are additive context fields; process, user,
+session, workstation or IIN changes invalidate the old in-memory grant and late responses.
+The new `POST /api/posm/staff/session/check` carries this context in the body, never in
+the URL. Legacy four-field GET validation remains supported by the backend.
+Staff capability protocol 2 explicitly identifies this implementation. The new client
+does not enable its prompt on a protocol-1 backend, including after rollback. Legacy
+protocol-1 clients do not enable staff UI on this backend; their core POSM traffic and
+legacy staff API wire formats remain compatible. This prevents mixed mandatory flows.
+
+Contextual SMS registration from an individually authenticated pharmacy device creates
+an active profile assigned to that pharmacy and returns a context-bound staff grant.
+The client closes the window only after its current generation accepts the grant.
+Legacy registration without context keeps the pending/unassigned behavior. Existing
+blocked, pending and differently assigned profiles are not silently reassigned.
+
+The pharmacist registry exposes a permission-filtered diagnostic comparison:
+`MATCH`, `MISMATCH` or `UNKNOWN`, plus check time. Only mismatch gets a warning.
+This is a device-reported observation, never a trusted seller/bonus binding.
+
+The candidate mandatory presentation covers only the cashier monitor when a fresh
+exact session and its IIN are available. It is a fullscreen WPF prompt, not Windows
+Assigned Access or an OS security boundary. No global keyboard hook, BlockInput,
+Standard-N window disable or process termination is used. Unknown identity, unavailable
+service or SMS failure permit work with a fixed bypass diagnostic and no staff grant;
+the bypass applies only to that observation generation. A new session prompts again.
+Source/server disable and shutdown always release the window; customer display and
+receipt/sale/recommendation loops remain independent. The release gate stays false.
+
+`App.Ui.Tests/` runs seven native WPF regressions against the actual App assembly,
+using an in-memory fake HTTP handler without real SMS, accounts or device configuration.
+The Windows CI job saves boolean proof and synthetic renders; an explicit noninteractive
+opt-in is recorded as such and does not prove physical cashier desktop integration.
+The interactive Windows/Standard-N pilot remains required before enabling staff gates.
+
 POSM 1.0.72 temporarily disables the entire staff module with the read-only
 `EpharmConfig.StaffAuthenticationReleaseEnabled=false` release gate. No HTTP client, staff DB
 observer, tray or staff window starts; JSON, environment or server capabilities cannot override it.

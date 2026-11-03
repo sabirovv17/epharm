@@ -33,9 +33,9 @@ export function PromoTriggerConditions({
       {value.map((condition) => (
         <div
           key={condition.kind}
-          className="flex items-center justify-between gap-2 text-[12px] text-ink-900"
+          className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-ink-900"
         >
-          <span>
+          <span className="min-w-0 break-words">
             {t(`pr.triggerKind.${condition.kind}`)}: {condition.label || condition.value}
           </span>
           {!disabled && (
@@ -43,6 +43,7 @@ export function PromoTriggerConditions({
               variant="ghost"
               onClick={() => onChange(value.filter((item) => item.kind !== condition.kind))}
               aria-label={t('pr.removeCondition', { label: condition.label || condition.value })}
+              className="shrink-0"
             >
               {t('pr.removeConditionAction')}
             </Button>

@@ -332,6 +332,8 @@ export interface PharmacistDto {
   name: string
   iin: string | null
   phone: string | null
+  standardNIinMatchStatus?: 'MATCH' | 'MISMATCH' | 'UNKNOWN' | null
+  standardNIinCheckedAt?: string | null
   pharmacyId: string
   pharmacyName: string
   city: string

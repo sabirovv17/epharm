@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 // Feed this file the JSON produced by `caddy adapt --config Caddyfile`.
 const config = JSON.parse(readFileSync(0, "utf8"));
@@ -8,6 +9,12 @@ const cutover = process.argv[2] ?? 'false';
 assert.ok(['true', 'false'].includes(cutover));
 const staffAccess = process.argv[3] ?? 'false';
 assert.ok(['true', 'false'].includes(staffAccess));
+// Every real native /merch page must survive a hard refresh, without a prefix-wide proxy.
+const router = readFileSync(fileURLToPath(new URL('../../admin-panel/frontend/src/app/router.tsx', import.meta.url)), 'utf8');
+const nativeMerchPaths = [...router.matchAll(/<Route path="(\/merch\/[^"/:]+)"/g)]
+  .map((match) => match[1]).filter((path) => path !== '/merch/staff');
+assert.deepEqual(nativeMerchPaths, ['/merch/portal', '/merch/inventory', '/merch/placements', '/merch/tasks', '/merch/staff-access']);
+const nativePagePaths = nativeMerchPaths.flatMap((path) => [path, `${path}/`]);
 const flatten = (routes) => routes.flatMap((route) => [
   ...route.handle ?? [],
   ...flatten((route.handle ?? []).flatMap((handler) => handler.routes ?? [])),
@@ -44,8 +51,8 @@ for (const server of servers) {
       ]],
     ];
 
-    assert.equal(staffRoutes.length, allowed.length + 3, "explicit role landing and retired-API fence; no extra public merch routes");
-    assert.deepEqual(staffRoutes[0].match, [{ method: ['GET', 'HEAD'], path: ['/merch/portal'] }]);
+    assert.equal(staffRoutes.length, allowed.length + 3, "explicit SPA pages and retired-API fence; no extra public merch routes");
+    assert.deepEqual(staffRoutes[0].match, [{ method: ['GET', 'HEAD'], path: nativePagePaths }]);
     const landing = flatten([staffRoutes[0]]).find(({ handler }) => handler === 'reverse_proxy');
     assert.deepEqual(landing?.upstreams, [{ dial: 'frontend:80' }]);
     assert.deepEqual(landing?.headers?.request?.delete, ['X-Pharmapay-Key', 'X-Staff-Session']);
@@ -92,4 +99,4 @@ for (const server of servers) {
 }
 
 assert.equal(checked, 2, "both public TLS and INKAR ingress routes must protect merchandising");
-console.log(`Merch Caddy routes: cutover=${cutover}, explicit SPA entry, CRM default, retired API fence and default deny.`);
+console.log(`Merch Caddy routes: cutover=${cutover}, all native SPA pages, CRM default, retired API fence and default deny.`);

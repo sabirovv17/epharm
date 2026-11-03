@@ -21,7 +21,7 @@ class StaffAuthController(
     @GetMapping("/capabilities")
     fun capabilities(@RequestHeader("X-Posm-Key",required=false) key:String?):ResponseEntity<*> {
         device(key,false)
-        return response(mapOf("enabled" to enabled,"protocolVersion" to 1))
+        return response(mapOf("enabled" to enabled,"protocolVersion" to 2))
     }
     @PostMapping("/login")
     fun login(@RequestHeader("X-Posm-Key",required=false) key:String?,@Valid @RequestBody request:StaffLoginRequest)=response(service.login(device(key),request))
@@ -29,8 +29,8 @@ class StaffAuthController(
     fun otp(@RequestHeader("X-Posm-Key",required=false) key:String?,@Valid @RequestBody request:StaffOtpRequest)=response(service.requestOtp(device(key),request))
     @PostMapping("/register")
     fun register(@RequestHeader("X-Posm-Key",required=false) key:String?,@Valid @RequestBody request:StaffPasswordRequest):ResponseEntity<*> {
-        service.complete(device(key),request,"register")
-        return response(mapOf("status" to "pending"))
+        val session=service.complete(device(key),request,"register")
+        return if(session!=null) response(session) else response(mapOf("status" to "pending"))
     }
     @PostMapping("/password/{purpose:reset|activate}")
     fun reset(@RequestHeader("X-Posm-Key",required=false) key:String?,@PathVariable purpose:String,@Valid @RequestBody request:StaffPasswordRequest):ResponseEntity<*> {
@@ -38,7 +38,9 @@ class StaffAuthController(
         return response(mapOf("changed" to true))
     }
     @GetMapping("/session")
-    fun session(@RequestHeader("X-Posm-Key",required=false) key:String?,@RequestHeader("X-Staff-Session",required=false) token:String?,@Valid @ModelAttribute context:StaffContext)=response(service.session(device(key),token,context))
+    fun session(@RequestHeader("X-Posm-Key",required=false) key:String?,@RequestHeader("X-Staff-Session",required=false) token:String?,@Valid @ModelAttribute context:StaffContext)=response(service.session(device(key),token,context,legacy=true))
+    @PostMapping("/session/check")
+    fun checkSession(@RequestHeader("X-Posm-Key",required=false) key:String?,@RequestHeader("X-Staff-Session",required=false) token:String?,@Valid @RequestBody context:StaffContext)=response(service.session(device(key),token,context))
     @PostMapping("/logout")
     fun logout(@RequestHeader("X-Posm-Key",required=false) key:String?,@RequestHeader("X-Staff-Session",required=false) token:String?):ResponseEntity<Void> {
         service.logout(device(key),token)

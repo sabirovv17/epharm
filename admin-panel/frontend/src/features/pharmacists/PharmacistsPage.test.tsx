@@ -459,6 +459,23 @@ describe('PharmacistsPage — список и actions', () => {
     expect(balanceMetric).not.toHaveTextContent(/50\s*000/)
   })
 
+  it('показывает пометку только при подтверждённом несовпадении ИИН Стандарт‑Н', () => {
+    setPharmacists([
+      mkPharmacist({ id: 'mismatch', standardNIinMatchStatus: 'MISMATCH' }),
+      mkPharmacist({ id: 'match', standardNIinMatchStatus: 'MATCH' }),
+      mkPharmacist({ id: 'unknown', standardNIinMatchStatus: 'UNKNOWN' }),
+      mkPharmacist({ id: 'legacy' }),
+    ])
+    renderPage()
+    const warning = 'ИИН не совпадает со Стандарт‑Н'
+    expect(within(screen.getByTestId('pharmacist-row-mismatch')).getByText(warning)).toBeVisible()
+    for (const id of ['match', 'unknown', 'legacy']) {
+      expect(
+        within(screen.getByTestId(`pharmacist-row-${id}`)).queryByText(warning),
+      ).not.toBeInTheDocument()
+    }
+  })
+
   it('сохраняет настоящий ноль и полную сумму для нескрытых балансов', () => {
     setPharmacists([
       mkPharmacist({ id: 'zero', name: 'Нулевой баланс', balance: 0, receipts30d: 0 }),

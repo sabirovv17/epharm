@@ -37,6 +37,7 @@ class StaffAuthService(
     // Independent commits preserve failed-attempt budgets even if a caller rolls back.
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
     fun login(device: PosmDeviceIdentity, request: StaffLoginRequest): StaffSessionResponse {
+        validateContext(request.context)
         limit("login-device:${device.deviceId}",30,300)
         limit("login-account:${request.iin}",10,300)
         password(request.password,6)
@@ -49,14 +50,21 @@ class StaffAuthService(
         }
         if (person.status!="active" || person.pharmacy!=device.pharmacyId) unauthorized()
         credentialVault.capture(person.id,person.password!!,request.password)
+        return grant(device,person,request.context,request.iin)
+    }
+
+    private fun grant(device: PosmDeviceIdentity, person: Person, c: StaffContext, iin: String): StaffSessionResponse {
+        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 718095))",device.deviceId)
+        // This observation is not proof of the Standard-N account owner's identity.
+        jdbc.update("UPDATE pharmacists SET standard_n_iin_match_status=?,standard_n_iin_checked_at=now(),updated_at=now() WHERE id=?",
+            StaffIinObservation.match(iin,c),person.id)
         val token=randomToken()
         val expires=Instant.now().plusSeconds(8*3600)
-        val c=request.context
         jdbc.update("UPDATE posm_staff_sessions SET revoked_at=now() WHERE device_id=? AND pharmacy_id=? AND revoked_at IS NULL",device.deviceId,device.pharmacyId)
         jdbc.update("""INSERT INTO posm_staff_sessions(token_hash,pharmacist_id,device_id,pharmacy_id,password_fingerprint,
-            standard_n_user_id,standard_n_session_id,workstation_id,process_instance_id,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            standard_n_user_id,standard_n_session_id,workstation_id,process_instance_id,expires_at,standard_n_iin,standard_n_iin_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
             hash(token),person.id,device.deviceId,device.pharmacyId,hash(person.password!!),
-            c.standardNUserId,c.standardNSessionId,c.workstationId,c.processInstanceId,Timestamp.from(expires))
+            c.standardNUserId,c.standardNSessionId,c.workstationId,c.processInstanceId,Timestamp.from(expires),c.standardNIin,c.standardNIinStatus)
         return StaffSessionResponse("authenticated",token,expires,StaffPerson(person.id,person.name),c)
     }
 
@@ -95,7 +103,8 @@ class StaffAuthService(
     }
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
-    fun complete(device: PosmDeviceIdentity, request: StaffPasswordRequest, purpose: String) {
+    fun complete(device: PosmDeviceIdentity, request: StaffPasswordRequest, purpose: String): StaffSessionResponse? {
+        request.context?.let(::validateContext)
         password(request.password,8)
         val phone=phone(request.phone)
         phoneLock.lock(phone)
@@ -120,17 +129,21 @@ class StaffAuthService(
         }
         if(verification!=OtpVerificationResult.VERIFIED) invalidOtp()
         val updatedHash=encoder.encode(request.password)
+        var registration: Person? = null
         if(purpose=="register") {
             val name=request.name?.trim()?.takeIf { it.length in 3..255 } ?: invalid()
             // Shared phone lock prevents competing application registrations by this number.
             if(person(request.iin)!=null || jdbc.queryForObject("SELECT count(*) FROM pharmacists WHERE phone=?",Long::class.java,phone)!=0L) invalidOtp()
+            val pharmacy=if(request.context!=null) jdbc.query("SELECT name,city FROM pharmacies WHERE id=? AND active=true",{rs,_->rs.getString(1) to rs.getString(2)},device.pharmacyId).singleOrNull() ?: unauthorized() else null
             val pharmacistId="ph_${UUID.randomUUID()}"
-            val inserted=jdbc.update("""INSERT INTO pharmacists(id,name,iin,phone,password_hash,tier,status,pharmacy_id,pharmacy_name)
-                VALUES (?,?,?,?,?,'Silver','pending',NULL,NULL) ON CONFLICT DO NOTHING""",
-                pharmacistId,name,request.iin,phone,updatedHash)
+            val inserted=jdbc.update("""INSERT INTO pharmacists(id,name,iin,phone,password_hash,tier,status,pharmacy_id,pharmacy_name,city)
+                VALUES (?,?,?,?,?,'Silver',?,?,?,?) ON CONFLICT DO NOTHING""",
+                pharmacistId,name,request.iin,phone,updatedHash,if(pharmacy!=null) "active" else "pending",
+                if(pharmacy!=null) device.pharmacyId else null,pharmacy?.first,pharmacy?.second ?: "")
             // Do not propagate PostgreSQL duplicate-key detail (IIN/phone) into the shared logger.
             if(inserted!=1) invalidOtp()
             credentialVault.capture(pharmacistId,updatedHash,request.password)
+            if(pharmacy!=null) registration=Person(pharmacistId,name,phone,"active",device.pharmacyId,updatedHash)
         } else {
             val person=person(request.iin,true) ?: invalidOtp()
             if(person.id!=challenge.person || person.status=="blocked" || PhoneUtil.normalize(person.phone)!=phone ||
@@ -142,17 +155,20 @@ class StaffAuthService(
         }
         phoneLock.invalidateStaff(phone)
         jdbc.update("DELETE FROM mobile_otps WHERE phone=?",phone)
+        return registration?.let { person -> request.context?.let { grant(device,person,it,request.iin) } }
     }
 
     @Transactional(readOnly=true)
-    fun session(device: PosmDeviceIdentity, token: String?, context: StaffContext): StaffSessionResponse {
+    fun session(device: PosmDeviceIdentity, token: String?, context: StaffContext, legacy: Boolean = false): StaffSessionResponse {
+        validateContext(context)
         if(token.isNullOrBlank() || token.length !in 32..128) unauthorized()
         return jdbc.query("""SELECT s.*,p.name,p.status,p.pharmacy_id AS current_pharmacy,p.password_hash
             FROM posm_staff_sessions s JOIN pharmacists p ON p.id=s.pharmacist_id
             WHERE s.token_hash=? AND s.device_id=? AND s.pharmacy_id=? AND s.revoked_at IS NULL AND s.expires_at>now()""",
             {rs,_->
-                val storedContext=StaffContext(rs.getString("standard_n_user_id"),rs.getString("standard_n_session_id"),rs.getString("workstation_id"),rs.getString("process_instance_id"))
-                if(rs.getString("status")!="active" || rs.getString("current_pharmacy")!=device.pharmacyId || storedContext!=context ||
+                val storedContext=StaffContext(rs.getString("standard_n_user_id"),rs.getString("standard_n_session_id"),rs.getString("workstation_id"),rs.getString("process_instance_id"),rs.getString("standard_n_iin"),rs.getString("standard_n_iin_status"))
+                val expectedContext=if(legacy) storedContext.copy(standardNIin=null,standardNIinStatus="unavailable") else storedContext
+                if(rs.getString("status")!="active" || rs.getString("current_pharmacy")!=device.pharmacyId || expectedContext!=context ||
                     rs.getString("password_hash")?.let(::hash)!=rs.getString("password_fingerprint")) unauthorized()
                 StaffSessionResponse("authenticated",null,rs.getTimestamp("expires_at").toInstant(),StaffPerson(rs.getString("pharmacist_id"),rs.getString("name")),storedContext)
             },hash(token),device.deviceId,device.pharmacyId).singleOrNull() ?: unauthorized()
@@ -177,6 +193,7 @@ class StaffAuthService(
     }
     private fun phone(raw:String):String=PhoneUtil.normalize(raw).also { if(!Regex("\\+7[0-9]{10}").matches(it)) invalid() }
     private fun password(value:String,min:Int) { if(value.length !in min..128 || value.toByteArray(Charsets.UTF_8).size>72) invalid() }
+    private fun validateContext(context: StaffContext) { if(!StaffIinObservation.valid(context)) invalid() }
     private fun randomToken()=ByteArray(32).also(random::nextBytes).let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
     private fun hash(value:String)=MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
     private fun unauthorized():Nothing=throw AppException(ErrorCode.INVALID_CREDENTIALS,"Не удалось подтвердить вход сотрудника",HttpStatus.UNAUTHORIZED)
