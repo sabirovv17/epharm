@@ -78,7 +78,7 @@ class PharmacistEntity(
     var updatedAt: Instant = Instant.now(),
 
     // Staff-auth owns these observations; a stale admin profile save must not erase them.
-    @Column(name = "standard_n_iin_match_status", nullable = false, length = 8, insertable = false, updatable = false)
+    @Column(name = "standard_n_iin_match_status", nullable = false, length = 8, updatable = false)
     var standardNIinMatchStatus: String = "UNKNOWN",
 
     @Column(name = "standard_n_iin_checked_at", insertable = false, updatable = false)
