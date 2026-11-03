@@ -345,6 +345,8 @@ Backend callbacks remove request bodies/headers/query, identity and arbitrary di
 from errors and sampled transactions, retaining technical stacks and span timings. The resolver
 runs before the application's exception advice so unexpected handled HTTP 5xx are reported;
 expected application 4xx are excluded. Default PII and mobile screenshots remain disabled. The
+callbacks do not automatically forward background failures that are only written with `log.error`;
+those need an explicit SDK capture or a separately verified logging integration. The
 TestFlight workflow uploads dSYMs when mobile Sentry credentials exist; it does not prove that a
 mobile build was delivered or that native/Dart events have been received.
 
