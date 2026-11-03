@@ -1,33 +1,21 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { sentryVitePlugin } from '@sentry/vite-plugin'
 import path from 'node:path'
+import { createRequire } from 'node:module'
+
+const sentryCliVersion: string = createRequire(import.meta.url)('@sentry/cli/package.json').version
 
 // https://vite.dev/config/
-const releaseId = process.env.VITE_RELEASE_ID || 'dev'
-const sentryUploadEnabled = Boolean(
-  process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT,
-)
-
 export default defineConfig({
   plugins: [
     react(),
-    ...(sentryUploadEnabled
-      ? [
-          sentryVitePlugin({
-            authToken: process.env.SENTRY_AUTH_TOKEN,
-            org: process.env.SENTRY_ORG,
-            project: process.env.SENTRY_PROJECT,
-            release: { name: `epharm-admin@${releaseId}` },
-            sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
-          }),
-        ]
-      : []),
+    // Injection changes bytes after bundling: keep old cached URLs and injector versions apart.
+    { name: 'sentry-debug-id-version', augmentChunkHash: () => `sentry-cli@${sentryCliVersion}` },
   ],
   build: {
-    // Hidden source maps make browser stack traces useful. They are uploaded only
-    // when all Sentry build credentials exist and never shipped by the runtime image.
+    // The release pipeline uploads this exact build, then removes private maps
+    // before packaging nginx. Building never needs an upload token.
     sourcemap: 'hidden',
   },
   resolve: {

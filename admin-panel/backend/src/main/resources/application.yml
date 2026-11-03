@@ -64,6 +64,9 @@ sentry:
   release: epharm-backend@${RELEASE_ID:dev}
   traces-sample-rate: ${SENTRY_TRACES_SAMPLE_RATE:0.05}
   send-default-pii: false
+  max-request-body-size: none
+  # Capture unexpected MVC failures before our advice turns them into a controlled JSON 500.
+  exception-resolver-order: -1
   in-app-includes: kz.epharm
 
 springdoc:

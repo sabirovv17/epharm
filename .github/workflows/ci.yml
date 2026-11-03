@@ -95,6 +95,8 @@ jobs:
           python3 -m unittest discover -s tools/release/tests -p 'test_merch_artifact.py'
           python3 -m unittest discover -s tools/release/tests -p 'test_admin_artifact.py'
           python3 -m unittest discover -s tools/release/tests -p 'test_release_source.py'
+          python3 -m unittest discover -s tools/release/tests -p 'test_release_images_workflow.py'
+          python3 -m unittest discover -s tools/release/tests -p 'test_admin_sourcemaps.py'
           python3 -m unittest discover -s tools/release/tests -p 'test_financial_transition.py'
           python3 -m unittest discover -s tools/release/tests -p 'test_posm_package_defaults.py'
           bash tools/release/tests/prepare-deploy-contract.sh
@@ -363,27 +365,58 @@ jobs:
           IMAGE_NAME: epharm-ci-${{ matrix.name }}
           BUILD_CONTEXT: ${{ matrix.context }}
         run: docker build --pull --tag "$IMAGE_NAME:${GITHUB_SHA::12}" "$BUILD_CONTEXT"
-      - name: Verify final admin image contract
-        if: matrix.name == 'admin'
-        run: |
-          image_id="$(docker image inspect --format '{{.Id}}' "epharm-ci-admin:${GITHUB_SHA::12}")"
-          python3 tools/release/verify-admin-artifact.py --image "$image_id"
-          docker network create epharm-admin-artifact
-          docker run -d --name epharm-admin-artifact --network epharm-admin-artifact \
-            --add-host backend:127.0.0.1 -p 127.0.0.1:4174:80 "$image_id"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         if: matrix.name == 'admin'
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: admin-panel/frontend/package-lock.json
+      - name: Verify prebuilt admin release target without external Sentry
+        if: matrix.name == 'admin'
+        working-directory: admin-panel/frontend
+        env:
+          VITE_API_BASE_URL: ''
+          VITE_RELEASE_ID: v0.0.0-ci
+          VITE_RELEASE_COMMIT: ${{ github.sha }}
+          VITE_APP_ENVIRONMENT: test
+          VITE_SENTRY_DSN: https://synthetic@sentry.example.invalid/1
+        run: |
+          set -euo pipefail
+          python3 ../../tools/release/verify-admin-artifact.py --image "$(docker image inspect --format '{{.Id}}' "epharm-ci-admin:${GITHUB_SHA::12}")"
+          npm ci
+          npm run build:observability
+          python3 ../../tools/release/verify-admin-sourcemaps.py dist --write "$RUNNER_TEMP/admin-assets.json"
+          find dist -type f -name '*.map' -delete
+          runtime="$RUNNER_TEMP/frontend-runtime"; mkdir "$runtime"
+          cp Dockerfile nginx.conf "$runtime/"; cp -R dist "$runtime/dist"
+          docker build --target release-runtime --build-arg "VITE_RELEASE_ID=$VITE_RELEASE_ID" --build-arg "VITE_RELEASE_COMMIT=$GITHUB_SHA" --tag "epharm-ci-admin-release:${GITHUB_SHA::12}" "$runtime"
+          python3 - <<'PY'
+          import importlib.util, json, os, pathlib, subprocess
+          spec=importlib.util.spec_from_file_location('maps','../../tools/release/verify-admin-sourcemaps.py')
+          maps=importlib.util.module_from_spec(spec); spec.loader.exec_module(maps)
+          container=subprocess.check_output(['docker','create','--network','none','epharm-ci-admin-release:'+os.environ['GITHUB_SHA'][:12]],text=True).strip()
+          try:
+              directory=pathlib.Path(os.environ['RUNNER_TEMP'])/'frontend-runtime-check'
+              subprocess.run(['docker','cp',container+':/usr/share/nginx/html',str(directory)],check=True)
+              proof=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'admin-assets.json').read_text())
+              maps.verify_runtime(directory,proof,os.environ['VITE_RELEASE_ID'],os.environ['GITHUB_SHA'])
+          finally:
+              subprocess.run(['docker','rm','-v',container],check=True)
+          PY
+      - name: Verify final admin image contract
+        if: matrix.name == 'admin'
+        run: |
+          image_id="$(docker image inspect --format '{{.Id}}' "epharm-ci-admin-release:${GITHUB_SHA::12}")"
+          python3 tools/release/verify-admin-artifact.py --image "$image_id"
+          docker network create epharm-admin-artifact
+          docker run -d --name epharm-admin-artifact --network epharm-admin-artifact \
+            --add-host backend:127.0.0.1 -p 127.0.0.1:4174:80 "$image_id"
       - name: Exercise built admin image, not a dev server
         if: matrix.name == 'admin'
         working-directory: admin-panel/frontend
         env:
           ADMIN_ARTIFACT_BASE_URL: http://127.0.0.1:4174
         run: |
-          npm ci
           npx playwright install --with-deps chromium
           npx playwright test --config playwright.artifact.config.ts
       - name: Upload final admin image evidence

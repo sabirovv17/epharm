@@ -88,6 +88,67 @@ jobs:
               archive.extractall(source,filter='data')
           (root/'release-images/source-files.json').write_text(json.dumps(files,sort_keys=True)+'\n')
           PY
+      - name: Require Sentry release configuration
+        id: sentry_config
+        env:
+          SENTRY_FRONTEND_DSN: ${{ secrets.SENTRY_FRONTEND_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_FRONTEND_PROJECT }}
+          SENTRY_URL: ${{ vars.SENTRY_URL || 'https://sentry.io/' }}
+        run: |
+          set -euo pipefail
+          : "${SENTRY_FRONTEND_DSN:?missing SENTRY_FRONTEND_DSN secret}"
+          : "${SENTRY_AUTH_TOKEN:?missing SENTRY_AUTH_TOKEN secret}"
+          : "${SENTRY_ORG:?missing SENTRY_ORG secret}"
+          : "${SENTRY_PROJECT:?missing SENTRY_FRONTEND_PROJECT secret}"
+          python3 - <<'PY'
+          import os, re
+          from urllib.parse import urlsplit
+          dsn=urlsplit(os.environ['SENTRY_FRONTEND_DSN'])
+          hosts=('ingest.sentry.io','ingest.us.sentry.io','ingest.de.sentry.io')
+          assert dsn.scheme=='https' and dsn.username and not dsn.password and not dsn.query and not dsn.fragment, 'Invalid Sentry DSN format'
+          assert dsn.hostname and any(dsn.hostname.endswith('.'+host) for host in hosts) and re.fullmatch(r'/[0-9]+',dsn.path), 'DSN must use an official Sentry ingest origin and project ID'
+          assert os.environ['SENTRY_URL'] in ('https://sentry.io/','https://de.sentry.io/'), 'Unapproved Sentry API origin'
+          PY
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.15.0
+          cache: npm
+          cache-dependency-path: admin-panel/frontend/package-lock.json
+      - name: Build admin once, upload private maps, prepare exact runtime files
+        id: observability
+        env:
+          VITE_API_BASE_URL: ''
+          VITE_RELEASE_ID: ${{ inputs.release_id }}
+          VITE_RELEASE_COMMIT: ${{ inputs.exact_commit }}
+          VITE_APP_ENVIRONMENT: production
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_FRONTEND_DSN }}
+          VITE_SENTRY_TRACES_SAMPLE_RATE: '0.05'
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_FRONTEND_PROJECT }}
+          SENTRY_URL: ${{ vars.SENTRY_URL || 'https://sentry.io/' }}
+        run: |
+          set -euo pipefail
+          umask 077
+          frontend="$RUNNER_TEMP/frontend-observability"
+          runtime="$RUNNER_TEMP/frontend-runtime"
+          mkdir -m 700 "$frontend" "$runtime"
+          cp -R "$RUNNER_TEMP/release-source/admin-panel/frontend/." "$frontend/"
+          cd "$frontend"
+          env -u SENTRY_AUTH_TOKEN -u SENTRY_ORG -u SENTRY_PROJECT npm ci
+          # The build and Debug ID injection never receive the upload credential.
+          env -u SENTRY_AUTH_TOKEN -u SENTRY_ORG -u SENTRY_PROJECT npm run build:observability
+          python3 "$GITHUB_WORKSPACE/tools/release/verify-admin-sourcemaps.py" dist --write "$RUNNER_TEMP/admin-assets.json"
+          ./node_modules/.bin/sentry-cli releases new "epharm-admin@$RELEASE_ID" --url "https://github.com/$GITHUB_REPOSITORY/commit/$COMMIT"
+          ./node_modules/.bin/sentry-cli sourcemaps upload --release "epharm-admin@$RELEASE_ID" --strict --validate --wait dist
+          # Upload must not mutate the JS which nginx will serve.
+          python3 "$GITHUB_WORKSPACE/tools/release/verify-admin-sourcemaps.py" dist --compare "$RUNNER_TEMP/admin-assets.json"
+          ./node_modules/.bin/sentry-cli releases finalize "epharm-admin@$RELEASE_ID"
+          find dist -type f -name '*.map' -delete
+          cp Dockerfile nginx.conf "$runtime/"
+          cp -R dist "$runtime/dist"
       - name: Build and verify both production images sequentially
         id: build
         run: |
@@ -95,9 +156,9 @@ jobs:
           umask 077
           source_root="$RUNNER_TEMP/release-source"; output="$RUNNER_TEMP/release-images"
           docker build --pull --platform linux/amd64 --build-arg "RELEASE_ID=$RELEASE_ID" --build-arg "RELEASE_COMMIT=$COMMIT" --tag "epharm/backend:$RELEASE_ID" "$source_root/admin-panel/backend"
-          docker build --pull --platform linux/amd64 --build-arg "VITE_RELEASE_ID=$RELEASE_ID" --build-arg "VITE_RELEASE_COMMIT=$COMMIT" --build-arg VITE_API_BASE_URL= --build-arg VITE_SENTRY_DSN= --tag "epharm/frontend:$RELEASE_ID" "$source_root/admin-panel/frontend"
+          docker build --pull --platform linux/amd64 --target release-runtime --build-arg "VITE_RELEASE_ID=$RELEASE_ID" --build-arg "VITE_RELEASE_COMMIT=$COMMIT" --tag "epharm/frontend:$RELEASE_ID" "$RUNNER_TEMP/frontend-runtime"
           python3 - <<'PY'
-          import hashlib, json, os, pathlib, subprocess
+          import hashlib, importlib.util, json, os, pathlib, subprocess
           root=pathlib.Path(os.environ['RUNNER_TEMP']); source=root/'release-source'; output=root/'release-images'
           files=json.loads((output/'source-files.json').read_text())
           assert {p.relative_to(source).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob('*') if p.is_file()}==files
@@ -108,7 +169,17 @@ jobs:
               assert image['Os']=='linux' and image['Architecture']=='amd64'
               assert labels['org.opencontainers.image.version']==os.environ['RELEASE_ID'] and labels['org.opencontainers.image.revision']==os.environ['COMMIT']
               images[component]={'tag':tag,'imageId':image['Id'],'rootfs':image['RootFS']['Layers']}
-          (output/'provenance.json').write_text(json.dumps({'commit':os.environ['COMMIT'],'releaseId':os.environ['RELEASE_ID'],'runId':os.environ['GITHUB_RUN_ID'],'runAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'dockerEngine':engine,'images':images},sort_keys=True)+'\n')
+          sentry={'release':'epharm-admin@'+os.environ['RELEASE_ID'],'assets':json.loads((root/'admin-assets.json').read_text())}
+          spec=importlib.util.spec_from_file_location('maps',source/'tools/release/verify-admin-sourcemaps.py')
+          maps=importlib.util.module_from_spec(spec); spec.loader.exec_module(maps)
+          container=subprocess.check_output(['docker','create','--network','none',images['frontend']['imageId']],text=True).strip()
+          try:
+              directory=root/'frontend-runtime-check'
+              subprocess.run(['docker','cp',container+':/usr/share/nginx/html',str(directory)],check=True)
+              maps.verify_runtime(directory,sentry['assets'],os.environ['RELEASE_ID'],os.environ['COMMIT'])
+          finally:
+              subprocess.run(['docker','rm','-v',container],check=True)
+          (output/'provenance.json').write_text(json.dumps({'commit':os.environ['COMMIT'],'releaseId':os.environ['RELEASE_ID'],'runId':os.environ['GITHUB_RUN_ID'],'runAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'dockerEngine':engine,'images':images,'sentry':sentry},sort_keys=True)+'\n')
           PY
           backend_id="$(docker image inspect --format '{{.Id}}' "epharm/backend:$RELEASE_ID")"
           python3 "$source_root/tools/release/verify-merch-artifact.py" --image "$backend_id"
