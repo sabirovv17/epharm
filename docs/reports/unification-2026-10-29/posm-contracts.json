@@ -1748,7 +1748,7 @@
       "response": {
         "server": "map",
         "client": "StaffCapabilities",
-        "keyFields": ["enabled", "protocolVersion=1"]
+        "keyFields": ["enabled", "protocolVersion=2"]
       },
       "errors": [
         {

@@ -147,6 +147,10 @@ remain unknown. The observed IIN/status are additive context fields; process, us
 session, workstation or IIN changes invalidate the old in-memory grant and late responses.
 The new `POST /api/posm/staff/session/check` carries this context in the body, never in
 the URL. Legacy four-field GET validation remains supported by the backend.
+Staff capability protocol 2 explicitly identifies this implementation. The new client
+does not enable its prompt on a protocol-1 backend, including after rollback. Legacy
+protocol-1 clients do not enable staff UI on this backend; their core POSM traffic and
+legacy staff API wire formats remain compatible. This prevents mixed mandatory flows.
 
 Contextual SMS registration from an individually authenticated pharmacy device creates
 an active profile assigned to that pharmacy and returns a context-bound staff grant.

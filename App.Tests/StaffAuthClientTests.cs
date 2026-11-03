@@ -25,9 +25,10 @@ public sealed class StaffAuthClientTests
     }
 
     [Theory]
-    [InlineData("{\"enabled\":true,\"protocolVersion\":1}", true)]
-    [InlineData("{\"enabled\":false,\"protocolVersion\":1}", false)]
-    [InlineData("{\"enabled\":true,\"protocolVersion\":2}", false)]
+    [InlineData("{\"enabled\":true,\"protocolVersion\":2}", true)]
+    [InlineData("{\"enabled\":false,\"protocolVersion\":2}", false)]
+    [InlineData("{\"enabled\":true,\"protocolVersion\":1}", false)]
+    [InlineData("{\"enabled\":true,\"protocolVersion\":3}", false)]
     [InlineData("{}", false)]
     public async Task SignInRequiresExplicitSupportedBackendCapability(string json, bool enabled)
     {
