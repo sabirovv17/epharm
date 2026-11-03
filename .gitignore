@@ -164,6 +164,9 @@ App/bin/
 App/obj/
 App.Tests/bin/
 App.Tests/obj/
+App.Ui.Tests/bin/
+App.Ui.Tests/obj/
+App.Ui.Tests/proof/
 
 # Прод-секреты (compose --env-file) — НЕ коммитить
 .env.prod

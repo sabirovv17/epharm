@@ -167,6 +167,12 @@ the bypass applies only to that observation generation. A new session prompts ag
 Source/server disable and shutdown always release the window; customer display and
 receipt/sale/recommendation loops remain independent. The release gate stays false.
 
+`App.Ui.Tests/` runs seven native WPF regressions against the actual App assembly,
+using an in-memory fake HTTP handler without real SMS, accounts or device configuration.
+The Windows CI job saves boolean proof and synthetic renders; an explicit noninteractive
+opt-in is recorded as such and does not prove physical cashier desktop integration.
+The interactive Windows/Standard-N pilot remains required before enabling staff gates.
+
 POSM 1.0.72 temporarily disables the entire staff module with the read-only
 `EpharmConfig.StaffAuthenticationReleaseEnabled=false` release gate. No HTTP client, staff DB
 observer, tray or staff window starts; JSON, environment or server capabilities cannot override it.

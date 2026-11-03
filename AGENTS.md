@@ -18,7 +18,7 @@ Epharm: Kotlin/Spring backend, React-админка, Flutter-приложени�
 | Админка                          | `docs/03-admin-panel.md`                                              | `admin-panel/frontend/`                                                          |
 | Нативный мерч / объединение БД   | `docs/23-unified-admin-data-and-access.md`, корневой `PLAN.md`        | `admin-panel/backend/src/main/kotlin/kz/epharm/merch/`, `tools/unification/`     |
 | Мобильное приложение             | `docs/04-mobile-app.md`                                               | `lib/`, `test/`                                                                  |
-| POSM / касса                     | `docs/05-posm-client.md`                                              | `App/`, `Models/`                                                                |
+| POSM / касса                     | `docs/05-posm-client.md`                                              | `App/`, `Models/`; core `App.Tests/`, native WPF `App.Ui.Tests/`                 |
 | База / миграции                  | `docs/07-database.md`                                                 | `admin-panel/backend/src/main/resources/db/migration/`                           |
 | Прод / релиз / CI                | `docs/06-deployment-and-ops.md`, `docs/20-reliability-and-release.md` | `.github/workflows/`, `docker-compose.prod.yml`                                  |
 

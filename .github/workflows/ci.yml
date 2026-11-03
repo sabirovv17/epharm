@@ -477,6 +477,18 @@ jobs:
         shell: pwsh
         run: ./App.Tests/InstallTasksPreflight.Tests.ps1
       - run: dotnet build App/CustomerDisplay.csproj -c Release -p:EnableWindowsTargeting=true
+      - name: Verify native staff window with isolated synthetic requests
+        shell: pwsh
+        run: |
+          dotnet run --project App.Ui.Tests/CustomerDisplay.Ui.Tests.csproj -c Release -- --allow-noninteractive "--output=$env:RUNNER_TEMP/staff-ui-proof"
+          if ($LASTEXITCODE -ne 0) { throw 'Native staff window regression failed' }
+      - name: Upload native staff window proof
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: staff-ui-proof-${{ github.sha }}
+          path: ${{ runner.temp }}/staff-ui-proof/
+          if-no-files-found: warn
       - name: Publish commit-bound POSM bridge
         shell: pwsh
         run: |

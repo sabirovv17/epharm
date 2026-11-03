@@ -54,6 +54,7 @@ class StaffAuthIntegrationTest {
     @Autowired lateinit var otp:OtpService
     @Autowired lateinit var transactions:PlatformTransactionManager
     @Autowired lateinit var cleanup:StaffAuthCleanup
+    @Autowired lateinit var pharmacists:kz.epharm.pharmacists.repository.PharmacistRepository
     @MockkBean lateinit var provider:OtpProvider
     private val key="staff-test-device-secret-0000000000000001"
     private val key2="staff-test-device-secret-0000000000000002"
@@ -351,6 +352,19 @@ class StaffAuthIntegrationTest {
             login(password="NewPassword123!")
         } finally { release.countDown();executor.shutdownNow() }
     }
+    @Test fun `stale admin profile save cannot overwrite a newer cashier IIN observation`() {
+        val stale=pharmacists.findById("staff-person").orElseThrow()
+        assertEquals("UNKNOWN",stale.standardNIinMatchStatus)
+        post("/login",StaffLoginRequest(iin,"Password123!",context.copy(standardNIin="000101500011",standardNIinStatus="available")),key,200)
+        val checked=jdbc.queryForObject("SELECT standard_n_iin_checked_at FROM pharmacists WHERE id='staff-person'",java.sql.Timestamp::class.java)
+        stale.name="Updated profile name"
+        pharmacists.saveAndFlush(stale)
+        val fresh=pharmacists.findById("staff-person").orElseThrow()
+        assertEquals("Updated profile name",fresh.name)
+        assertEquals("MISMATCH",fresh.standardNIinMatchStatus)
+        assertEquals(checked?.toInstant(),fresh.standardNIinCheckedAt)
+    }
+
     @Test fun `expired authentication data is purged without deleting current grants and proofs`() {
         val active=login()["sessionToken"].asText()
         val id=challenge()
