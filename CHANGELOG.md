@@ -5,6 +5,18 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Upload Sentry source maps from the same frontend build packaged in release images, verify
+  Debug IDs and exact runtime bytes, and keep upload tokens/private maps outside Docker images.
+- Scrub credentials and personal data from frontend/backend diagnostics; capture unexpected
+  handled backend failures before the application advice. No cashier staff-auth gates are enabled.
+
+### Operations
+
+- Sentry still requires real organization/project credentials and an external delivery check.
+  The obsolete tag-time rebuild is replaced by a mandatory upload gate in the image pipeline.
+
 ## [0.2.4] - 2026-11-03
 
 ### Fixed

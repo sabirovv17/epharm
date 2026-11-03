@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { Component, type ReactNode } from 'react'
 import * as Sentry from '@sentry/react'
 
 interface Props {
@@ -25,11 +25,8 @@ export class ErrorBoundary extends Component<Props, State> {
     }
   }
 
-  componentDidCatch(error: unknown, info: ErrorInfo): void {
-    Sentry.captureException(error, {
-      contexts: { react: { componentStack: info.componentStack ?? '' } },
-    })
-    console.error('Admin UI crashed:', error, info.componentStack)
+  componentDidCatch(error: unknown): void {
+    Sentry.captureException(error)
   }
 
   render(): ReactNode {

@@ -204,6 +204,92 @@ class ReleaseImagesWorkflowTest(unittest.TestCase):
         self.assertIn('{{.Driver}}', script)
         self.assertNotIn('setup-docker-action', WORKFLOW.read_text())
 
+    def observability(self, **changes):
+        source = self.runner / 'release-source/admin-panel/frontend'
+        source.mkdir(parents=True)
+        (source / 'Dockerfile').write_text('FROM synthetic AS release-runtime')
+        (source / 'nginx.conf').write_text('synthetic')
+        self.command('npm', '''
+            import json, os, pathlib, sys
+            assert 'SENTRY_AUTH_TOKEN' not in os.environ, 'Build must not receive the upload token'
+            if sys.argv[1:]==['ci']:
+                target=pathlib.Path('node_modules/.bin/sentry-cli');target.parent.mkdir(parents=True)
+                target.write_bytes(pathlib.Path(os.environ['FAKE_CLI']).read_bytes());target.chmod(0o700)
+            elif sys.argv[1:]==['run','build:observability']:
+                assert os.environ['VITE_SENTRY_DSN']=='https://synthetic@o1.ingest.us.sentry.io/1'
+                dist=pathlib.Path('dist');dist.mkdir()
+                (dist/'index.html').write_text('<script src="/main.js"></script>')
+                (dist/'main.js').write_text('throw Error();\\n//# debugId=ab10c570-de86-5767-b7ef-277cfc1462b7\\n')
+                (dist/'main.js.map').write_text(json.dumps({'version':3,'debug_id':'ab10c570-de86-5767-b7ef-277cfc1462b7',
+                    'sources':['src/main.ts'],'sourcesContent':['throw Error()'],'mappings':'AAAA'}))
+            else:raise SystemExit(5)
+        ''')
+        self.command('fake-cli', '''
+            import json, os, pathlib, sys
+            assert os.environ['SENTRY_AUTH_TOKEN']=='synthetic-upload-secret'
+            args=sys.argv[1:]
+            with open(os.environ['COMMAND_LOG'],'a') as log:log.write(json.dumps(args)+'\\n')
+            if args[:2]==['sourcemaps','upload']:
+                if os.environ.get('UPLOAD_FAIL'):raise SystemExit(31)
+                if os.environ.get('MUTATE_UPLOAD'):pathlib.Path('dist/main.js').write_text('tampered')
+        ''')
+        return self.execute(run_block('observability'), GITHUB_WORKSPACE=str(ROOT),
+                            VITE_SENTRY_DSN='https://synthetic@o1.ingest.us.sentry.io/1',
+                            SENTRY_AUTH_TOKEN='synthetic-upload-secret', SENTRY_ORG='test', SENTRY_PROJECT='admin',
+                            FAKE_CLI=str(self.bin / 'fake-cli'), **changes)
+
+    def test_one_uploaded_build_is_packaged_without_private_maps(self):
+        result = self.observability()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        runtime = self.runner / 'frontend-runtime'
+        self.assertTrue((runtime / 'dist/main.js').is_file())
+        self.assertFalse(list(runtime.rglob('*.map')))
+        self.assertTrue((self.runner / 'admin-assets.json').is_file())
+        calls = [json.loads(x) for x in (self.root / 'commands.jsonl').read_text().splitlines()]
+        self.assertEqual([x[:2] for x in calls], [['releases', 'new'], ['sourcemaps', 'upload'], ['releases', 'finalize']])
+        self.assertIn('--validate', calls[1])
+        self.assertIn('--strict', calls[1])
+        self.assertIn('--wait', calls[1])
+        self.assertNotIn('synthetic-upload-secret', result.stdout + result.stderr)
+        self.assertIn('--target release-runtime', run_block('build'))
+        self.assertIn('maps.verify_runtime(', run_block('build'))
+
+    def test_upload_failure_stops_before_finalization_and_runtime_packaging(self):
+        result = self.observability(UPLOAD_FAIL='true')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.runner / 'frontend-runtime/dist').exists())
+        self.assertTrue((self.runner / 'frontend-observability/dist/main.js.map').is_file())
+        self.assertNotIn('finalize', (self.root / 'commands.jsonl').read_text())
+
+    def test_upload_mutation_cannot_ship_different_javascript(self):
+        result = self.observability(MUTATE_UPLOAD='true')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.runner / 'frontend-runtime/dist').exists())
+
+    def test_missing_sentry_configuration_is_not_silently_skipped(self):
+        keys = ('SENTRY_FRONTEND_DSN', 'SENTRY_AUTH_TOKEN', 'SENTRY_ORG', 'SENTRY_PROJECT')
+        configured = {key: 'synthetic-sensitive-value' for key in keys}
+        configured.update(SENTRY_FRONTEND_DSN='https://synthetic@o1.ingest.us.sentry.io/1', SENTRY_URL='https://sentry.io/')
+        self.assertEqual(self.execute(run_block('sentry_config'), **configured).returncode, 0)
+        for key in keys:
+            with self.subTest(key=key):
+                result = self.execute(run_block('sentry_config'), **dict(configured, **{key: ''}))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn('synthetic-sensitive-value', result.stdout + result.stderr)
+
+    def test_unapproved_dsn_or_api_origin_rejected_without_echoing_token(self):
+        configured = dict(SENTRY_FRONTEND_DSN='https://synthetic@o1.ingest.de.sentry.io/1',
+                          SENTRY_URL='https://de.sentry.io/', SENTRY_AUTH_TOKEN='synthetic-sensitive-value',
+                          SENTRY_ORG='test', SENTRY_PROJECT='admin')
+        self.assertEqual(self.execute(run_block('sentry_config'), **configured).returncode, 0)
+        for key, value in (('SENTRY_URL', 'https://unexpected.invalid/'),
+                           ('SENTRY_FRONTEND_DSN', 'https://synthetic@unexpected.invalid/1'),
+                           ('SENTRY_FRONTEND_DSN', 'http://synthetic@o1.ingest.sentry.io/1'),
+                           ('SENTRY_FRONTEND_DSN', 'https://synthetic:secret@o1.ingest.sentry.io/1')):
+            result = self.execute(run_block('sentry_config'), **dict(configured, **{key: value}))
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn('synthetic-sensitive-value', result.stdout + result.stderr)
+
     def test_actual_archive_config_digests_are_persisted_and_malformed_output_denied(self):
         body = run_block('build').rsplit("<<'PY'\n", 1)[1].split('\nPY', 1)[0]
         output = self.runner / 'release-images'

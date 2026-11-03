@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:observability": "npm run build && sentry-cli sourcemaps inject dist",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
@@ -34,7 +35,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.60.0",
-    "@sentry/vite-plugin": "5.4.0",
+    "@sentry/cli": "2.58.6",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

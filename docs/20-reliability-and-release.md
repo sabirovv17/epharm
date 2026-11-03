@@ -315,16 +315,56 @@ All three applications use the same immutable release id with component prefixes
 - mobile: `epharm-mobile@<RELEASE_ID>`.
 
 Set `SENTRY_BACKEND_DSN`, `SENTRY_FRONTEND_DSN` and `SENTRY_MOBILE_DSN` in secret storage. Empty DSNs
-disable export. Default PII and mobile screenshots are disabled because errors can occur while a
-receipt or identity data is visible. Admin hidden source maps must be uploaded by a trusted CI step
-with `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and `SENTRY_FRONTEND_PROJECT`; the Docker build never accepts
-that token and always removes maps from the nginx image. The tag-triggered
-`release-observability.yml` workflow performs the trusted upload and fails closed when credentials
-are absent. The TestFlight workflow uploads dSYMs when mobile Sentry credentials exist.
+disable export. Sentry setup is separate from deploying an SDK: without a real project/DSN there
+is no event delivery. Never fill these settings with dummy values to make a release job green.
+
+`release-images.yml` owns the admin build and upload as one release gate. After the exact-main
+source check it requires GitHub Actions secrets `SENTRY_FRONTEND_DSN`, `SENTRY_AUTH_TOKEN`,
+`SENTRY_ORG` and `SENTRY_FRONTEND_PROJECT`. Optional repository variable `SENTRY_URL` selects the
+organization API origin (default `https://sentry.io/`; EU `https://de.sentry.io/`). An organization
+CI token needs `org:ci`; a personal token needs `project:releases` and `org:read` as documented by
+[Sentry](https://docs.sentry.io/api/permissions/). Keep tokens out of tracked files and logs.
+
+The runner builds once from an isolated copy of the archived source and injects Debug IDs with
+the locked CLI. Neither `npm ci` nor compilation receives the upload token. The trusted upload
+uses `--strict --validate --wait`; any missing credential, upload/processing error or mismatched JS/map
+pair stops image delivery. CI then removes maps and packages those same files through Docker's
+`release-runtime` target, without rebuilding. It reads the stopped image back and compares all
+static bytes with the upload manifest, including the actual `release.json`. Digests and Debug IDs
+are recorded in `provenance.json`; neither original maps nor the token enter the image artifact.
+The former tag-triggered `release-observability.yml` is removed: it rebuilt different assets
+after deployment and could not prove that uploaded maps matched nginx. Historical failed runs
+remain history; their immutable tags are not moved or rebuilt as a substitute for a new release.
+
+Frontend events are scrubbed at the transport boundary: stack positions, asset URLs, Debug IDs,
+release and environment survive; form values, identity, query strings, React props, breadcrumbs,
+attachments and free text do not. Browser tracing, replays, sessions and logs are not exported by
+this errors-only setup. CSP allows the official Sentry ingest domains (legacy, US and EU); a
+self-hosted endpoint requires its own explicit allowlist before enabling that DSN.
+Backend callbacks remove request bodies/headers/query, identity and arbitrary diagnostic payloads
+from errors and sampled transactions, retaining technical stacks and span timings. The stock
+SDK transport receives a sanitized envelope header: incoming baggage cannot
+bypass event callbacks or enter the retry/disk queue. Trace/span IDs remain in the cleaned payload.
+The resolver runs before the application's exception advice so unexpected handled HTTP 5xx are reported;
+expected application 4xx are excluded. Default PII and mobile screenshots remain disabled. The
+callbacks do not automatically forward background failures that are only written with `log.error`;
+those need an explicit SDK capture or a separately verified logging integration. The
+TestFlight workflow uploads dSYMs when mobile Sentry credentials exist; it does not prove that a
+mobile build was delivered or that native/Dart events have been received.
 
 Acceptance: trigger one controlled error per component in staging, confirm its environment/release,
 stack trace and source mapping, then resolve the issues. Never add an unauthenticated production
 endpoint whose only purpose is generating errors.
+
+Initial connection checklist: sign in/create the organization's Sentry account, create the backend
+and React projects (and the mobile project before its store release), install the scoped CI token
+and DSNs in the stores above, then run the normal exact-main release pipeline. Enable the backend
+runtime DSN only through its reviewed deployment configuration. Verify synthetic event IDs in
+Sentry and `sentry-cli sourcemaps explain <event-id>` against the deployed admin asset hashes;
+inspect the received payload for PII. Local mock-transport tests and a green ordinary CI are
+prerequisites, not proof of this external acceptance. Leave POSM staff authentication disabled.
+Do not enable export on an older binary before these sanitizers are deployed. A rollback to a
+pre-sanitizer image must also restore empty DSNs; do not retain the new export configuration.
 
 ## Immutable application releases and rollback
 
