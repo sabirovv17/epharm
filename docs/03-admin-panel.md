@@ -80,6 +80,16 @@ The admin console is a desktop HQ tool with a 1280px minimum width. The separate
 
 ## Routes
 
+The public Caddy ingress explicitly allows GET/HEAD for each native `/merch` SPA page,
+including trailing slashes and query filters. The legacy `/merch/*` deny fence remains
+in place for unknown paths and unsupported methods. Adding a native route requires updating
+this allowlist; the proxy contract test compares it with the React router. A Vite preview
+alone cannot verify hard refresh through production ingress.
+
+The recommendation editor stacks its form and preview below the 2xl breakpoint, wraps
+action groups and constrains grid children. Artifact geometry checks cover long product/INN
+labels, comparison inputs and action buttons at 1280, 1440 and 1920 pixels.
+
 The local unified-admin candidate groups the existing routes into seven modules: Analytics;
 Pharmacist motivation; Training; Merchandising; Pharmacies and products; Pharmacists; Management.
 Management stays at the bottom of the sidebar. Grouping does not change canonical URLs or grant

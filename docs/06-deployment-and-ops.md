@@ -38,6 +38,13 @@ tunnel or VPN.
 
 ## Caddy
 
+Native admin pages `/merch/inventory`, `/merch/placements`, `/merch/tasks` and
+`/merch/staff-access` must reach the frontend on direct GET/HEAD, with or without a
+trailing slash or query. Their exact allowlist precedes the legacy `/merch/*` deny
+fence; do not replace that fence with a broad CRM or frontend proxy. Browser navigation
+inside React does not exercise this path. Run both the adapted Caddy route test and
+`ops/merch-portal-patches/test-caddy-redirect.sh` before changing the ingress.
+
 `Caddyfile` uses one site block for `{$ADMIN_DOMAIN}`. Before native cutover it handles:
 
 - `/s3/*` -> MinIO with prefix stripped;

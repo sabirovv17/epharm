@@ -99,16 +99,15 @@
 		file_server
 	}
 
-	# QR staff portal only. The merchandising admin/API remains private: unknown
-	# paths and methods are denied before the /merch prefix is removed. The
-	# server-to-server credential is never forwarded to a browser route.
+	# Explicit native SPA pages and legacy QR compatibility only. Unknown paths
+	# and methods remain denied; admin APIs keep their separate /api/admin realm.
 	handle /merch/* {
 		route {
-			@portal_entry {
-				path /merch/portal
+			@native_merch_page {
+				path /merch/portal /merch/portal/ /merch/inventory /merch/inventory/ /merch/placements /merch/placements/ /merch/tasks /merch/tasks/ /merch/staff-access /merch/staff-access/
 				method GET HEAD
 			}
-			handle @portal_entry {
+			handle @native_merch_page {
 				header Referrer-Policy no-referrer
 				header Cache-Control no-store
 				reverse_proxy frontend:80 {

@@ -125,7 +125,7 @@ function InlineValidatedField({
 }) {
   const errorId = validationErrorId(path)
   return (
-    <div>
+    <div className="min-w-0">
       {cloneElement(children, {
         'data-validation-path': path,
         'aria-invalid': error ? true : undefined,
@@ -681,11 +681,11 @@ function PairCard({
       data-validation-path={triggerErrorPath}
       tabIndex={cardError ? -1 : undefined}
       aria-invalid={cardError ? true : undefined}
-      className={`hairline grid gap-3 rounded-xl border bg-paper-card p-3 lg:grid-cols-[minmax(0,1fr)_340px] ${cardError ? 'border-accent-danger' : ''}`}
+      className={`hairline grid gap-3 rounded-xl border bg-paper-card p-3 2xl:grid-cols-[minmax(0,1fr)_340px] ${cardError ? 'border-accent-danger' : ''}`}
     >
       <div className="flex min-w-0 flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="min-w-0 flex-1 basis-40">
             <div className="truncate text-[13px] font-bold text-ink-900">
               {isBroadTrigger ? r.triggerLabel || r.name : r.name}
             </div>
@@ -851,8 +851,8 @@ function PairCard({
         )}
 
         <div className="hairline rounded-lg border bg-paper-input p-3">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
               <div className="text-[11px] font-bold uppercase tracking-[0.04em] text-ink-400">
                 {t('pr.offersOnRegister')}
               </div>
@@ -867,6 +867,7 @@ function PairCard({
                 onClick={() => setOfferPickerOpen(true)}
                 leading={<IconPlus size={13} />}
                 data-testid={`pr-add-offer-${domId}`}
+                className="shrink-0"
               >
                 {atOfferLimit ? t('pr.limitReached') : t('pr.addOffer')}
               </Button>
@@ -1041,7 +1042,7 @@ function PairCard({
                 {cmp.map((row, i) => (
                   <div
                     key={i}
-                    className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2"
+                    className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2"
                     data-testid={`pr-cmp-${domId}-${i}`}
                   >
                     <InlineValidatedField
@@ -1224,7 +1225,7 @@ function RecommendationPreview({
     goal.label && goal.target != null ? `0/${goal.target} ${goal.label}` : goal.label || null
 
   return (
-    <div className="lg:sticky lg:top-2 lg:self-start">
+    <div className="min-w-0 2xl:sticky 2xl:top-2 2xl:self-start">
       <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.05em] text-ink-400">
         {t('pr.previewTitle')}
       </div>

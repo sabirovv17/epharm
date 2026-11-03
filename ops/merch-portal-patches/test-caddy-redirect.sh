@@ -29,14 +29,19 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import json, threading
 class Handler(BaseHTTPRequestHandler):
     writes = 0
-    def do_GET(self):
+    def respond(self, send_body=True):
         self.send_response(200)
         self.send_header('Content-Type','application/json')
         self.end_headers()
-        self.wfile.write(json.dumps({'path':self.path,'integrationHeader':self.headers.get('X-Pharmapay-Key'),
-                                    'staffHeader':self.headers.get('X-Staff-Session'),
-                                    'forwarded':self.headers.get('X-Forwarded-For'),
-                                    'writes':Handler.writes}).encode())
+        if send_body:
+            self.wfile.write(json.dumps({'path':self.path,'integrationHeader':self.headers.get('X-Pharmapay-Key'),
+                                        'staffHeader':self.headers.get('X-Staff-Session'),
+                                        'forwarded':self.headers.get('X-Forwarded-For'),
+                                        'writes':Handler.writes}).encode())
+    def do_GET(self):
+        self.respond()
+    def do_HEAD(self):
+        self.respond(False)
     def do_POST(self):
         Handler.writes += 1
         self.do_GET()
@@ -73,7 +78,8 @@ start_caddy false
 
 request() {
   local method="$1" path="$2" host="${3:-epharm.example.test}" target_port="${4:-$port}"
-  curl --silent --show-error --connect-timeout 2 --max-time 5 \
+  local head=(); [[ "$method" != HEAD ]] || head=(--head)
+  curl --silent --show-error --connect-timeout 2 --max-time 5 ${head[@]+"${head[@]}"} \
     --request "$method" --header "Host: $host" \
     --header 'X-Forwarded-Proto: https' \
     --header 'X-Forwarded-For: 203.0.113.199' \
@@ -81,6 +87,45 @@ request() {
     --header 'X-Staff-Session: must-never-reach-browser-upstream' \
     --dump-header "$test_dir/headers" --output "$test_dir/body" \
     "http://127.0.0.1:$target_port$path"
+}
+
+check_native_pages() {
+  # Match the actual React routes, including /learn deep links and query filters.
+  python3 - "$root/admin-panel/frontend/src/app/router.tsx" > "$test_dir/spa-paths" <<'PY'
+import re,sys
+source=open(sys.argv[1]).read()
+for path in re.findall(r'path="([^"]+)"',source):
+    if not path.startswith('/') or path in ('/staff','/merch/staff'): continue
+    print(re.sub(r':[A-Za-z]+','synthetic-id',path))
+PY
+  while IFS= read -r page; do
+    for entry in "$page" "${page%/}/?view=review%20queue"; do
+      request GET "$entry"
+      python3 - "$test_dir/headers" "$test_dir/body" "$entry" <<'PY'
+import json,sys
+raw=open(sys.argv[1]).read().lower()
+assert raw.startswith('http/1.1 200 '), (sys.argv[3],raw)
+body=json.load(open(sys.argv[2]))
+assert body['path']==sys.argv[3], body
+if sys.argv[3].startswith('/merch/'):
+    assert body['integrationHeader'] is None and body['staffHeader'] is None, body
+    assert 'no-store' in raw and 'no-referrer' in raw, raw
+PY
+    done
+  done < "$test_dir/spa-paths"
+  for page in /merch/portal /merch/inventory /merch/placements /merch/tasks /merch/staff-access; do
+    request HEAD "$page"
+    grep -q '^HTTP/1.1 200 ' "$test_dir/headers"
+    for method in POST PUT PATCH DELETE OPTIONS; do
+      request "$method" "$page"
+      grep -q '^HTTP/1.1 404 ' "$test_dir/headers"
+    done
+  done
+  for path in /merch/admin /merch/login /merch/tasks-extra /merch/tasks/private /merch/placements/api /merch/api/admin/auth; do
+    request GET "$path"
+    grep -q '^HTTP/1.1 404 ' "$test_dir/headers"
+  done
+  echo 'Caddy SPA refresh: every React page/deep link reaches frontend, native merch methods and unknown paths remain denied: OK'
 }
 for _ in $(seq 1 20); do
   if request GET '/merch/staff?task=legacy-probe%2B1'; then break; fi
@@ -116,9 +161,11 @@ grep -q '^HTTP/1.1 404 ' "$test_dir/headers"
 request GET '/merch/admin'
 grep -q '^HTTP/1.1 404 ' "$test_dir/headers"
 echo 'Caddy legacy staff redirect and deny-by-default routes: OK'
+check_native_pages
 
 docker rm -f "$container" >/dev/null
 start_caddy true
+check_native_pages
 for entry in '/merch/staff?task=synthetic-capability' '/staff?task=1'; do
   request GET "$entry"
   python3 - "$test_dir/headers" "$test_dir/body" <<'PY'
