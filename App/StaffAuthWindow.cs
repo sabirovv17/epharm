@@ -53,6 +53,8 @@ public sealed class StaffAuthWindow : Window
     {
         _client = client;
         _context = context;
+        requireSignIn = requireSignIn && context?.StandardNIinStatus == "available" &&
+            Regex.IsMatch(context.StandardNIin ?? "", "^[0-9]{12}$");
         _requireSignIn = requireSignIn;
         _sessionRequiredMessage = (sessionReason ?? "Кассовая сессия ещё не подтверждена.") +
             " Вход будет доступен после определения текущей сессии Standard-N. Регистрация и восстановление пароля доступны сейчас; касса продолжает работать.";
@@ -126,6 +128,10 @@ public sealed class StaffAuthWindow : Window
             Top = screen.WorkingArea.Top / dpi.DpiScaleY + 12;
         };
         Closing += (_, args) => { if (_requireSignIn && !_dismissAllowed) args.Cancel = true; };
+        StateChanged += (_, _) => {
+            if (_requireSignIn && !_dismissAllowed && WindowState == WindowState.Minimized)
+                WindowState = WindowState.Normal;
+        };
         Closed += (_, _) => { _stop.Cancel(); _password.Clear(); _passwordConfirmation.Clear(); _iin.Clear(); _phone.Clear(); _code.Clear(); _name.Clear(); ClearChallenge(); };
     }
 

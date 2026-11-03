@@ -194,6 +194,8 @@ internal static class Program
         Check(proof, "topmost-borderless", window.Topmost && window.WindowStyle == WindowStyle.None && window.ResizeMode == ResizeMode.NoResize);
         SaveOwnWindow(window, "01-required-login");
         window.Close(); await Idle(); Check(proof, "ordinary-close-is-cancelled", window.IsVisible);
+        window.WindowState = WindowState.Minimized; await Idle();
+        Check(proof, "ordinary-minimize-is-reversed", window.WindowState == WindowState.Normal && window.IsVisible);
         window.Dismiss(); await Idle(); Check(proof, "parent-dismiss-closes", !window.IsVisible);
         Check(proof, "no-http-requests", handler.TotalCalls == 0);
     }
@@ -267,7 +269,8 @@ internal static class Program
         using var handler = new FakeHandler(); using var client = new StaffAuthClient(Config(), handler);
         var state = new StaffSessionState(); state.Observe(new("no_session")); var policy = new StaffPromptPolicy();
         Check(proof, "unknown-session-does-not-require-prompt", !policy.RequiresSignIn(state.Observation, state.Generation, false));
-        var window = Window(client, null, false); await Idle();
+        var window = Window(client, null, true); await Idle();
+        Check(proof, "unknown-session-cannot-be-forced-into-fullscreen", window.WindowStyle != WindowStyle.None);
         Check(proof, "unknown-session-login-is-disabled", !Field<Button>(window, "_submit").IsEnabled);
         Check(proof, "unknown-session-retains-registration", Field<Button>(window, "_newStaff").IsEnabled);
         window.Close(); await Idle(); Check(proof, "unknown-session-window-can-close", !window.IsVisible && state.Grant == null);
