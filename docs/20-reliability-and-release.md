@@ -342,8 +342,10 @@ attachments and free text do not. Browser tracing, replays, sessions and logs ar
 this errors-only setup. CSP allows the official Sentry ingest domains (legacy, US and EU); a
 self-hosted endpoint requires its own explicit allowlist before enabling that DSN.
 Backend callbacks remove request bodies/headers/query, identity and arbitrary diagnostic payloads
-from errors and sampled transactions, retaining technical stacks and span timings. The resolver
-runs before the application's exception advice so unexpected handled HTTP 5xx are reported;
+from errors and sampled transactions, retaining technical stacks and span timings. The stock
+SDK transport receives a sanitized envelope header: incoming baggage cannot
+bypass event callbacks or enter the retry/disk queue. Trace/span IDs remain in the cleaned payload.
+The resolver runs before the application's exception advice so unexpected handled HTTP 5xx are reported;
 expected application 4xx are excluded. Default PII and mobile screenshots remain disabled. The
 callbacks do not automatically forward background failures that are only written with `log.error`;
 those need an explicit SDK capture or a separately verified logging integration. The
@@ -361,6 +363,8 @@ runtime DSN only through its reviewed deployment configuration. Verify synthetic
 Sentry and `sentry-cli sourcemaps explain <event-id>` against the deployed admin asset hashes;
 inspect the received payload for PII. Local mock-transport tests and a green ordinary CI are
 prerequisites, not proof of this external acceptance. Leave POSM staff authentication disabled.
+Do not enable export on an older binary before these sanitizers are deployed. A rollback to a
+pre-sanitizer image must also restore empty DSNs; do not retain the new export configuration.
 
 ## Immutable application releases and rollback
 

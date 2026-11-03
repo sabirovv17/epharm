@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import java.io.ByteArrayOutputStream
 
 class SentryMvcCaptureTest {
     private val secret = "SYNTHETIC-PRIVATE-000000000001-OTP0000-token"
@@ -65,7 +66,8 @@ class SentryMvcCaptureTest {
             }
             .withConfiguration(AutoConfigurations.of(WebMvcAutoConfiguration::class.java, SentryAutoConfiguration::class.java))
             .withUserConfiguration(SentryPrivacyConfiguration::class.java, GlobalExceptionHandler::class.java, ProbeController::class.java)
-            .withBean(ITransportFactory::class.java, { ITransportFactory { _, _ -> transport } })
+            .withBean(ITransportFactory::class.java,
+                { SentryPrivacyTransportFactory(ITransportFactory { _, _ -> transport }) }, { it.isPrimary = true })
             .withPropertyValues("SENTRY_DSN=https://public@ingest.invalid/1", "APP_ENVIRONMENT=acceptance",
                 "RELEASE_ID=fixture", "SENTRY_TRACES_SAMPLE_RATE=0.05")
             .run { context ->
@@ -73,6 +75,8 @@ class SentryMvcCaptureTest {
                 val options = context.getBean(SentryProperties::class.java)
                 assertThat(options.beforeSend).isNotNull()
                 assertThat(options.beforeSendTransaction).isNotNull()
+                assertThat(context.getBean("sentryTransportFactory")).isInstanceOf(SentryPrivacyTransportFactory::class.java)
+                assertThat(options.transportFactory).isInstanceOf(SentryPrivacyTransportFactory::class.java)
                 assertThat(options.exceptionResolverOrder).isEqualTo(-1)
                 assertThat(options.maxRequestBodySize.name).isEqualTo("NONE")
                 assertThat(options.isSendDefaultPii).isFalse()
@@ -95,6 +99,11 @@ class SentryMvcCaptureTest {
                 assertThat(events).hasSize(1)
                 val payload = events.single().data.toString(Charsets.UTF_8)
                 assertThat(payload).doesNotContain(secret, "+70000000001", "private-person-id", "X-Posm-Key", "X-Staff-Session", "X-Merch-Task-Token")
+                transport.envelopes.forEach { envelope ->
+                    val serialized = ByteArrayOutputStream().also { options.serializer.serialize(envelope, it) }.toString(Charsets.UTF_8)
+                    assertThat(serialized).doesNotContain(secret, "+70000000001", "private-person-id")
+                    assertThat(envelope.header.traceContext).isNull()
+                }
                 val event = events.single().getEvent(options.serializer)!!
                 assertThat(event.release).isEqualTo("epharm-backend@fixture")
                 assertThat(event.environment).isEqualTo("acceptance")

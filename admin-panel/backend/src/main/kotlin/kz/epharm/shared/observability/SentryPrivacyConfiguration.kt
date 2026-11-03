@@ -1,7 +1,12 @@
 package kz.epharm.shared.observability
 
+import io.sentry.AsyncHttpTransportFactory
 import io.sentry.Hint
+import io.sentry.ITransportFactory
+import io.sentry.RequestDetails
 import io.sentry.SentryBaseEvent
+import io.sentry.SentryEnvelope
+import io.sentry.SentryEnvelopeHeader
 import io.sentry.SentryEvent
 import io.sentry.SentryLevel
 import io.sentry.SentryOptions
@@ -10,6 +15,8 @@ import io.sentry.protocol.SentrySpan
 import io.sentry.protocol.SentryStackTrace
 import io.sentry.protocol.SentryTransaction
 import io.sentry.protocol.TransactionInfo
+import io.sentry.transport.ITransport
+import io.sentry.transport.RateLimiter
 import jakarta.servlet.http.HttpServletRequest
 import kz.epharm.shared.error.AppException
 import org.springframework.beans.factory.ObjectProvider
@@ -26,6 +33,9 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 /** Diagnostic stacks and timings are useful; receipt, identity and credential payloads are not. */
 @Configuration(proxyBeanMethods = false)
 class SentryPrivacyConfiguration {
+    @Bean
+    fun sentryTransportFactory(): ITransportFactory = SentryPrivacyTransportFactory()
+
     @Bean
     fun sentryBeforeSend(mappings: ObjectProvider<RequestMappingHandlerMapping>? = null) = SentryOptions.BeforeSendCallback { event, hint ->
         try {
@@ -135,5 +145,28 @@ class SentryPrivacyConfiguration {
         }.getOrDefault(false)
         if (originalMethod in methods && registered) return original!!
         return "background"
+    }
+}
+
+/** SDK baggage is serialized in the envelope header after beforeSend, outside event sanitization. */
+internal class SentryPrivacyTransportFactory(private val delegate: ITransportFactory = AsyncHttpTransportFactory()) : ITransportFactory {
+    override fun create(options: SentryOptions, requestDetails: RequestDetails): ITransport {
+        val transport = delegate.create(options, requestDetails)
+        return object : ITransport {
+            override fun send(envelope: SentryEnvelope, hint: Hint) {
+                // TraceContext is immutable in SDK 8.55. Keep trace/span IDs in the sanitized item;
+                // discard the independent incoming baggage header before SDK caching/retries.
+                val header = SentryEnvelopeHeader(envelope.header.eventId, envelope.header.sdkVersion)
+                    .apply { sentAt = envelope.header.sentAt }
+                transport.send(SentryEnvelope(header, envelope.items), hint)
+            }
+
+            override fun send(envelope: SentryEnvelope) = send(envelope, Hint())
+            override fun isHealthy() = transport.isHealthy
+            override fun flush(timeoutMillis: Long) = transport.flush(timeoutMillis)
+            override fun getRateLimiter(): RateLimiter? = transport.rateLimiter
+            override fun close() = transport.close()
+            override fun close(isRestarting: Boolean) = transport.close(isRestarting)
+        }
     }
 }
