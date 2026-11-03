@@ -11,6 +11,65 @@ public sealed class StaffSessionObservationTests
     private static StaffSessionObservation Observe(string process = "10:1000", long session = 100, string user = "cashier-1") =>
         StaffSessionResolver.Resolve([Row(session: session, user: user)], "KASSA1", process);
 
+    [Theory]
+    [InlineData("951212500015", "951212500015")]
+    [InlineData(" 000101500011  ", "000101500011")]
+    public void ExactTextIinIsTrimmedWithoutLosingLeadingZeroes(string raw, string expected)
+    {
+        Assert.Equal(new("available", expected), StaffSessionResolver.ReadIin([raw]));
+    }
+
+    [Theory]
+    [InlineData("95121250001")]
+    [InlineData("9512125000150")]
+    [InlineData("95121250001x")]
+    [InlineData("951212 500015")]
+    [InlineData("９５１２１２５０００１５")]
+    public void InvalidSourceIinIsNotReportedAsAnAvailableIdentity(string raw)
+    {
+        Assert.Equal(new("invalid"), StaffSessionResolver.ReadIin([raw]));
+    }
+
+    [Fact]
+    public void NumericIinIsNeverPaddedOrConvertedAndMissingIinIsNotMismatch()
+    {
+        Assert.Equal(new("invalid"), StaffSessionResolver.ReadIin([951212500015L]));
+        Assert.Equal(new("missing"), StaffSessionResolver.ReadIin([]));
+        Assert.Equal(new("missing"), StaffSessionResolver.ReadIin([null]));
+        Assert.Equal(new("missing"), StaffSessionResolver.ReadIin([DBNull.Value]));
+        Assert.Equal(new("missing"), StaffSessionResolver.ReadIin(["  "]));
+    }
+
+    [Fact]
+    public void MultipleSourceRowsRemainAmbiguousEvenWhenIinValuesAreEqual()
+    {
+        Assert.Equal(new("ambiguous"), StaffSessionResolver.ReadIin(["951212500015", "951212500015"]));
+        Assert.Equal(new("ambiguous"), StaffSessionResolver.ReadIin([null, "000101500011"]));
+    }
+
+    [Theory]
+    [InlineData("available", "000101500011")]
+    [InlineData("missing", null)]
+    [InlineData("invalid", null)]
+    [InlineData("ambiguous", null)]
+    [InlineData("unavailable", null)]
+    public void IinOrAvailabilityChangeInvalidatesGrantAndAnEarlierLogin(string status, string? iin)
+    {
+        var original = Observe();
+        original = original with { Session = original.Session! with { StandardNIin = "951212500015", StandardNIinStatus = "available" } };
+        var state = new StaffSessionState();
+        state.Observe(original);
+        var generation = state.Generation;
+        var oldKey = state.Observation.Session!.Key;
+        Assert.True(state.Accept(generation, oldKey, "grant", Now.AddMinutes(5), Now));
+        Assert.False(state.Observe(original));
+        Assert.True(state.IsAuthenticated(Now));
+        var changed = original with { Session = original.Session! with { StandardNIin = iin, StandardNIinStatus = status } };
+        Assert.True(state.Observe(changed));
+        Assert.False(state.IsAuthenticated(Now));
+        Assert.False(state.Accept(generation, oldKey, "late-grant", Now.AddMinutes(5), Now));
+    }
+
     [Fact]
     public void VendorCountersStringsAndOffsetsCannotBeGuessedAsSessionTimestamps()
     {

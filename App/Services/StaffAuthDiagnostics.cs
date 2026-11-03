@@ -16,6 +16,7 @@ public static class StaffAuthDiagnostics
         "database_disabled", "database_unavailable", "no_session", "ambiguous_session", "unknown_workstation",
         "unsupported_session_time", "future_session_time", "stale_session", "invalid_session_time",
         "unsupported_process_time", "session_predates_process", "login_required", "login_visible", "authenticated",
+        "staff_bypass_service_unavailable", "staff_bypass_sms_unavailable", "staff_bypass_sms_wait", "staff_bypass_identity_unavailable",
     };
 
     public static bool IsKnown(string? status) => status != null && Statuses.Contains(status);

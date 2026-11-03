@@ -8,6 +8,17 @@ namespace CustomerDisplay.Core.Tests;
 public sealed class StaffAuthDiagnosticsTests
 {
     [Theory]
+    [InlineData("staff_bypass_service_unavailable")]
+    [InlineData("staff_bypass_sms_unavailable")]
+    [InlineData("staff_bypass_sms_wait")]
+    [InlineData("staff_bypass_identity_unavailable")]
+    public void BypassedSignInKeepsAFixedDiagnosticInsteadOfAuthenticated(string status)
+    {
+        Assert.Equal(status, StaffAuthDiagnostics.Normalize(status));
+        Assert.NotEqual("authenticated", StaffAuthDiagnostics.Normalize(status));
+    }
+
+    [Theory]
     [InlineData("authenticated", "authenticated")]
     [InlineData("login_visible", "login_visible")]
     [InlineData("database_unavailable", "database_unavailable")]

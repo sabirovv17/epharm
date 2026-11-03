@@ -34,7 +34,7 @@ class PharmacistEntity(
     var passwordHash: String? = null,
 
     // Nullable: саморегистрированный pending-фармацевт ещё не привязан к аптеке (V019).
-    // Активный фармацевт всегда имеет аптеку — её назначает админ при активации.
+    // Аптеку активному профилю назначает админ либо индивидуально подтверждённая POSM-касса.
     @Column(name = "pharmacy_id", nullable = true, length = 64)
     var pharmacyId: String? = null,
 
@@ -76,6 +76,12 @@ class PharmacistEntity(
 
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant = Instant.now(),
+
+    @Column(name = "standard_n_iin_match_status", nullable = false, length = 8)
+    var standardNIinMatchStatus: String = "UNKNOWN",
+
+    @Column(name = "standard_n_iin_checked_at")
+    var standardNIinCheckedAt: Instant? = null,
 ) {
     var tier: PharmacistTier
         get() = PharmacistTier.valueOf(tierRaw)

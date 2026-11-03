@@ -104,6 +104,89 @@ class StaffAuthIntegrationTest {
             .andExpect(status().`is`(expected))
     }
 
+    private fun checkedSession(token:String,ctx:StaffContext,expected:Int=200) {
+        mvc.perform(post("/api/posm/staff/session/check").header("X-Posm-Key",key).header("X-Staff-Session",token)
+            .contentType("application/json").content(json.writeValueAsBytes(ctx)))
+            .andExpect(status().`is`(expected))
+    }
+
+    @Test fun `new registration creates active scoped profile authenticates once and preserves financial mappings`() {
+        val newIin="000101500011";val number="+77000000012"
+        val observed=context.copy(standardNIin=newIin,standardNIinStatus="available")
+        val id=challenge("register",newIin,number)
+        val request=StaffPasswordRequest(id,"1234",newIin,number,"NewPassword123!","DEMO Новый",observed)
+        val mappingsBefore=jdbc.queryForObject("SELECT count(*) FROM posm_pharmacist_mappings",Long::class.java)
+        post("/register",request.copy(context=observed.copy(standardNIin=null)),expected=400)
+        post("/register",request,credential=key2,expected=400)
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM pharmacists WHERE iin=?",Int::class.java,newIin))
+        val result=post("/register",request)
+        assertEquals("authenticated",result["status"].asText())
+        assertEquals(json.valueToTree<com.fasterxml.jackson.databind.JsonNode>(observed),result["context"])
+        val row=jdbc.queryForMap("SELECT status,pharmacy_id,city,password_hash,standard_n_iin_match_status FROM pharmacists WHERE iin=?",newIin)
+        assertEquals("active",row["status"])
+        assertEquals("staff-pharmacy",row["pharmacy_id"])
+        assertEquals("DEMO",row["city"])
+        assertEquals("MATCH",row["standard_n_iin_match_status"])
+        assertTrue(encoder.matches("NewPassword123!",row["password_hash"].toString()))
+        val token=result["sessionToken"].asText()
+        checkedSession(token,observed)
+        session(token) // Older callers retain their four-field validation protocol.
+        checkedSession(token,observed.copy(standardNIin=iin),expected=401)
+        checkedSession(token,context,expected=401)
+        post("/register",request,expected=400)
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM pharmacists WHERE iin=?",Int::class.java,newIin))
+        assertEquals(mappingsBefore,jdbc.queryForObject("SELECT count(*) FROM posm_pharmacist_mappings",Long::class.java))
+    }
+
+    @Test fun `new registration marks mismatched and unavailable source identities without pending assignment`() {
+        for((newIin,number,observed) in listOf(
+            Triple("000101500011","+77000000012",context.copy(standardNIin=iin,standardNIinStatus="available")),
+            Triple("880404400014","+77000000013",context.copy(standardNIinStatus="missing")),
+        )) {
+            val id=challenge("register",newIin,number)
+            val response=post("/register",StaffPasswordRequest(id,"1234",newIin,number,"NewPassword123!","DEMO Новый",observed))
+            assertEquals("authenticated",response["status"].asText())
+            val row=jdbc.queryForMap("SELECT status,pharmacy_id,standard_n_iin_match_status FROM pharmacists WHERE iin=?",newIin)
+            assertEquals("active",row["status"])
+            assertEquals("staff-pharmacy",row["pharmacy_id"])
+            assertEquals(if(observed.standardNIinStatus=="available") "MISMATCH" else "UNKNOWN",row["standard_n_iin_match_status"])
+        }
+    }
+
+    @Test fun `login records only diagnostic match mismatch unknown without reassigning pharmacy`() {
+        for((source,sourceStatus,expected) in listOf(Triple(iin,"available","MATCH"),Triple("000101500011","available","MISMATCH"),Triple(null,"missing","UNKNOWN"))) {
+            val observed=context.copy(standardNIin=source,standardNIinStatus=sourceStatus)
+            val response=post("/login",StaffLoginRequest(iin,"Password123!",observed))
+            checkedSession(response["sessionToken"].asText(),observed)
+            val row=jdbc.queryForMap("SELECT standard_n_iin_match_status,standard_n_iin_checked_at,pharmacy_id FROM pharmacists WHERE id='staff-person'")
+            assertEquals(expected,row["standard_n_iin_match_status"])
+            assertNotNull(row["standard_n_iin_checked_at"])
+            assertEquals("staff-pharmacy",row["pharmacy_id"])
+        }
+        post("/login",StaffLoginRequest(iin,"Password123!",context.copy(standardNIinStatus="available")),expected=400)
+        post("/login",StaffLoginRequest(iin,"Password123!",context.copy(standardNIin=iin)),expected=400)
+    }
+
+    @Test fun `parallel logins of different people leave only one grant on a device`() {
+        val secondIin="000101500011"
+        jdbc.update("INSERT INTO pharmacists(id,name,iin,phone,password_hash,pharmacy_id,pharmacy_name,tier,status) VALUES ('second-person','DEMO',?,'+77000000012',?,'staff-pharmacy','DEMO','Silver','active')",secondIin,encoder.encode("Password123!"))
+        val executor=Executors.newFixedThreadPool(2)
+        val ready=CountDownLatch(2);val start=CountDownLatch(1)
+        try {
+            val pending=listOf(iin,secondIin).map { personIin -> executor.submit<String> {
+                ready.countDown()
+                assertTrue(start.await(5,TimeUnit.SECONDS))
+                post("/login",StaffLoginRequest(personIin,"Password123!",context))["sessionToken"].asText()
+            } }
+            assertTrue(ready.await(5,TimeUnit.SECONDS));start.countDown()
+            val tokens=pending.map { it.get(15,TimeUnit.SECONDS) }
+            assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM posm_staff_sessions WHERE device_id='staff-device' AND revoked_at IS NULL",Int::class.java))
+            val statuses=tokens.map { token -> mvc.perform(post("/api/posm/staff/session/check").header("X-Posm-Key",key).header("X-Staff-Session",token)
+                .contentType("application/json").content(json.writeValueAsBytes(context))).andReturn().response.status }.sorted()
+            assertEquals(listOf(200,401),statuses)
+        } finally { start.countDown();executor.shutdownNow() }
+    }
+
     @Test fun `HTTP requires individual device and grant stays scoped and revocable`() {
         post("/otp/request",StaffOtpRequest("register"," $iin ",phone),expected=400)
         login(expected=401,password="wrongPass")
@@ -271,7 +354,7 @@ class StaffAuthIntegrationTest {
     @Test fun `expired authentication data is purged without deleting current grants and proofs`() {
         val active=login()["sessionToken"].asText()
         val id=challenge()
-        jdbc.update("INSERT INTO posm_staff_sessions SELECT ?,pharmacist_id,device_id,pharmacy_id,password_fingerprint,standard_n_user_id,standard_n_session_id,workstation_id,process_instance_id,now()-interval '25 hours',revoked_at,created_at FROM posm_staff_sessions",hash("expired-test-session"))
+        jdbc.update("INSERT INTO posm_staff_sessions(token_hash,pharmacist_id,device_id,pharmacy_id,password_fingerprint,standard_n_user_id,standard_n_session_id,workstation_id,process_instance_id,expires_at,revoked_at,created_at) SELECT ?,pharmacist_id,device_id,pharmacy_id,password_fingerprint,standard_n_user_id,standard_n_session_id,workstation_id,process_instance_id,now()-interval '25 hours',revoked_at,created_at FROM posm_staff_sessions",hash("expired-test-session"))
         jdbc.update("UPDATE posm_staff_challenges SET expires_at=now()-interval '25 hours' WHERE id=?",UUID.fromString(id))
         jdbc.update("INSERT INTO posm_staff_rate_limits VALUES ('expired-limit',now()-interval '25 hours',1)")
         cleanup.cleanExpired()

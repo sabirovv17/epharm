@@ -16,6 +16,7 @@ public partial class MainWindow
     private StaffAuthClient? _staffClient;
     private StandardNDbLookup? _staffLookup;
     private readonly StaffSessionState _staffSession = new();
+    private readonly StaffPromptPolicy _staffPrompt = new();
     private readonly CancellationTokenSource _staffStop = new();
     private System.Windows.Forms.NotifyIcon? _staffTray;
     private StaffAuthWindow? _staffWindow;
@@ -56,6 +57,11 @@ public partial class MainWindow
                     catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
                     catch { }
                     await Dispatcher.InvokeAsync(() => {
+                        if (_staffEnabled && (capability.Status is "network_unavailable" or "endpoint_unavailable"))
+                        {
+                            BypassStaffPrompt(StaffPromptBypassReason.ServiceUnavailable);
+                            return;
+                        }
                         SetStaffCapability(capability.Enabled);
                         if (!capability.Enabled) SetStaffAuthenticationStatus(capability.Status);
                     });
@@ -120,7 +126,7 @@ public partial class MainWindow
         if (!enabled)
         {
             _staffSession.Observe(new("service_disabled"));
-            _staffWindow?.Close(); _staffStatusWindow?.Close();
+            _staffWindow?.Dismiss(); _staffStatusWindow?.Close();
             _staffTray?.Dispose(); _staffTray = null; _staffPrompted = false;
             return;
         }
@@ -143,18 +149,25 @@ public partial class MainWindow
         var oldToken = _staffSession.Grant;
         if (_staffSession.Observe(observation))
         {
-            _staffWindow?.Close(); _staffStatusWindow?.Close(); _staffPrompted = false;
+            _staffWindow?.Dismiss(); _staffStatusWindow?.Close(); _staffPrompted = false;
             _staffLastValidation = DateTimeOffset.MinValue;
             if (oldToken != null) _ = RevokeOldStaffGrant(oldToken);
             // IDs are sufficient for auditing; never emit IIN, name, phone, password or token.
             Log("Сессия сотрудника ePharm обновлена: " + observation.Status);
         }
+        if (_staffPrompt.NeedsIdentityBypass(observation, _staffSession.Generation, _staffSession.IsAuthenticated(DateTimeOffset.UtcNow)))
+        {
+            BypassStaffPrompt(StaffPromptBypassReason.IdentityUnavailable);
+            return;
+        }
         if (_staffTray != null)
             _staffTray.Text = _staffSession.IsAuthenticated(DateTimeOffset.UtcNow)
-                ? "Сотрудник ePharm — вход подтверждён" : "Сотрудник ePharm — требуется вход";
-        SetStaffAuthenticationStatus(StaffAuthDiagnostics.Observation(observation.Status,
+                ? "Сотрудник ePharm — вход подтверждён" : _staffPrompt.BypassStatus(_staffSession.Generation) != null
+                ? "ePharm — вход не подтверждён, касса доступна" : "Сотрудник ePharm — требуется вход";
+        SetStaffAuthenticationStatus(_staffPrompt.BypassStatus(_staffSession.Generation) ?? StaffAuthDiagnostics.Observation(observation.Status,
             _staffSession.IsAuthenticated(DateTimeOffset.UtcNow), _staffWindow?.IsVisible == true));
-        if (observation.Status != "no_process" && !_staffPrompted && !_staffSession.IsAuthenticated(DateTimeOffset.UtcNow))
+        if (!_staffPrompted && _staffPrompt.RequiresSignIn(observation, _staffSession.Generation,
+            _staffSession.IsAuthenticated(DateTimeOffset.UtcNow)))
         {
             _staffPrompted = true;
             OpenStaffWindow();
@@ -163,7 +176,8 @@ public partial class MainWindow
     }
 
     private static StaffAuthContext StaffContext(StaffObservedSession observed) =>
-        new(observed.ExternalUserId, observed.ExternalSessionId, observed.WorkstationId, observed.ProcessIdentity);
+        new(observed.ExternalUserId, observed.ExternalSessionId, observed.WorkstationId, observed.ProcessIdentity,
+            observed.StandardNIin, observed.StandardNIinStatus);
 
     private void OpenStaffWindow(bool activate = false)
     {
@@ -179,31 +193,47 @@ public partial class MainWindow
             var generation = _staffSession.Generation;
             var context = observed == null ? null : StaffContext(observed);
             var window = new StaffAuthWindow(_staffClient, context, PharmacistScreen(),
-                observed == null ? ExplainStaffObservation(_staffSession.Observation.Status) : null);
+                observed == null ? ExplainStaffObservation(_staffSession.Observation.Status) : null,
+                requireSignIn: _staffPrompt.RequiresSignIn(_staffSession.Observation, generation, false));
             window.Authenticated += response =>
             {
-                if (observed == null || context == null || response.Context != context || response.SessionToken == null || response.ExpiresAt == null ||
-                    !_staffSession.Accept(generation, observed.Key, response.SessionToken, response.ExpiresAt.Value, DateTimeOffset.UtcNow))
+                if (observed == null || context == null || !_staffPrompt.AcceptAuthentication(
+                    _staffSession, generation, observed.Key, context, response, DateTimeOffset.UtcNow))
                 {
                     if (response.SessionToken != null) _ = RevokeOldStaffGrant(response.SessionToken);
                     return;
                 }
                 _staffLastValidation = DateTimeOffset.UtcNow;
                 SetStaffAuthenticationStatus("authenticated");
-                window.Close();
+                window.Dismiss();
                 if (_staffTray != null) _staffTray.Text = "Сотрудник ePharm — вход подтверждён";
                 Log("Вход сотрудника ePharm подтверждён для текущей кассовой сессии.");
+            };
+            window.BypassRequested += reason => {
+                if (_staffWindow == window && _staffSession.Generation == generation) BypassStaffPrompt(reason);
             };
             window.Closed += (_, _) => {
                 if (_staffWindow != window) return;
                 _staffWindow = null;
-                if (_staffEnabled) SetStaffAuthenticationStatus(StaffAuthDiagnostics.Observation(
+                if (_staffEnabled) SetStaffAuthenticationStatus(_staffPrompt.BypassStatus(_staffSession.Generation) ?? StaffAuthDiagnostics.Observation(
                     _staffSession.Observation.Status, _staffSession.IsAuthenticated(DateTimeOffset.UtcNow)));
             };
             _staffWindow = window; window.Show();
-            SetStaffAuthenticationStatus(StaffAuthDiagnostics.Observation(_staffSession.Observation.Status, false, window.IsVisible));
+            SetStaffAuthenticationStatus(_staffPrompt.BypassStatus(_staffSession.Generation) ?? StaffAuthDiagnostics.Observation(_staffSession.Observation.Status, false, window.IsVisible));
         }
         if (activate) { _staffWindow.WindowState = WindowState.Normal; _staffWindow.Activate(); }
+    }
+
+    private void BypassStaffPrompt(StaffPromptBypassReason reason)
+    {
+        if (!_staffEnabled || _staffStop.IsCancellationRequested) return;
+        var token = _staffSession.Grant;
+        var status = _staffPrompt.Bypass(_staffSession, reason);
+        _staffPrompted = true;
+        _staffWindow?.Dismiss(); _staffStatusWindow?.Close();
+        SetStaffAuthenticationStatus(status);
+        if (_staffTray != null) _staffTray.Text = "ePharm — вход не подтверждён, касса доступна";
+        if (token != null) _ = RevokeOldStaffGrant(token);
     }
 
     private static string ExplainStaffObservation(string status) => status switch {
@@ -243,6 +273,14 @@ public partial class MainWindow
             if (response.Status != "authenticated" || response.Context != StaffContext(observation)) throw new StaffApiException("INVALID_SESSION");
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+        catch (Exception error) when (error is System.Net.Http.HttpRequestException or OperationCanceledException or System.Text.Json.JsonException ||
+            error is StaffApiException { Code: "UNAVAILABLE" or "INVALID_RESPONSE" })
+        {
+            await Dispatcher.InvokeAsync(() => {
+                if (_staffSession.Generation == generation && _staffSession.Grant == token)
+                    BypassStaffPrompt(StaffPromptBypassReason.ServiceUnavailable);
+            });
+        }
         catch
         {
             await Dispatcher.InvokeAsync(() => {
@@ -263,13 +301,13 @@ public partial class MainWindow
         var token = _staffSession.Grant;
         _staffSession.Invalidate(); _staffPrompted = true;
         SetStaffAuthenticationStatus(StaffAuthDiagnostics.Observation(_staffSession.Observation.Status, false));
-        _staffWindow?.Close(); _staffStatusWindow?.Close();
+        _staffWindow?.Dismiss(); _staffStatusWindow?.Close();
         OpenStaffWindow(activate: true);
         if (token != null) await RevokeOldStaffGrant(token);
     }
     private void StopStaffAuthentication()
     {
         _staffStop.Cancel(); _staffSession.ClearGrant();
-        _staffWindow?.Close(); _staffStatusWindow?.Close(); _staffTray?.Dispose(); _staffClient?.Dispose(); _staffLookup?.Dispose();
+        _staffWindow?.Dismiss(); _staffStatusWindow?.Close(); _staffTray?.Dispose(); _staffClient?.Dispose(); _staffLookup?.Dispose();
     }
 }

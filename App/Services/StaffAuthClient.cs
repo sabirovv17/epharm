@@ -55,16 +55,17 @@ public sealed class StaffAuthClient : IDisposable
         PostAsync<StaffOtpResponse>("otp/request", new { purpose, iin, phone }, ct);
     public Task<StaffRegistrationResponse> RegisterAsync(string challengeId, string code, string iin, string phone, string name, string password, CancellationToken ct) =>
         PostAsync<StaffRegistrationResponse>("register", new { challengeId, code, iin, phone, name, password }, ct);
+    public Task<StaffRegistrationResponse> RegisterAsync(string challengeId, string code, string iin, string phone, string name, string password, StaffAuthContext? context, CancellationToken ct) =>
+        PostAsync<StaffRegistrationResponse>("register", new { challengeId, code, iin, phone, name, password, context }, ct);
     public Task<StaffPasswordChanged> ChangePasswordAsync(string purpose, string challengeId, string code, string iin, string phone, string password, CancellationToken ct) =>
         PostAsync<StaffPasswordChanged>(purpose == "activate" ? "password/activate" : "password/reset", new { challengeId, code, iin, phone, password }, ct);
 
     public async Task<StaffAuthResponse> ValidateAsync(string token, StaffAuthContext context, CancellationToken ct)
     {
-        var query = "standardNUserId=" + Uri.EscapeDataString(context.StandardNUserId) +
-            "&standardNSessionId=" + Uri.EscapeDataString(context.StandardNSessionId) +
-            "&workstationId=" + Uri.EscapeDataString(context.WorkstationId) +
-            "&processInstanceId=" + Uri.EscapeDataString(context.ProcessInstanceId);
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/posm/staff/session?" + query);
+        // Keep the observed IIN out of URLs and access logs. Do not fall back/replay on an old server.
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/posm/staff/session/check") {
+            Content = JsonContent.Create(context, options: Json),
+        };
         request.Headers.Add("X-Staff-Session", token);
         using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
         return await ReadAsync<StaffAuthResponse>(response, ct).ConfigureAwait(false);

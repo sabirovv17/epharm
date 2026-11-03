@@ -112,7 +112,10 @@ namespace CustomerDisplay.Services
             try
             {
                 using var conn = OpenConnection();
+                using var transaction = conn.BeginTransaction(new FbTransactionOptions
+                { TransactionBehavior = FbTransactionBehavior.Read | FbTransactionBehavior.Concurrency | FbTransactionBehavior.Wait });
                 using var cmd = conn.CreateCommand();
+                cmd.Transaction = transaction;
                 cmd.CommandTimeout = TimeoutSec();
                 cmd.CommandText = @"select first 100 s.ID as SESSION_ID, s.USER_ID, s.WS_ID, s.PROG, w.COMPNAME,
                     s.STARTDT, s.HEARTBEATS,
@@ -128,12 +131,38 @@ namespace CustomerDisplay.Services
                     StaffSessionResolver.ReadDatabaseTimestamp(ReadValue(reader, "STARTDT")),
                     StaffSessionResolver.ReadDatabaseTimestamp(ReadValue(reader, "HEARTBEATS")),
                     StaffSessionResolver.ReadDatabaseTimestamp(ReadValue(reader, "DB_NOW"))));
-                return StaffSessionResolver.Resolve(rows, _machineName, processIdentity, _cfg.StaffSessionMaxAgeSec);
+                reader.Close();
+                var observation = StaffSessionResolver.Resolve(rows, _machineName, processIdentity, _cfg.StaffSessionMaxAgeSec);
+                if (observation.Session is not { } session) return observation;
+                var identity = ReadStaffIin(conn, transaction, session.ExternalUserId);
+                return observation with { Session = session with { StandardNIin = identity.Iin, StandardNIinStatus = identity.Status } };
             }
             catch
             {
                 // This observer must not log database credentials or alter the existing cash path.
                 return new("database_unavailable");
+            }
+        }
+
+        private StaffIinObservation ReadStaffIin(FbConnection connection, FbTransaction transaction, string userId)
+        {
+            try
+            {
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandTimeout = TimeoutSec();
+                // Read the exact user's identifier in the same read-only snapshot as their local session.
+                command.CommandText = "select first 2 u.INN from USERS u where u.ID = @userId";
+                command.Parameters.AddWithValue("@userId", userId);
+                using var reader = command.ExecuteReader();
+                var values = new List<object?>(2);
+                while (reader.Read()) values.Add(reader.IsDBNull(0) ? null : reader.GetValue(0));
+                return StaffSessionResolver.ReadIin(values);
+            }
+            catch
+            {
+                // Older schemas may omit USERS.INN. An unreadable IIN is never a mismatch or proof of identity.
+                return new("unavailable");
             }
         }
 

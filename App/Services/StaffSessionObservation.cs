@@ -8,15 +8,31 @@ public sealed record StaffCashSessionRow(long SessionId, string UserId, long? Wo
     string? ComputerName, string? Program, DateTime? SessionStartedAt = null,
     DateTime? HeartbeatAt = null, DateTime? DatabaseNow = null);
 public sealed record StaffObservedSession(string ProcessIdentity, string ExternalUserId,
-    string ExternalSessionId, string WorkstationId)
+    string ExternalSessionId, string WorkstationId, string? StandardNIin = null,
+    string StandardNIinStatus = "unavailable")
 {
-    public string Key => ProcessIdentity + ":" + WorkstationId + ":" + ExternalSessionId + ":" + ExternalUserId;
+    public string Key => ProcessIdentity + ":" + WorkstationId + ":" + ExternalSessionId + ":" + ExternalUserId +
+        ":" + StandardNIinStatus + ":" + StandardNIin;
 }
 public sealed record StaffSessionObservation(string Status, StaffObservedSession? Session = null);
+public sealed record StaffIinObservation(string Status, string? Iin = null);
 
 /// <summary>Authoritative staff observations never inherit the receipt-reader's heuristic fallbacks.</summary>
 public static class StaffSessionResolver
 {
+    // The vendor's USERS.INN is text. Never invent leading zeroes or infer IIN from a name/login.
+    public static StaffIinObservation ReadIin(IEnumerable<object?> values)
+    {
+        var rows = values.Take(2).ToArray();
+        if (rows.Length > 1) return new("ambiguous");
+        if (rows.Length == 0 || rows[0] == null || rows[0] == DBNull.Value) return new("missing");
+        if (rows[0] is not string value) return new("invalid");
+        var iin = value.Trim();
+        if (iin.Length == 0) return new("missing");
+        return iin.Length == 12 && iin.All(character => character is >= '0' and <= '9')
+            ? new("available", iin) : new("invalid");
+    }
+
     // A vendor counter/string is not a timestamp; never guess a unit or parse it as personal-session proof.
     public static DateTime? ReadDatabaseTimestamp(object? value) => value is DateTime timestamp
         ? DateTime.SpecifyKind(timestamp, DateTimeKind.Unspecified)

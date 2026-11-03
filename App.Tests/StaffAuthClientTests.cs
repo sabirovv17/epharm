@@ -13,6 +13,17 @@ public sealed class StaffAuthClientTests
     private static StaffAuthClient Client(HttpMessageHandler handler) => new(new EpharmConfig {
         BackendBaseUrl = "https://backend.example", DeviceId = "device-1", DeviceKey = "test-only-device-key" }, handler);
 
+    [Fact]
+    public void OlderStaffContextDefaultsToUnavailableIinInsteadOfInventingAMatch()
+    {
+        var context = JsonSerializer.Deserialize<StaffAuthContext>("""
+            {"StandardNUserId":"user-1","StandardNSessionId":"session-2","WorkstationId":"ws-3","ProcessInstanceId":"44:50000"}
+            """)!;
+        Assert.Equal(Context, context);
+        Assert.Null(context.StandardNIin);
+        Assert.Equal("unavailable", context.StandardNIinStatus);
+    }
+
     [Theory]
     [InlineData("{\"enabled\":true,\"protocolVersion\":1}", true)]
     [InlineData("{\"enabled\":false,\"protocolVersion\":1}", false)]
@@ -114,17 +125,42 @@ public sealed class StaffAuthClientTests
     }
 
     [Fact]
-    public async Task StaffGrantIsHeaderOnlyAndNeverAddedToTheUrl()
+    public async Task StaffGrantIsHeaderOnlyAndObservedIinUsesPostBodyWithoutPersonalQuery()
     {
-        using var client = Client(new Handler((request, _) => {
+        var observed = Context with { StandardNIin = "000101500011", StandardNIinStatus = "available" };
+        using var client = Client(new Handler(async (request, ct) => {
+            Assert.Equal(HttpMethod.Post, request.Method);
+            Assert.Equal("/api/posm/staff/session/check", request.RequestUri!.AbsolutePath);
+            Assert.Empty(request.RequestUri.Query);
             Assert.Equal("opaque-test-grant", request.Headers.GetValues("X-Staff-Session").Single());
-            Assert.DoesNotContain("opaque-test-grant", request.RequestUri!.ToString());
+            Assert.DoesNotContain("opaque-test-grant", request.RequestUri.ToString());
+            Assert.DoesNotContain(observed.StandardNIin, request.RequestUri.ToString());
             Assert.Null(request.Headers.Authorization);
-            Assert.Contains("standardNUserId=user-1", request.RequestUri.Query);
-            return System.Threading.Tasks.Task.FromResult(Response("{\"status\":\"authenticated\",\"context\":{\"standardNUserId\":\"user-1\",\"standardNSessionId\":\"session-2\",\"workstationId\":\"ws-3\",\"processInstanceId\":\"44:50000\"}}"));
+            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct));
+            Assert.Equal("user-1", body.RootElement.GetProperty("standardNUserId").GetString());
+            Assert.Equal(observed.StandardNIin, body.RootElement.GetProperty("standardNIin").GetString());
+            Assert.Equal("available", body.RootElement.GetProperty("standardNIinStatus").GetString());
+            Assert.False(body.RootElement.TryGetProperty("sessionToken", out _));
+            return Response("{\"status\":\"authenticated\",\"context\":{\"standardNUserId\":\"user-1\",\"standardNSessionId\":\"session-2\",\"workstationId\":\"ws-3\",\"processInstanceId\":\"44:50000\",\"standardNIin\":\"000101500011\",\"standardNIinStatus\":\"available\"}}");
         }));
-        var result = await client.ValidateAsync("opaque-test-grant", Context, TestContext.Current.CancellationToken);
-        Assert.Equal(Context, result.Context);
+        var result = await client.ValidateAsync("opaque-test-grant", observed, TestContext.Current.CancellationToken);
+        Assert.Equal(observed, result.Context);
+    }
+
+    [Fact]
+    public async Task OldBackendCannotTriggerAGetFallbackOrReplayOfSessionCheck()
+    {
+        var calls = 0;
+        using var client = Client(new Handler((request, _) => {
+            calls++;
+            Assert.Equal(HttpMethod.Post, request.Method);
+            Assert.Empty(request.RequestUri!.Query);
+            return Task.FromResult(Response("", HttpStatusCode.NotFound));
+        }));
+        var error = await Assert.ThrowsAsync<StaffApiException>(() =>
+            client.ValidateAsync("opaque-test-grant", Context, TestContext.Current.CancellationToken));
+        Assert.Equal("UNAVAILABLE", error.Code);
+        Assert.Equal(1, calls);
     }
 
     [Theory]
@@ -193,6 +229,45 @@ public sealed class StaffAuthClientTests
         }));
         var response = await client.RegisterAsync("challenge-1", "1234", "000000000000", "+77000000000", "Test Pharmacist", "test-only-password", TestContext.Current.CancellationToken);
         Assert.Equal("pending", response.Status);
+        Assert.Null(response.SessionToken);
+        Assert.Null(response.ExpiresAt);
+        Assert.Null(response.Pharmacist);
+        Assert.Null(response.Context);
+    }
+
+    [Fact]
+    public async Task ContextualRegistrationCarriesObservedIinAndReturnsSessionForAutoClose()
+    {
+        var observed = Context with { StandardNIin = "000101500011", StandardNIinStatus = "available" };
+        var expires = DateTimeOffset.UtcNow.AddHours(8);
+        using var client = Client(new Handler(async (request, ct) => {
+            Assert.Equal(HttpMethod.Post, request.Method);
+            Assert.Equal("/api/posm/staff/register", request.RequestUri!.AbsolutePath);
+            Assert.Empty(request.RequestUri.Query);
+            Assert.DoesNotContain(observed.StandardNIin, request.RequestUri.ToString());
+            using var document = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct));
+            var body = document.RootElement;
+            Assert.Equal("challenge-1", body.GetProperty("challengeId").GetString());
+            Assert.Equal("1234", body.GetProperty("code").GetString());
+            Assert.Equal("000101500011", body.GetProperty("iin").GetString());
+            Assert.Equal("Test Pharmacist", body.GetProperty("name").GetString());
+            Assert.Equal("test-only-password", body.GetProperty("password").GetString());
+            var context = body.GetProperty("context");
+            Assert.Equal("user-1", context.GetProperty("standardNUserId").GetString());
+            Assert.Equal(observed.StandardNIin, context.GetProperty("standardNIin").GetString());
+            Assert.Equal("available", context.GetProperty("standardNIinStatus").GetString());
+            return Response(JsonSerializer.Serialize(new {
+                status = "authenticated", sessionToken = "opaque-new-grant", expiresAt = expires,
+                pharmacist = new { id = "person-1", name = "Test Pharmacist" }, context = observed,
+            }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+        }));
+        var response = await client.RegisterAsync("challenge-1", "1234", "000101500011", "+77000000000", "Test Pharmacist",
+            "test-only-password", observed, TestContext.Current.CancellationToken);
+        Assert.Equal("authenticated", response.Status);
+        Assert.Equal("opaque-new-grant", response.SessionToken);
+        Assert.Equal(expires, response.ExpiresAt);
+        Assert.Equal(new StaffIdentity("person-1", "Test Pharmacist"), response.Pharmacist);
+        Assert.Equal(observed, response.Context);
     }
 
     [Fact]

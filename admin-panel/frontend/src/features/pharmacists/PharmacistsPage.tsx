@@ -430,6 +430,14 @@ export default function PharmacistsPage() {
                     </td>
                     <td className="num whitespace-nowrap px-3 py-2.5 text-ink-700">
                       {p.iin || '—'}
+                      {p.standardNIinMatchStatus === 'MISMATCH' && (
+                        <div
+                          className="mt-1 max-w-[145px] whitespace-normal text-[11px] font-semibold text-accent-warning"
+                          title="При последнем входе ИИН сотрудника отличался от ИИН текущего аккаунта Стандарт‑Н. Это диагностическая пометка, а не подтверждение получателя бонусов."
+                        >
+                          ИИН не совпадает со Стандарт‑Н
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 text-ink-700">
                       <div className={!p.pharmacyName ? 'font-bold text-accent-warning' : ''}>

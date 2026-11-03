@@ -222,6 +222,8 @@ class AdministrativeScope(private val catalog: UnifiedAdminCatalog, private val 
         val finance = catalog.policy.decide(context.access.actor,
             AccessRequest(catalog.financial, DataScope(PharmacyScope.All)), Instant.now()).allowed
         return dto.copy(iin = if (personal) dto.iin else null, phone = if (personal) dto.phone else null,
+            standardNIinMatchStatus = if (personal) dto.standardNIinMatchStatus else null,
+            standardNIinCheckedAt = if (personal) dto.standardNIinCheckedAt else null,
             earned30d = if (finance) dto.earned30d else null, balance = if (finance) dto.balance else null,
             receipts30d = if (finance) dto.receipts30d else null, rulesAccepted30d = if (finance) dto.rulesAccepted30d else null)
     }
