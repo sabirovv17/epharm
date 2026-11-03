@@ -1,0 +1,430 @@
+diff --git a/scripts/test_task_dispatch_workflow.py b/scripts/test_task_dispatch_workflow.py
+index 999e77d..e191493 100644
+--- a/scripts/test_task_dispatch_workflow.py
++++ b/scripts/test_task_dispatch_workflow.py
+@@ -85,6 +85,7 @@ class TaskDispatchWorkflowTests(unittest.TestCase):
+         permissions = (ROOT / "database/migrations/058_task_dispatch_table_permissions.sql").read_text(encoding="utf-8")
+         server = (ROOT / "scripts/api_server.py").read_text(encoding="utf-8")
+         manager = (ROOT / "src/OperationalTasksPage.jsx").read_text(encoding="utf-8")
++        merch_styles = (ROOT / "src/merchRedesign.css").read_text(encoding="utf-8")
+         public = (ROOT / "src/PublicTaskDispatch.jsx").read_text(encoding="utf-8")
+         for marker in ("staff_task_dispatches", "staff_task_dispatch_links", "mass_owner_id", "dispatch_id"):
+             self.assertIn(marker, migration)
+@@ -97,9 +98,12 @@ class TaskDispatchWorkflowTests(unittest.TestCase):
+             '"/public/task-dispatch/submit"',
+         ):
+             self.assertIn(route, server)
+-        self.assertIn("Выдать задания аптеке", manager)
++        self.assertIn("Новое задание", manager)
+         self.assertIn('shelfMode: "all"', manager)
+-        self.assertIn("Администратор может выдавать задания любой аптеке", manager)
++        self.assertIn("Проверка отчётов и назначение заданий", manager)
++        self.assertIn("createTaskDispatches", manager)
++        self.assertIn("ops-task-viewer-backdrop task-workspace-viewer-backdrop", manager)
++        self.assertIn(".ops-task-viewer-backdrop.task-workspace-viewer-backdrop", merch_styles)
+         self.assertIn("branchIds: [...initialBranchIds]", manager)
+         self.assertNotIn("pharmacies[0]?.id", manager)
+         self.assertIn("!visible.length && !loading && !loadError", manager)
+diff --git a/src/OperationalTasksPage.jsx b/src/OperationalTasksPage.jsx
+index 02e5f46..5d70622 100644
+--- a/src/OperationalTasksPage.jsx
++++ b/src/OperationalTasksPage.jsx
+@@ -315,10 +315,10 @@ function CreateTaskDrawer({ pharmacies, initialScope, onClose, onCreated }) {
+   return (
+     <div className="ops-task-drawer-backdrop">
+       <form className="ops-task-create-drawer" onSubmit={submit}>
+-        <header><div><span className="eyebrow">Новый пакет</span><h2>Выдать задания аптеке</h2><p>Для каждой аптеки будет создан один пакет, а внутри — отдельная задача на каждую полку.</p></div><button type="button" title="Закрыть" aria-label="Закрыть" onClick={onClose}><X /></button></header>
++        <header><div><h2>Новое задание</h2><p>Аптеки, полки, срок и правила приёмки.</p></div><button type="button" title="Закрыть" aria-label="Закрыть" onClick={onClose}><X /></button></header>
+         <div className="ops-task-create-body">
+           <section>
+-            <div className="ops-task-section-title"><span>1</span><div><h3>Выберите аптеки</h3><p>Можно создать одинаковое задание сразу для нескольких точек.</p></div></div>
++            <div className="ops-task-section-title"><span>1</span><div><h3>Аптеки</h3><p>Выберите одну или несколько точек.</p></div></div>
+             {initialScope?.scopeLabel && <div className="ops-task-scope-note"><CheckCircle /><span><strong>{initialScope.scopeLabel}</strong><small>Область ответственности передана из оргструктуры.</small></span></div>}
+             <label className="ops-task-search"><MagnifyingGlass /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Найти аптеку" /></label>
+             <div className="ops-task-branch-picker">
+@@ -327,7 +327,7 @@ function CreateTaskDrawer({ pharmacies, initialScope, onClose, onCreated }) {
+             </div>
+           </section>
+           <section>
+-            <div className="ops-task-section-title"><span>2</span><div><h3>Тип задания</h3><p>Шаблон заполнит инструкцию и правила приёмки.</p></div></div>
++            <div className="ops-task-section-title"><span>2</span><div><h3>Задание</h3><p>Тип, название и инструкция.</p></div></div>
+             <div className="ops-task-type-grid">
+               {Object.entries({ photo_report: "Фотоотчёт", placement: "Выкладка", maintenance: "Реструктуризация", inventory: "Проверка", general: "Поручение" }).map(([key, label]) => <button type="button" className={form.taskType === key ? "active" : ""} onClick={() => applyTemplate(key)} key={key}>{key === "photo_report" ? <Camera /> : key === "general" ? <ClipboardList /> : <Stack />}<span>{label}</span></button>)}
+             </div>
+@@ -335,7 +335,7 @@ function CreateTaskDrawer({ pharmacies, initialScope, onClose, onCreated }) {
+             <label><span>Инструкция</span><textarea value={form.description} onChange={(event) => update("description", event.target.value)} rows="4" maxLength="1200" /></label>
+           </section>
+           <section>
+-            <div className="ops-task-section-title"><span>3</span><div><h3>Какие полки проверить</h3><p>Каждая выбранная полка станет отдельной задачей.</p></div></div>
++            <div className="ops-task-section-title"><span>3</span><div><h3>Полки</h3><p>Для выбранных полок будут созданы отдельные задачи.</p></div></div>
+             <div className="ops-task-shelf-modes">
+               {[['occupied', 'Занятые полки'], ['all', 'Все активные'], ['none', 'Без привязки']].map(([key, label]) => <button type="button" className={form.shelfMode === key ? "active" : ""} onClick={() => { update("shelfMode", key); update("shelfIds", []); }} key={key}>{form.shelfMode === key && <Check />}{label}</button>)}
+               <button type="button" disabled={!selectedPharmacy || shelvesLoading} className={form.shelfMode === "specific" ? "active" : ""} onClick={chooseSpecificShelves}>{form.shelfMode === "specific" && <Check />} {shelvesLoading ? "Загружаем полки..." : "Выбрать вручную"}</button>
+@@ -344,18 +344,18 @@ function CreateTaskDrawer({ pharmacies, initialScope, onClose, onCreated }) {
+             {form.shelfMode === "specific" && selectedPharmacy && !shelvesLoading && <div className="ops-task-shelf-picker">{selectedShelves.map((shelf) => <button type="button" className={form.shelfIds.includes(shelf.id) ? "selected" : ""} onClick={() => toggleShelf(shelf.id)} key={shelf.id}><i>{form.shelfIds.includes(shelf.id) && <Check />}</i><span><strong>{shelf.code}</strong><small>Категория {shelf.category}</small></span></button>)}</div>}
+           </section>
+           <section>
+-            <div className="ops-task-section-title"><span>4</span><div><h3>Приёмка и срок</h3><p>Исполнитель не сможет отправить незаполненный отчёт.</p></div></div>
++            <div className="ops-task-section-title"><span>4</span><div><h3>Срок и приёмка</h3><p>Чек-лист, количество фото и приоритет.</p></div></div>
+             <label><span>Чек-лист — один пункт на строке</span><textarea value={form.checklistText} onChange={(event) => update("checklistText", event.target.value)} rows="4" /></label>
+             <div className="ops-task-form-row"><label><span>Фото на полку</span><input type="number" min="0" max="12" value={form.requiredPhotoCount} onChange={(event) => update("requiredPhotoCount", event.target.value)} /></label><label><span>Приоритет</span><select value={form.priority} onChange={(event) => update("priority", event.target.value)}>{Object.entries(priorityLabels).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></label><label><span>Срок</span><input type="datetime-local" value={form.dueAt} onChange={(event) => update("dueAt", event.target.value)} required /></label></div>
+           </section>
+           <section className="ops-task-confirmation">
+-            <div className="ops-task-section-title"><span>5</span><div><h3>Проверьте перед созданием</h3><p>После создания для каждой аптеки будет сформирован отдельный пакет.</p></div></div>
++            <div className="ops-task-section-title"><span>5</span><div><h3>Проверка</h3><p>Сверьте параметры перед созданием.</p></div></div>
+             <div className="ops-task-confirmation-summary">
+               <span><small>Аптеки</small><strong>{selectedPharmacies.length}</strong></span>
+               <span><small>Ответственные</small><strong>{new Set(selectedPharmacies.map((item) => item.massOwnerId)).size}</strong></span>
+               <span><small>Режим полок</small><strong>{{ occupied: "Занятые", all: "Все активные", specific: `${form.shelfIds.length} выбранных`, none: "Без полок" }[form.shelfMode]}</strong></span>
+             </div>
+-            <div className="ops-task-next-step"><Send /><span><strong>Что произойдёт дальше</strong><small>Откроется карточка созданного задания. Сформируйте в ней QR и ссылку, затем передайте их аптеке.</small></span></div>
++            <p className="ops-task-confirm-note">После создания откройте карточку, сформируйте QR и передайте его аптеке.</p>
+             <label className="ops-task-confirm-check"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmedKey(event.target.checked ? confirmationKey : "")} /><i>{confirmed && <Check />}</i><span>Я проверил аптеки, ответственных, полки и срок задания</span></label>
+           </section>
+           {error && <div className="ops-task-error"><Info /> {error}</div>}
+@@ -366,7 +366,7 @@ function CreateTaskDrawer({ pharmacies, initialScope, onClose, onCreated }) {
+             <span><small>Полки</small><strong>{selectedShelfMode}</strong></span>
+             <span><small>Срок</small><strong>{selectedDeadline}</strong></span>
+           </div>
+-          <div className="ops-task-create-actions"><button type="button" onClick={onClose}>Отмена</button><button className="primary" disabled={saving || !confirmed || !form.branchIds.length || (form.shelfMode === "specific" && !form.shelfIds.length)}><Plus /> {saving ? "Создаём..." : "Создать пакеты"}</button></div>
++          <div className="ops-task-create-actions"><button type="button" onClick={onClose}>Отмена</button><button className="primary" disabled={saving || !confirmed || !form.branchIds.length || (form.shelfMode === "specific" && !form.shelfIds.length)}><Plus /> {saving ? "Создаём..." : "Создать задания"}</button></div>
+         </footer>
+       </form>
+     </div>
+@@ -446,10 +446,10 @@ export function TaskDispatchViewer({ dispatch, onClose, onIssue, onReview, onRev
+   };
+ 
+   return (
+-    <div className="ops-task-viewer-backdrop" role="presentation" onMouseDown={onClose}>
++    <div className="ops-task-viewer-backdrop task-workspace-viewer-backdrop" role="presentation" onMouseDown={onClose}>
+       <section ref={dialogRef} tabIndex={-1} className="ops-task-viewer task-workspace-viewer" role="dialog" aria-modal="true" aria-labelledby="ops-task-viewer-title" onMouseDown={(event) => event.stopPropagation()}>
+         <header className="ops-task-viewer-header">
+-          <div><span className="eyebrow">{automatic ? `Автоматическое задание · неделя ${dispatch.cycleNumber || 1}` : "Задание аптеке"}</span><h2 id="ops-task-viewer-title">{dispatch.branchName}</h2><p><MapPin /> {dispatch.city} · {dispatch.address}</p></div>
++          <div><span className="task-viewer-kind">{automatic ? `Автоматическое · неделя ${dispatch.cycleNumber || 1}` : "Ручное задание"}</span><h2 id="ops-task-viewer-title">{dispatch.branchName}</h2><p><MapPin /> {dispatch.city} · {dispatch.address}</p></div>
+           <div><StatusBadge status={dispatch.status} /><button type="button" className="ops-task-close" title="Закрыть просмотр задания" onClick={onClose}><X /></button></div>
+         </header>
+ 
+@@ -646,7 +646,6 @@ export function OperationalTasksPage({ initialTaskId, onInitialTaskConsumed, pha
+       return [];
+     }).slice(0, 8);
+   }, [dispatches]);
+-  const focusAlert = alerts[0] ?? null;
+   const issue = async (dispatch) => {
+     setBusy(true);
+     setError("");
+@@ -696,26 +695,7 @@ export function OperationalTasksPage({ initialTaskId, onInitialTaskConsumed, pha
+   const selectedDispatch = selectedDispatchDetail?.id === selectedDispatchId ? selectedDispatchDetail : null;
+   return (
+     <main ref={pageRef} className="ops-tasks-page task-workspace">
+-      <header className="ops-tasks-heading"><div><span className="eyebrow">Контроль полок</span><h1>Задания</h1><p>{user?.role === "mass_manager" ? "Здесь сразу появляются фотоотчёты по утверждённым заказам ваших аптек. Передайте аптеке одноразовую ссылку и контролируйте недельный срок." : user?.role === "admin" ? "Администратор может выдавать задания любой аптеке. По утверждённым заказам задания создаются автоматически на 7 дней." : "Контролируйте еженедельные фотоотчёты по утверждённым заказам аптек своего дивизиона."}</p></div><div className="ops-task-heading-actions"><button className="mobile-task-filter-toggle" type="button" aria-expanded={mobileFiltersOpen} onClick={() => setMobileFiltersOpen((value) => !value)}><MagnifyingGlass /> Фильтры</button><button data-tour="tasks-create" className="primary" type="button" disabled={loading || Boolean(loadError) || setupRequired || !eligiblePharmacies.length} title={setupRequired ? "Сначала завершите обновление базы данных" : !eligiblePharmacies.length ? "Сначала назначьте аптекам ответственных МАС" : ""} onClick={() => { setCreateScope(null); setCreateOpen(true); }}><Plus /> Выдать задание</button></div></header>
+-      {!loading && !loadError && !setupRequired && <section className={`task-workspace-focus ${focusAlert ? focusAlert.kind : 'clear'}`} aria-label="Следующее действие">
+-        <span className="task-workspace-focus-icon">{focusAlert ? <AlertTriangle /> : <CheckCircle />}</span>
+-        <div><small>Сейчас требуется</small><h2>{focusAlert?.title || 'Очередь под контролем'}</h2><p>{focusAlert ? `${focusAlert.dispatch.branchName} · ${focusAlert.copy}` : 'Нет просроченных заданий и новых фотоотчётов, требующих немедленной проверки.'}</p></div>
+-        <dl><div><dt>Активные</dt><dd>{dispatches.filter((item) => !['completed', 'cancelled'].includes(item.status)).length}</dd></div><div><dt>На проверке</dt><dd>{metrics.review}</dd></div><div><dt>Просрочено</dt><dd>{metrics.overdue}</dd></div></dl>
+-        {focusAlert && <button type="button" onClick={() => setSelectedDispatchId(focusAlert.dispatch.id)}>Открыть задание <ArrowRight /></button>}
+-      </section>}
+-      {!loading && !loadError && !setupRequired && <details className="task-workspace-flow" open>
+-        <summary><span><small>Как проходит работа</small><strong>От создания задания до принятого отчёта</strong></span><b>Свернуть схему <CaretDown /></b></summary>
+-        <ol>
+-          {[
+-            ["Создать", "Аптеки, тип, полки и срок"],
+-            ["Получить QR", "Сформировать ссылку в карточке"],
+-            ["Передать аптеке", "Отправить QR исполнителю"],
+-            ["Контролировать", "Открытие, выполнение и срок"],
+-            ["Проверить", "Фото и чек-лист по каждой полке"],
+-            ["Завершить", "Принять или вернуть с комментарием"],
+-          ].map(([title, copy], index) => <li key={title}><b>{index + 1}</b><span><strong>{title}</strong><small>{copy}</small></span></li>)}
+-        </ol>
+-      </details>}
++      <header className="ops-tasks-heading"><div><h1>Задания мерчендайзинга</h1><p>Проверка отчётов и назначение заданий</p></div><div className="ops-task-heading-actions"><button className="mobile-task-filter-toggle" type="button" aria-expanded={mobileFiltersOpen} onClick={() => setMobileFiltersOpen((value) => !value)}><MagnifyingGlass /> Фильтры</button><button data-tour="tasks-create" className="primary" type="button" disabled={loading || Boolean(loadError) || setupRequired || !eligiblePharmacies.length} title={setupRequired ? "Сначала завершите обновление базы данных" : !eligiblePharmacies.length ? "Сначала назначьте аптекам ответственных МАС" : ""} onClick={() => { setCreateScope(null); setCreateOpen(true); }}><Plus /> Новое задание</button></div></header>
+       {["admin","division_manager"].includes(user?.role) && <details><summary>Материалы обучения на согласовании</summary><TrainingMaterials user={user} onAssigned={load} /></details>}
+       <section data-tour="tasks-metrics" className="ops-task-metrics">
+         <button className={filters.assignment === 'unassigned' ? 'active critical' : 'critical'} aria-pressed={filters.assignment === 'unassigned'} onClick={() => toggleFilter('assignment', 'unassigned')}><span><AlertTriangle /></span><strong>{metrics.needsAssignment}</strong><small>Без МАС</small></button>
+@@ -772,7 +752,7 @@ export function OperationalTasksPage({ initialTaskId, onInitialTaskConsumed, pha
+       </section>
+       {createOpen && <CreateTaskDrawer pharmacies={eligiblePharmacies} initialScope={createScope} onClose={() => { setCreateOpen(false); setCreateScope(null); }} onCreated={created} />}
+       {linkValue && <LinkDialog value={linkValue} onClose={() => setLinkValue(null)} />}
+-      {selectedDispatchId && detailLoading && !selectedDispatch && <div className="ops-task-viewer-backdrop"><div className="ops-task-detail-loading"><ArrowsClockwise /><strong>Загружаем полки и фотографии...</strong><button type="button" onClick={() => setSelectedDispatchId("")}>Закрыть</button></div></div>}
++      {selectedDispatchId && detailLoading && !selectedDispatch && <div className="ops-task-viewer-backdrop task-workspace-viewer-backdrop"><div className="ops-task-detail-loading"><ArrowsClockwise /><strong>Загружаем полки и фотографии...</strong><button type="button" onClick={() => setSelectedDispatchId("")}>Закрыть</button></div></div>}
+       {selectedDispatch && <TaskDispatchViewer error={error} canReview={!selectedDispatch.isTraining || user?.role !== "mass_manager"} dispatch={selectedDispatch} onClose={() => setSelectedDispatchId("")} onIssue={issue} onReview={review} onReviewAll={reviewAll} onResolveAssignment={['admin', 'division_manager'].includes(user?.role) ? () => setAssignment({ branchIds: [selectedDispatch.branchId], title: selectedDispatch.branchName }) : onOpenOrganization ? () => { setSelectedDispatchId(""); onOpenOrganization(selectedDispatch.branchId); } : null} busy={busy} canReviewAll={['admin', 'division_manager', 'mass_manager'].includes(user?.role)} />}
+       {assignment && <MassAssignmentDialog branchIds={assignment.branchIds} title={assignment.title} onClose={() => setAssignment(null)} onAssigned={async () => { await load(); if (selectedDispatchId) setSelectedDispatchDetail(await fetchTaskDispatch(selectedDispatchId)); setNotice("Ответственный МАС назначен. Активные задания обновлены."); }} />}
+     </main>
+diff --git a/src/merchRedesign.css b/src/merchRedesign.css
+index 6062dcd..62cc955 100644
+--- a/src/merchRedesign.css
++++ b/src/merchRedesign.css
+@@ -595,3 +595,274 @@
+ }
+ 
+ 
++/* Backend-bound operational refinement · 2026-11-03 */
++.ops-tasks-page.task-workspace {
++  max-width: 1600px;
++  margin: 0 auto;
++  padding: 22px;
++  background: #f3f7f6;
++}
++.ops-tasks-page.task-workspace .ops-tasks-heading {
++  align-items: flex-end;
++  margin-bottom: 16px;
++}
++.ops-tasks-page.task-workspace .ops-tasks-heading h1 {
++  margin: 0 0 5px;
++  color: #172020;
++  font-size: clamp(26px, 2vw, 32px);
++  line-height: 1.12;
++  letter-spacing: -.025em;
++}
++.ops-tasks-page.task-workspace .ops-tasks-heading p {
++  margin: 0;
++  color: #667270;
++  font-size: 14px;
++}
++.ops-tasks-page.task-workspace button {
++  box-shadow: none;
++}
++.ops-tasks-page.task-workspace button:hover {
++  transform: none;
++}
++.ops-tasks-page.task-workspace .ops-task-metrics {
++  gap: 6px;
++  margin-bottom: 10px;
++  padding: 0;
++  border: 1px solid #d9e2e0;
++  border-radius: 9px;
++  overflow: hidden;
++  background: #fff;
++}
++.ops-tasks-page.task-workspace .ops-task-metrics button {
++  min-height: 48px;
++  display: flex;
++  align-items: center;
++  gap: 8px;
++  padding: 0 12px;
++  border: 0;
++  border-right: 1px solid #d9e2e0;
++  border-radius: 0;
++  background: #fff;
++}
++.ops-tasks-page.task-workspace .ops-task-metrics button:last-child {
++  border-right: 0;
++}
++.ops-tasks-page.task-workspace .ops-task-metrics button > span {
++  display: none;
++}
++.ops-tasks-page.task-workspace .ops-task-metrics button small {
++  order: 1;
++  color: #465452;
++  font-size: 11px;
++  font-weight: 700;
++}
++.ops-tasks-page.task-workspace .ops-task-metrics button strong {
++  order: 2;
++  margin-left: auto;
++  color: #172020;
++  font-size: 16px;
++}
++.ops-tasks-page.task-workspace .ops-task-metrics button.active {
++  color: #075158;
++  background: #eef9f7;
++  box-shadow: inset 0 -3px #0b776f;
++}
++.ops-tasks-page.task-workspace .task-workspace-filters {
++  margin-bottom: 10px;
++  padding: 10px;
++  border: 1px solid #d9e2e0;
++  border-radius: 9px;
++  background: #fff;
++  box-shadow: none;
++}
++.ops-tasks-page.task-workspace .task-workspace-results {
++  min-height: 42px;
++  margin-bottom: 0;
++  padding: 0 4px;
++}
++.ops-tasks-page.task-workspace .ops-dispatch-list {
++  gap: 0;
++  border: 1px solid #d9e2e0;
++  border-radius: 9px;
++  overflow: hidden;
++  background: #fff;
++}
++.ops-tasks-page.task-workspace .ops-dispatch-table-head {
++  margin: 0;
++  border: 0;
++  border-bottom: 1px solid #d9e2e0;
++  border-radius: 0;
++  background: #f8faf9;
++}
++.ops-tasks-page.task-workspace .ops-dispatch-card {
++  margin: 0;
++  border: 0;
++  border-bottom: 1px solid #e2e8e6;
++  border-radius: 0;
++  box-shadow: none;
++}
++.ops-tasks-page.task-workspace .ops-dispatch-card:last-child {
++  border-bottom: 0;
++}
++.ops-tasks-page.task-workspace .ops-dispatch-summary {
++  background: #fff;
++}
++.ops-tasks-page.task-workspace .ops-dispatch-summary:hover {
++  background: #f8fbfa;
++}
++.ops-tasks-page.task-workspace .task-row-open {
++  border-radius: 8px;
++  box-shadow: none;
++}
++.ops-tasks-page.task-workspace .ops-dispatch-summary:hover .task-row-open {
++  transform: none;
++}
++
++.ops-task-drawer-backdrop,
++.ops-task-viewer-backdrop.task-workspace-viewer-backdrop {
++  align-items: stretch;
++  justify-content: flex-end;
++  padding: 0;
++  background: rgba(13, 32, 31, .58);
++}
++.ops-task-create-drawer {
++  width: min(1040px, calc(100vw - 248px));
++  height: 100dvh;
++  max-height: none;
++  border: 0;
++  border-left: 1px solid #d9e2e0;
++  border-radius: 0;
++  background: #f7fbfa;
++  box-shadow: -18px 0 48px rgba(7, 54, 58, .16);
++}
++.ops-task-create-drawer > header {
++  min-height: 72px;
++  padding: 12px 20px 12px 24px;
++  background: #fff;
++}
++.ops-task-create-drawer > header h2 {
++  margin: 0;
++  font-size: 28px;
++  letter-spacing: -.03em;
++}
++.ops-task-create-drawer > header p {
++  margin-top: 4px;
++  color: #667270;
++}
++.ops-task-create-body {
++  gap: 12px;
++  padding: 14px;
++  background: #f7fbfa;
++}
++.ops-task-create-body > section {
++  border-radius: 9px;
++  box-shadow: none;
++}
++.ops-task-section-title > span {
++  border: 1px solid #bce3dd;
++  border-radius: 50%;
++  background: #fff;
++}
++.ops-task-confirmation {
++  background: #fff !important;
++}
++.ops-task-confirm-note {
++  margin: 10px 0;
++  padding: 10px 0;
++  border-top: 1px solid #d9e2e0;
++  border-bottom: 1px solid #d9e2e0;
++  color: #52615f;
++  font-size: 12px;
++  line-height: 1.5;
++}
++.ops-task-create-drawer > footer {
++  min-height: 76px;
++  background: #fff;
++}
++
++.ops-task-viewer.task-workspace-viewer {
++  width: min(1120px, calc(100vw - 248px));
++  height: 100dvh;
++  max-height: none;
++  border: 0;
++  border-left: 1px solid #d9e2e0;
++  border-radius: 0;
++  background: #fff;
++  box-shadow: -18px 0 48px rgba(7, 54, 58, .16);
++}
++.task-workspace-viewer .ops-task-viewer-header {
++  min-height: 78px;
++  padding: 14px 20px 12px 24px;
++  background: #fff;
++}
++.task-viewer-kind {
++  display: block;
++  margin-bottom: 5px;
++  color: #667270;
++  font-size: 11px;
++  font-weight: 700;
++}
++.task-workspace-action {
++  border: 1px solid #d9e2e0;
++  border-right: 0;
++  border-left: 0;
++  background: #fbfcfc;
++}
++.ops-task-viewer.task-workspace-viewer .ops-task-viewer-list,
++.ops-task-viewer.task-workspace-viewer .ops-task-viewer-detail {
++  background: #fff;
++}
++.task-workspace-viewer .ops-task-viewer-checklist,
++.task-workspace-viewer .ops-task-viewer-history,
++.task-workspace-viewer .task-workspace-delivery,
++.task-workspace-viewer .execution-panel {
++  border-radius: 8px;
++  box-shadow: none;
++}
++
++@media (max-width: 920px) {
++  .ops-task-create-drawer,
++  .ops-task-viewer.task-workspace-viewer {
++    width: 100vw;
++  }
++}
++
++@media (max-width: 760px) {
++  .ops-tasks-page.task-workspace {
++    padding: 14px 10px 30px;
++  }
++  .ops-tasks-page.task-workspace .ops-tasks-heading {
++    align-items: flex-start;
++  }
++  .ops-tasks-page.task-workspace .ops-tasks-heading h1 {
++    font-size: 25px;
++  }
++  .ops-tasks-page.task-workspace .ops-tasks-heading p {
++    display: block;
++    max-width: 250px;
++    line-height: 1.4;
++  }
++  .ops-tasks-page.task-workspace .ops-task-metrics {
++    display: grid !important;
++    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
++  }
++  .ops-tasks-page.task-workspace .ops-task-metrics button {
++    min-height: 44px;
++    border-right: 1px solid #d9e2e0;
++    border-bottom: 1px solid #d9e2e0;
++  }
++  .ops-tasks-page.task-workspace .ops-task-metrics button:nth-child(2n) {
++    border-right: 0;
++  }
++  .ops-tasks-page.task-workspace .ops-task-metrics button:nth-last-child(-n+2) {
++    border-bottom: 0;
++  }
++  .ops-task-create-drawer > header h2 {
++    font-size: 24px;
++  }
++  .ops-task-create-drawer,
++  .ops-task-viewer.task-workspace-viewer {
++    border-left: 0;
++    box-shadow: none;
++  }
++}
