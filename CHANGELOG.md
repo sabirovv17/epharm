@@ -5,6 +5,27 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-11-03
+
+### Fixed
+
+- Open and reload native merchandising pages directly without the legacy QR route fence returning
+  404; retain exact route allowlists and legacy API protections.
+- Wrap recommendation editor actions, previews and long product names without overlapping controls.
+  Existing compound ACC conditions and their same-product AND matching remain unchanged.
+
+### Added
+
+- Default-off POSM staff sign-in candidate with current Standard-N user IIN observations,
+  contextual registration, session-change guards and fail-open diagnostics.
+- Restricted pharmacist-register IIN comparison status and seven isolated native Windows UI checks.
+
+### Deployment
+
+- V095 adds staff IIN observation columns without replacing existing records or financial bindings.
+- Keep production staff-auth gates disabled; enabling the cashier prompt requires a separate
+  Standard-N/SMS pilot. Existing POSM installations and the separate `/learn` remain compatible.
+
 ## [0.2.3] - 2026-11-02
 
 ### Added
