@@ -24,7 +24,7 @@ test('HQ shell uses the restrained shared visual system', async ({ page }) => {
 
   const sidebar = page.locator('aside')
   const card = page.locator('main .card').first()
-  const search = page.getByRole('button', { name: /Найти правило/i })
+  const search = page.getByRole('button', { name: /Найти раздел или аптеку/i })
 
   await expect(sidebar).toHaveCSS('background-image', /linear-gradient/)
   await expect(sidebar).toHaveCSS('background-color', 'rgb(7, 63, 70)')

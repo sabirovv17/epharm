@@ -2,7 +2,7 @@
 // ⌘K / Ctrl+K listener, esc для CommandPalette, sync Sidebar.active с роутом.
 // Защищён RequireAuth — authedUser гарантированно не null.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { type SectionId } from '@/mocks/fixtures'
 import { Sidebar, Topbar, CommandPalette, RoleSwitcher, ContractModal } from '@/layout'
@@ -32,7 +32,9 @@ export function AppShell() {
   const isMobile = useNarrowAdminShell()
   const locationKey = `${location.pathname}${location.search}`
   const [mobileSidebarLocation, setMobileSidebarLocation] = useState<string | null>(null)
-  const mobileSidebarOpen = mobileSidebarLocation === locationKey
+  const mobileSidebarOpen = isMobile && mobileSidebarLocation === locationKey
+  const sidebarRef = useRef<HTMLElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const {
     canViewMerchInventory,
     canViewMerchPlacements,
@@ -130,6 +132,7 @@ export function AppShell() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
+        setMobileSidebarLocation(null)
         if (commandPaletteOpen) closeCommandPalette()
         else openCommandPalette()
       } else if (e.key === 'Escape' && commandPaletteOpen) {
@@ -157,6 +160,58 @@ export function AppShell() {
     return () => window.removeEventListener('popstate', closeOnHistoryNavigation)
   }, [])
 
+  useEffect(() => {
+    const sidebar = sidebarRef.current
+    const content = contentRef.current
+    if (!mobileSidebarOpen || !sidebar || !content) return
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    // Capture the opener before making the workspace inert; inert may blur it.
+    content.inert = true
+    sidebar.querySelector<HTMLElement>('[data-mobile-navigation-close]')?.focus()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setMobileSidebarLocation(null)
+        return
+      }
+      if (event.key !== 'Tab') return
+      const targets = Array.from(
+        sidebar.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getClientRects().length > 0 && !element.closest('[inert]'))
+      const first = targets[0]
+      const last = targets.at(-1)
+      if (!first || !last) {
+        event.preventDefault()
+        sidebar.focus()
+      } else if (
+        event.shiftKey &&
+        (document.activeElement === first || !sidebar.contains(document.activeElement))
+      ) {
+        event.preventDefault()
+        last.focus()
+      } else if (
+        !event.shiftKey &&
+        (document.activeElement === last || !sidebar.contains(document.activeElement))
+      ) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey, true)
+    return () => {
+      content.inert = false
+      document.removeEventListener('keydown', onKey, true)
+      if (
+        previous?.isConnected &&
+        (document.activeElement === document.body || sidebar.contains(document.activeElement))
+      ) {
+        previous.focus({ preventScroll: true })
+      }
+    }
+  }, [mobileSidebarOpen])
+
   // RequireAuth уже гарантирует не-null user; этот guard — для TS narrowing.
   if (!authedUser) return null
 
@@ -172,18 +227,23 @@ export function AppShell() {
           <button
             type="button"
             aria-label="Закрыть основную навигацию"
+            tabIndex={-1}
             className="scrim fixed inset-0 z-40 md:hidden"
             onClick={() => setMobileSidebarLocation(null)}
           />
         )}
         <Sidebar
+          navigationRef={sidebarRef}
           active={activeSection}
           onSelect={onSelectSection}
           collapsed={isMobile ? false : sidebarCollapsed}
           mobileOpen={mobileSidebarOpen}
           onMobileClose={() => setMobileSidebarLocation(null)}
           onToggle={handleSidebarToggle}
-          onContractOpen={openContractModal}
+          onContractOpen={() => {
+            setMobileSidebarLocation(null)
+            openContractModal()
+          }}
           user={authedUser}
           activeTrainingTab={activeTrainingTab}
           onSelectTrainingTab={onSelectTrainingTab}
@@ -195,7 +255,7 @@ export function AppShell() {
           canViewMerchStaffAccess={canViewMerchStaffAccess}
           canViewLedger={canViewLedger}
         />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div ref={contentRef} className="flex min-w-0 flex-1 flex-col">
           <Topbar
             sectionLabel={activeLabel}
             workspaceLabel={workspaceLabelForRole(authedUser.role)}

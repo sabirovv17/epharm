@@ -403,6 +403,35 @@ describe('PharmacistsPage — список и actions', () => {
     expect(within(row).getByRole('button', { name: 'Сменить пароль' })).toBeInTheDocument()
   })
 
+  it('не переносит раскрытие ИИН другому аккаунту или роли в том же экземпляре страницы', async () => {
+    const pharmacist = mkPharmacist({ iin: '001201000001' })
+    setPharmacists([pharmacist])
+    const user = userEvent.setup()
+    renderPage()
+    const row = screen.getByTestId('pharmacist-row-u_1')
+    await user.click(screen.getByRole('button', { name: 'Показать ИИН и телефоны' }))
+    expect(row).toHaveTextContent(pharmacist.iin!)
+
+    act(() =>
+      useUiStore.setState({
+        authedUser: { ...useUiStore.getState().authedUser!, id: 'another-hq' },
+      }),
+    )
+    expect(row).not.toHaveTextContent(pharmacist.iin!)
+    expect(row).toHaveTextContent('••••••••0001')
+    await user.click(screen.getByRole('button', { name: 'Показать ИИН и телефоны' }))
+    expect(row).toHaveTextContent(pharmacist.iin!)
+
+    act(() =>
+      useUiStore.setState({
+        authedUser: { ...useUiStore.getState().authedUser!, role: 'REGIONAL_MANAGER' },
+      }),
+    )
+    expect(row).not.toHaveTextContent(pharmacist.iin!)
+    expect(row).not.toHaveTextContent(pharmacist.phone!)
+    expect(screen.queryByRole('button', { name: 'Скрыть ИИН и телефоны' })).not.toBeInTheDocument()
+  })
+
   it('оставляет пустой ИИН явным и сохраняет колонки без массового выбора', () => {
     lmsHooks.useTrainingDashboard.mockReturnValue({
       data: { capabilities: { canManagePreferences: false, canManageAssignments: false } },

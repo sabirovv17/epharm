@@ -46,4 +46,13 @@ class PayoutApprovalPolicyTest {
 
         assertThat(payoutBatchApprovalConsistent(batch, items, 2)).isFalse()
     }
+
+    @Test
+    fun `minimum bigint amount fails the pre-query items policy without negation`() {
+        val items = listOf(item("minimum", "synthetic-pharmacist", Long.MIN_VALUE))
+        val batch = PayoutBatchEntity(id = "batch", pharmacists = 1, items = 1, amount = Long.MIN_VALUE)
+
+        assertThat(payoutBatchItemsConsistent(batch, items)).isFalse()
+        assertThat(payoutBatchApprovalConsistent(batch, items, 1)).isFalse()
+    }
 }

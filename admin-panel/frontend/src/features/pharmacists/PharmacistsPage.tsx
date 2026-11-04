@@ -82,7 +82,7 @@ export default function PharmacistsPage() {
   const [preferenceTargets, setPreferenceTargets] = useState<PharmacistDto[] | null>(null)
   const [trainingProfileId, setTrainingProfileId] = useState<string | null>(null)
   const [standardNMappingsOpen, setStandardNMappingsOpen] = useState(false)
-  const [personalDataVisible, setPersonalDataVisible] = useState(false)
+  const [personalDataOwner, setPersonalDataOwner] = useState<string | null>(null)
   const [credentialSelection, setCredentialSelection] = useState<{
     ownerId: string
     version: number | null
@@ -92,6 +92,9 @@ export default function PharmacistsPage() {
   const adminRole = useUiStore((state) => state.authedUser?.role)
   const canManageStandardN = adminRole === 'SYSTEM_ADMIN' || adminRole === 'HQ_HEAD'
   const canManageCredentials = canManagePharmacistCredentials(adminRole)
+  const personalDataContext = JSON.stringify([currentAccount, adminRole, access.data?.version])
+  const personalDataVisible =
+    !!currentAccount && canManageCredentials && personalDataOwner === personalDataContext
 
   const { data: pharmacists = [], isLoading, isError, error, refetch } = usePharmacists()
   const { data: pharmacies = [] } = usePharmacies()
@@ -234,7 +237,9 @@ export default function PharmacistsPage() {
               <Button
                 variant="outline"
                 aria-pressed={personalDataVisible}
-                onClick={() => setPersonalDataVisible((visible) => !visible)}
+                onClick={() =>
+                  setPersonalDataOwner(personalDataVisible ? null : personalDataContext)
+                }
               >
                 {personalDataVisible ? 'Скрыть ИИН и телефоны' : 'Показать ИИН и телефоны'}
               </Button>

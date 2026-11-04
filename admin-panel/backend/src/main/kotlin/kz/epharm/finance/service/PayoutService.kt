@@ -129,6 +129,8 @@ class PayoutService(
 
     private fun validateApproval(batch: PayoutBatchEntity) {
         val items = itemRepository.findAllByBatchIdOrderByAmountDesc(batch.id)
+        // Reject malformed amounts before PostgreSQL negates them (BIGINT MIN cannot be negated).
+        if (!payoutBatchItemsConsistent(batch, items)) rejectInconsistentBatch()
         val reservations = jdbc.queryForObject(
             """SELECT COUNT(*) FROM payout_items item
                 JOIN pharmacist_wallet_entries wallet
@@ -157,6 +159,11 @@ internal fun payoutBatchApprovalConsistent(
     batch: PayoutBatchEntity,
     items: List<PayoutItemEntity>,
     matchingReservations: Long,
+): Boolean = payoutBatchItemsConsistent(batch, items) && matchingReservations == items.size.toLong()
+
+internal fun payoutBatchItemsConsistent(
+    batch: PayoutBatchEntity,
+    items: List<PayoutItemEntity>,
 ): Boolean {
     val uniquePharmacists = items.map { it.pharmacistId }.toSet().size
     val total = runCatching {
@@ -167,6 +174,5 @@ internal fun payoutBatchApprovalConsistent(
         batch.items == items.size &&
         batch.pharmacists == uniquePharmacists &&
         uniquePharmacists == items.size &&
-        batch.amount == total &&
-        matchingReservations == items.size.toLong()
+        batch.amount == total
 }
