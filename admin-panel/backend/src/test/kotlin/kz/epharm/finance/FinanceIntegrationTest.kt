@@ -144,6 +144,8 @@ class FinanceIntegrationTest {
                 flag = "Высокий бонус",
             ),
         )
+        // JdbcTemplate does not auto-flush the JPA persistence context before its FK-checked insert.
+        itemRepository.flush()
         reservation("pi_1", "u_1", 15_000)
         reservation("pi_2", "u_2", 30_000)
 

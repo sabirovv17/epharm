@@ -4368,8 +4368,10 @@ frontend v0.2.5 / `18e00236`, backend v0.2.4 / `0c9086c6`. PR #147 основа�
 отдельный `/learn` и прежний домен. РПС и POSM-выдача заказов остаются выключенными.
 
 Локально: 1103 frontend unit, 28 итоговых navigation unit, 71 browser на собранных
-файлах, lint/typecheck/build и целевые backend policy tests успешны. Восемь browser
-с настоящим backend и PostgreSQL integration/concurrency остаются обязательными CI.
+файлах, затем 9 целевых browser с добавленным поиском, lint/typecheck/build и целевые
+backend policy tests успешны. Стандартные backend integration/concurrency, browser
+E2E и проверка готового образа обязательны в CI; восемь опциональных full-lab browser
+требуют отдельного synthetic acceptance runtime и не считаются пройденными автоматически.
 Кандидат v0.2.6 без новой миграции требует двух образов, свежего rollback backup,
 изолированной проверки на копии БД и штатного выпуска. Фактический production
 результат и CI фиксируются после выполнения; до этого выпуск не считается завершённым.
