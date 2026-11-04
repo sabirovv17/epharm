@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useId, useRef, useState } from 'react'
 import { Button, Field, Input, Modal, Select } from '@/ui'
 import { describeError } from '@/lib/describeError'
 import { usePlacementRead } from './usePlacementRead'
@@ -19,6 +19,7 @@ export default function TaskTemplateDialog({
     [],
   )
   const read = usePlacementRead(load)
+  const formId = useId()
   const [branches, setBranches] = useState<string[]>([])
   const [type, setType] = useState('')
   const [mode, setMode] = useState('occupied')
@@ -36,15 +37,31 @@ export default function TaskTemplateDialog({
   return (
     <Modal
       open
+      placement="right"
       onClose={() => {
         if (!pending) onClose()
       }}
       title="Задание по шаблону"
       subtitle="Один снимок полок и условий на момент назначения. Повтор сетевого запроса не создаёт дубликаты."
       width={800}
+      footer={
+        <>
+          <Button type="button" variant="ghost" disabled={pending} onClick={onClose}>
+            Отмена
+          </Button>
+          <Button
+            type="submit"
+            form={formId}
+            disabled={pending || !template || !branches.length || !!read.error}
+          >
+            {pending ? 'Создаём задания…' : 'Создать задания по шаблону'}
+          </Button>
+        </>
+      }
     >
       <form
-        className="space-y-4"
+        id={formId}
+        className="min-w-0 space-y-5"
         onSubmit={async (event) => {
           event.preventDefault()
           if (!template || !branches.length || pending || !!read.error) return
@@ -109,124 +126,142 @@ export default function TaskTemplateDialog({
               Нет аптек, в которых вам разрешено создать задание.
             </p>
           )}
-        <Field label="Шаблон задания">
-          <Select
-            ariaLabel="Шаблон задания"
-            value={type}
-            disabled={pending || read.pending || !!read.error}
-            onChange={(value) => {
-              setType(value)
-              const selected = read.data?.templates.find((t) => t.id === value)
-              if (selected) setMode(selected.shelfMode)
-            }}
-            options={[
-              { value: '', label: 'Выберите шаблон' },
-              ...(read.data?.templates ?? []).map((t) => ({ value: t.id, label: t.title })),
-            ]}
-          />
-        </Field>
-        {template && (
-          <p className="rounded-lg bg-paper-input p-3 text-sm">
-            {template.instructions} Фото на пункт: {template.requiredPhotos}. Проверки:{' '}
-            {template.checklist.join('; ')}.
-          </p>
-        )}
-        <fieldset
-          disabled={pending}
-          className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-paper-line p-3"
-        >
-          <legend className="text-sm font-bold">Аптеки · выбрано {branches.length} из 50</legend>
-          {read.data?.branches
-            .filter((b) => b.active && b.createEligible)
-            .map((b) => (
-              <label
-                key={b.id}
-                className="flex items-start gap-3 rounded-lg p-2 text-sm leading-6 hover:bg-paper-input"
-              >
-                <input
-                  type="checkbox"
-                  checked={branches.includes(b.id)}
-                  disabled={!branches.includes(b.id) && branches.length >= 50}
-                  onChange={(event) =>
-                    setBranches((current) =>
-                      event.target.checked
-                        ? [...current, b.id]
-                        : current.filter((id) => id !== b.id),
-                    )
-                  }
-                />
-                {b.name} · {b.city} · {b.address}
-              </label>
-            ))}
-        </fieldset>
-        <Field label="Режим полок">
-          <Select
-            ariaLabel="Режим полок"
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: 'occupied', label: 'Занятые подтверждёнными размещениями' },
-              { value: 'all', label: 'Все активные полки' },
-              { value: 'none', label: 'Без привязки к полкам' },
-            ]}
-          />
-        </Field>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Месяц размещения">
-            <Input
-              aria-label="Месяц размещения"
-              type="month"
-              required
-              value={month}
-              onChange={(event) => setMonth(event.target.value)}
-              disabled={pending}
+        <section aria-label="Шаблон и аптеки" className="space-y-4">
+          <h2 className="text-sm font-bold text-ink-900">Шаблон и аптеки</h2>
+          <Field label="Шаблон задания">
+            <Select
+              ariaLabel="Шаблон задания"
+              value={type}
+              disabled={pending || read.pending || !!read.error}
+              onChange={(value) => {
+                setType(value)
+                const selected = read.data?.templates.find((t) => t.id === value)
+                if (selected) setMode(selected.shelfMode)
+              }}
+              options={[
+                { value: '', label: 'Выберите шаблон' },
+                ...(read.data?.templates ?? []).map((t) => ({ value: t.id, label: t.title })),
+              ]}
             />
           </Field>
-          <Field label="Срок, время Алматы" hint="Asia/Almaty · UTC+05:00">
-            <Input
-              aria-label="Срок шаблонного задания"
-              type="datetime-local"
-              required
-              value={due}
-              onChange={(event) => setDue(event.target.value)}
-              disabled={pending}
-            />
-          </Field>
-        </div>
-        <Field label="Товары для подсчёта — по одному в строке" optional>
-          <textarea
-            aria-label="Товары шаблона"
-            className="inp min-h-20 w-full"
-            maxLength={4800}
-            value={products}
+          {template && (
+            <p className="rounded-lg bg-paper-input p-3 text-sm">
+              {template.instructions} Фото на пункт: {template.requiredPhotos}. Проверки:{' '}
+              {template.checklist.join('; ')}.
+            </p>
+          )}
+          <fieldset
             disabled={pending}
-            onChange={(event) => setProducts(event.target.value)}
-          />
-        </Field>
-        <Field label="Вознаграждение за пакет в каждой аптеке, ₸">
-          <Input
-            aria-label="Вознаграждение шаблонного задания"
-            type="number"
-            min={0}
-            max={1000000}
-            value={financial ? reward : '0'}
-            disabled={pending || !financial}
-            onChange={(event) => setReward(event.target.value)}
-          />
-        </Field>
+            className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-paper-line p-3"
+          >
+            <legend className="text-sm font-bold">Аптеки · выбрано {branches.length} из 50</legend>
+            {read.data?.branches
+              .filter((b) => b.active && b.createEligible)
+              .map((b) => (
+                <label
+                  key={b.id}
+                  className="flex items-start gap-3 rounded-lg p-2 text-sm leading-6 hover:bg-paper-input"
+                >
+                  <input
+                    type="checkbox"
+                    checked={branches.includes(b.id)}
+                    disabled={!branches.includes(b.id) && branches.length >= 50}
+                    onChange={(event) =>
+                      setBranches((current) =>
+                        event.target.checked
+                          ? [...current, b.id]
+                          : current.filter((id) => id !== b.id),
+                      )
+                    }
+                  />
+                  {b.name} · {b.city} · {b.address}
+                </label>
+              ))}
+          </fieldset>
+        </section>
+        <section
+          aria-label="Условия шаблонного задания"
+          className="space-y-4 border-t border-ink-200 pt-5"
+        >
+          <h2 className="text-sm font-bold text-ink-900">Полки и сроки</h2>
+          <Field label="Режим полок">
+            <Select
+              ariaLabel="Режим полок"
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: 'occupied', label: 'Занятые подтверждёнными размещениями' },
+                { value: 'all', label: 'Все активные полки' },
+                { value: 'none', label: 'Без привязки к полкам' },
+              ]}
+            />
+          </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Месяц размещения">
+              <Input
+                aria-label="Месяц размещения"
+                type="month"
+                required
+                value={month}
+                onChange={(event) => setMonth(event.target.value)}
+                disabled={pending}
+              />
+            </Field>
+            <Field label="Срок, время Алматы" hint="Asia/Almaty · UTC+05:00">
+              <Input
+                aria-label="Срок шаблонного задания"
+                type="datetime-local"
+                required
+                value={due}
+                onChange={(event) => setDue(event.target.value)}
+                disabled={pending}
+              />
+            </Field>
+          </div>
+        </section>
+        <section
+          aria-label="Товары и вознаграждение"
+          className="space-y-4 border-t border-ink-200 pt-5"
+        >
+          <h2 className="text-sm font-bold text-ink-900">Товары и вознаграждение</h2>
+          <Field label="Товары для подсчёта — по одному в строке" optional>
+            <textarea
+              aria-label="Товары шаблона"
+              className="inp min-h-20 w-full"
+              maxLength={4800}
+              value={products}
+              disabled={pending}
+              onChange={(event) => setProducts(event.target.value)}
+            />
+          </Field>
+          <Field label="Вознаграждение за пакет в каждой аптеке, ₸">
+            <Input
+              aria-label="Вознаграждение шаблонного задания"
+              type="number"
+              min={0}
+              max={1000000}
+              value={financial ? reward : '0'}
+              disabled={pending || !financial}
+              onChange={(event) => setReward(event.target.value)}
+            />
+          </Field>
+        </section>
+        <section
+          aria-label="Итог шаблонного назначения"
+          className="rounded-lg bg-paper-input p-4 text-sm"
+        >
+          <h2 className="font-bold text-ink-900">Перед созданием</h2>
+          <p className="mt-2 text-ink-500">
+            Выбрано аптек: {branches.length}. Для каждой будет создано отдельное задание по условиям
+            шаблона.
+          </p>
+        </section>
         <p className="text-xs text-ink-500">
           Занятость проверяется по подтверждённым строкам выбранного месяца. Не более 500 пунктов
           суммарно; превышение отменяет всё назначение. Названия товаров задаются явно и не
           подменяют каталог.
         </p>
         {error && <p role="alert">{error}</p>}
-        <Button
-          className="w-full sm:w-auto"
-          type="submit"
-          disabled={pending || !template || !branches.length || !!read.error}
-        >
-          {pending ? 'Создаём задания…' : 'Создать задания по шаблону'}
-        </Button>
       </form>
     </Modal>
   )

@@ -177,8 +177,15 @@ The HQ task queue uses `/api/admin/merch/tasks` and its task-scoped branch selec
 inventory API. New tasks require an active authorized branch, a title, a future due date and
 at least one required item. Deadlines are entered in Asia/Almaty time. Per-item instructions,
 photo minimums and checklist rows are preserved; a reward can only be configured when the
-selected branch explicitly returns `canConfigureReward`. Queue pagination does not invent a
-global count or a server-side status/search filter.
+selected branch explicitly returns `canConfigureReward`. Pagination keeps the server-owned
+queue/search filters and does not invent a global count from the current page.
+
+The native task workspace uses full-height right panels for manual creation, template assignment
+and task detail. Form sections and a read-only summary do not replace server validation. Creation
+actions stay outside the scrolling body; item reviews keep their own confirmations and CAS checks.
+Nested review Escape closes only the top confirmation and restores focus in the task panel;
+closing the task returns focus to its queue row. The admin shell remains a desktop workspace;
+the panels fit narrow viewports without changing the separate mobile pharmacist/QR interfaces.
 
 Every item action uses fresh server `canStart/canUpload/canSubmit/canReview` flags. Photo uploads
 are authenticated private JPG/PNG bytes (20 MB / 12 MP server gate); failed uploads are not

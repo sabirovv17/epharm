@@ -1,5 +1,30 @@
 # Патч QR-портала мерчендайзинга
 
+## Текущий runtime единого ePharm
+
+Рабочие задания теперь обслуживает native ePharm: `admin-panel/frontend/src/features/merch/`
+и `/api/admin/merch/tasks/**`, отдельные `/tasks/staff` и `/learn`. Патчи ниже сохраняют
+историю внешнего CRM; они не являются исходниками текущего рабочего экрана. Изменения
+PR #146 перенесены в native React-компоненты без возврата legacy RPC/старой БД.
+Подробности: [карта переноса](../../docs/reports/2026-11-04-merch-pr146-native-integration.md).
+Не применять эти legacy patches к рабочему ePharm и не заменять ими его frontend image.
+
+## Рабочий интерфейс на действующем backend — 2026-11-03
+
+`merch-backend-ui-20261103.patch` — инкрементальный патч для текущего исходника мерчендайзинга после редизайна 2026-10-29. Он не содержит моков и не меняет API: экран продолжает работать через `get_task_dispatches`, `get_task_dispatch`, `create_task_dispatches`, `issue_task_dispatch_link`, `review_staff_task` и `review_photo_report`.
+
+Изменение убирает демонстрационную подачу из административного кабинета: длинная схема процесса и рекламные пояснения удалены, метрики и фильтры собраны в компактную рабочую панель, список заданий стал спокойнее, а создание и проверка открываются боковыми рабочими панелями. Состав формы, выбор нескольких аптек и полок, обязательное подтверждение параметров, QR, фотографии, статусы, возврат и приёмка сохранены.
+
+Патч рассчитан на следующие SHA-256 до применения:
+
+| Файл                                     | SHA-256                                                            |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| `src/OperationalTasksPage.jsx`           | `8001c81dbe423d720644771d238b20a692ff283e8a324eb0c3aab3b14317a845` |
+| `src/merchRedesign.css`                  | `a0fa0c16772c930ceaf3952bc7bec717a62d674038b9445f425dcdbf9b12c3fb` |
+| `scripts/test_task_dispatch_workflow.py` | `f2857a5093baa8ea7b944c3902b7b362e7d2414c0b981be96bc1753ff14219bf` |
+
+Перед применением выполнить `git apply --check ops/merch-portal-patches/merch-backend-ui-20261103.patch`. Локально проверены production build и 24 целевых теста task-dispatch, прокрутки, минимального редизайна и P0/P1 улучшений. Подробности: [`docs/reports/2026-11-03-merchandising-backend-ui.md`](../../docs/reports/2026-11-03-merchandising-backend-ui.md).
+
 `merch-portal-mount.patch` — минимальные изменения исходников отдельного портала на сервере мерчендайзинга, **не** копия его приложения. Исходники `/opt/pharmacy-crm-demo` на момент аудита 2026-09-23 не были Git-репозиторием. Патч проверен на изолированной копии и применён к production при релизе ePharm v0.1.10; прежние source и `dist` сохранены для отката.
 
 `strip-demo-autofill.mjs` — отдельный fail-closed sanitizer для исходного `src/Auth.jsx` с проверкой SHA-256. Он извлекает демонстрационные credentials **только в память**, удаляет автоподстановку без помещения старых строк в Git diff, собирает приложение и проверяет, что исходные значения отсутствуют в новых JS assets. Это не отзывает существующие учётные записи: по явному решению пользователя их сохраняют активными для тестирования в данном rollout, принимая риск их публичности. Старые бандлы и их резервные копии не следует публиковать сверх уже доступных маршрутов.
@@ -12,13 +37,13 @@
 
 Перед применением к исходникам обязательно выполнить `git apply --check ops/merch-portal-patches/merch-epharm-ui-redesign-20261029.patch`. Патч рассчитан на следующие базовые SHA-256:
 
-| Файл | SHA-256 |
-| --- | --- |
+| Файл                           | SHA-256                                                            |
+| ------------------------------ | ------------------------------------------------------------------ |
 | `src/OperationalTasksPage.jsx` | `7da5abb7a6e3c9e6073d32f5b4f1426ad2b06a609e292a424591313966f26c5e` |
-| `src/PublicTaskDispatch.jsx` | `3c3f625ac430d4a280250d5efecdf2e3d5441cb3ce56bbb91da5f03ee68bebfb` |
-| `src/main.jsx` | `b613d70dd65710ec46568d888400a500cf3be716815c0ab73169d7415907a6ee` |
-| `src/placementCheckout.css` | `96a31700b1580f41f72250bc9438a2bb4dfb0dc2d8ebb49c4a58897eea76d463` |
-| `src/taskWorkspace.css` | `1e32b595f2e01610ae69644db8e31459c731c559074ad5b5e4477b6931beccb6` |
+| `src/PublicTaskDispatch.jsx`   | `3c3f625ac430d4a280250d5efecdf2e3d5441cb3ce56bbb91da5f03ee68bebfb` |
+| `src/main.jsx`                 | `b613d70dd65710ec46568d888400a500cf3be716815c0ab73169d7415907a6ee` |
+| `src/placementCheckout.css`    | `96a31700b1580f41f72250bc9438a2bb4dfb0dc2d8ebb49c4a58897eea76d463` |
+| `src/taskWorkspace.css`        | `1e32b595f2e01610ae69644db8e31459c731c559074ad5b5e4477b6931beccb6` |
 
 ## Что исправляет
 
@@ -29,14 +54,14 @@
 
 ## Проверка базовой версии перед применением
 
-| Файл на сервере мерчендайзинга | SHA-256 исходной версии |
-| --- | --- |
-| `vite.config.mjs` | `38a0b4b39f15f45fe1919211e9803f23a5f35ca0fc74581d1d984a9bc6d78267` |
-| `src/api.js` | `65c851f98ba8247b8a2e556cfaafb7bcb8d3ffc8f05ffc1d29e1e9c880d7a3ae` |
-| `src/main.jsx` | `ca6a3991cc74fab88776864f11d9fc044dcb855428f55f005ed2b0ceb620d9d0` |
-| `src/PublicTaskDispatch.jsx` | `7b88c792753ed77159049b54ea701aae8498f5f393dc8c5eccbbc32079206b8c` |
+| Файл на сервере мерчендайзинга | SHA-256 исходной версии                                            |
+| ------------------------------ | ------------------------------------------------------------------ |
+| `vite.config.mjs`              | `38a0b4b39f15f45fe1919211e9803f23a5f35ca0fc74581d1d984a9bc6d78267` |
+| `src/api.js`                   | `65c851f98ba8247b8a2e556cfaafb7bcb8d3ffc8f05ffc1d29e1e9c880d7a3ae` |
+| `src/main.jsx`                 | `ca6a3991cc74fab88776864f11d9fc044dcb855428f55f005ed2b0ceb620d9d0` |
+| `src/PublicTaskDispatch.jsx`   | `7b88c792753ed77159049b54ea701aae8498f5f393dc8c5eccbbc32079206b8c` |
 | `src/Auth.jsx` (для sanitizer) | `b9c04ea5de77de0211a73d2384c4fabe6eec3ae8aaf95c6f7b0e66f433dc5468` |
-| `package.json` | `5687f02f45e158d61f350846f7882b01037e57652467ad381b9b87812b5b93b8` |
+| `package.json`                 | `5687f02f45e158d61f350846f7882b01037e57652467ad381b9b87812b5b93b8` |
 
 Если хотя бы один SHA отличается, перепроверить diff; патч нельзя накатывать вслепую. Сначала нужен независимый backup изменяемых исходников и план сохранения текущего `dist`. В **отдельной staging-копии**, не в `/opt/pharmacy-crm-demo`, порядок такой: `git apply --check` → применение patch → перенос включённого lockfile в корень копии → `npm ci` → sanitizer `--check` и `--apply-and-build` → Node-тесты и browser smoke. `strip-demo-autofill.mjs` прямо запрещает запуск с live-root. Создание отдельного Git-репозитория для исходников мерча — отдельная задача; этот patch bundle не должен становиться заменой контроля версий.
 

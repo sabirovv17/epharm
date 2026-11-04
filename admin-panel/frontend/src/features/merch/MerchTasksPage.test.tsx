@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useAdministrativeCapabilities } from '@/app/useAdministrativeCapabilities'
 import MerchTasksPage from './MerchTasksPage'
@@ -65,6 +65,36 @@ beforeEach(() => {
   vi.mocked(adminTaskGateway.get).mockResolvedValue(created)
 })
 describe('native task creation capability and required fields', () => {
+  it('opens the native task in a focused dialog and returns to the same table row on Escape', async () => {
+    const task = await vi.mocked(adminTaskGateway.get)(
+      'task-new-demo',
+      new AbortController().signal,
+    )
+    vi.mocked(adminTaskApi.list).mockResolvedValue({
+      items: [{ ...task, pendingReviewCount: 0 }],
+      limit: 20,
+      offset: 0,
+      hasMore: false,
+    })
+    const user = userEvent.setup()
+    render(<MerchTasksPage />)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Задания мерчендайзинга')
+    const opener = await screen.findByRole('button', { name: 'Открыть задание' })
+    await user.click(opener)
+    const dialog = await screen.findByRole('dialog', { name: 'Задание мерчендайзинга' })
+    const detail = within(dialog).getByRole('region', { name: 'Открытое задание' })
+    await waitFor(() => expect(detail).toHaveFocus())
+    expect(within(detail).getByRole('link', { name: 'Открыть в личном кабинете' })).toHaveAttribute(
+      'href',
+      '/learn/merch/tasks/task-new-demo',
+    )
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Открытое задание' })).not.toBeInTheDocument()
+    expect(opener).toHaveFocus()
+    expect(screen.getByRole('region', { name: 'Таблица заданий' })).toBeVisible()
+  })
+
   it('offers a server-filtered personal queue only to executors and resets pagination', async () => {
     vi.mocked(useAdministrativeCapabilities).mockReturnValue({
       isPending: false,

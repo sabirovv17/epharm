@@ -113,3 +113,35 @@ it('template uses server defaults occupied snapshot and explicit names without i
     }),
   )
 })
+
+it('template footer submits the form and keeps its pending request open on Escape or close', async () => {
+  let finish!: (value: { dispatchIds: string[] }) => void
+  vi.mocked(adminTaskApi.templated).mockImplementation(
+    () => new Promise((resolve) => (finish = resolve)),
+  )
+  const created = vi.fn()
+  const close = vi.fn()
+  const user = userEvent.setup()
+  render(<TaskTemplateDialog onClose={close} onCreated={created} />)
+  await screen.findByRole('option', { name: 'Реструктуризация полки' })
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Шаблон задания' }), 'maintenance')
+  await user.click(screen.getByRole('checkbox', { name: 'Демо-аптека · Демо · Демо, 1' }))
+  fireEvent.change(screen.getByLabelText('Месяц размещения'), { target: { value: '2099-01' } })
+  fireEvent.change(screen.getByLabelText('Срок шаблонного задания'), {
+    target: { value: '2099-01-31T12:00' },
+  })
+  const submit = screen.getByRole('button', { name: 'Создать задания по шаблону' })
+  expect((submit as HTMLButtonElement).form).toBe(
+    screen.getByLabelText('Срок шаблонного задания').closest('form'),
+  )
+  await user.click(submit)
+  await waitFor(() => expect(adminTaskApi.templated).toHaveBeenCalledOnce())
+  expect(screen.getByRole('button', { name: 'Создаём задания…' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Отмена' })).toBeDisabled()
+  await user.keyboard('{Escape}')
+  await user.click(screen.getByRole('button', { name: 'Закрыть окно' }))
+  expect(close).not.toHaveBeenCalled()
+  expect(screen.getByRole('dialog', { name: 'Задание по шаблону' })).toBeVisible()
+  finish({ dispatchIds: ['created-task'] })
+  await waitFor(() => expect(created).toHaveBeenCalledWith('created-task'))
+})

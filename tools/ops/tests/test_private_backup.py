@@ -85,12 +85,15 @@ class PrivateBackupTest(unittest.TestCase):
         with self.assertRaises(ValueError): self.create('credential-keys')
 
     def test_capacity_refusal_and_collision_preserve_previous_copies(self):
-        archive = Path(self.create()['archive']); before = archive.read_bytes()
-        with patch.object(snapshot.shutil, 'disk_usage', return_value=type('Disk', (), {'free': 1})()):
-            with self.assertRaises(ValueError): self.create()
-        with self.assertRaises(FileExistsError): self.create()
-        self.assertEqual(before, archive.read_bytes())
-        self.assertFalse(list(archive.parent.glob('*.partial')))
+        # Collision requires the same timestamp even when runner time crosses a second.
+        with patch.object(snapshot, 'datetime') as clock:
+            clock.now.return_value = datetime(2026, 11, 4, tzinfo=timezone.utc)
+            archive = Path(self.create()['archive']); before = archive.read_bytes()
+            with patch.object(snapshot.shutil, 'disk_usage', return_value=type('Disk', (), {'free': 1})()):
+                with self.assertRaises(ValueError): self.create()
+            with self.assertRaises(FileExistsError): self.create()
+            self.assertEqual(before, archive.read_bytes())
+            self.assertFalse(list(archive.parent.glob('*.partial')))
 
     def test_preexisting_or_replaced_partial_is_not_removed_by_failure_cleanup(self):
         directory = self.backups / 'native-files'; directory.mkdir(mode=0o700)

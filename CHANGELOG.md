@@ -5,6 +5,20 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-11-04
+
+### Changed
+
+- Integrate PR #146's merchandising workspace refinements into the native ePharm task screen:
+  compact queue, full-height right panels, grouped task fields and visible creation actions.
+- Keep server-scoped queues, bulk/template assignments, monthly visits, item reviews, history,
+  authenticated evidence, Excel and separate pharmacist/QR flows on their existing native APIs.
+
+### Deployment
+
+- Frontend-only audited release; the running v0.2.4 backend, database, Caddy and POSM remain pinned.
+  No migration or cashier staff-auth activation is required.
+
 ## [0.2.4] - 2026-11-03
 
 ### Fixed
