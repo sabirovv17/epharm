@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
@@ -85,5 +85,45 @@ describe('Modal keyboard access', () => {
     await userEvent.keyboard('{Escape}')
     expect(inner).toHaveBeenCalledOnce()
     expect(outer).not.toHaveBeenCalled()
+  })
+
+  it('keeps a right panel open and restores its control when a nested review closes', async () => {
+    function Workspace() {
+      const [panel, setPanel] = useState(false)
+      const [review, setReview] = useState(false)
+      return (
+        <>
+          <button onClick={() => setPanel(true)}>Открыть задание</button>
+          <Modal
+            open={panel}
+            placement="right"
+            title="Задание"
+            onClose={() => setPanel(false)}
+            footer={<button>Действие панели</button>}
+          >
+            <button onClick={() => setReview(true)}>Проверить отчёт</button>
+            <Modal open={review} title="Решение по отчёту" onClose={() => setReview(false)}>
+              <input aria-label="Причина решения" />
+            </Modal>
+          </Modal>
+        </>
+      )
+    }
+    const user = userEvent.setup()
+    render(<Workspace />)
+    const opener = screen.getByRole('button', { name: 'Открыть задание' })
+    await user.click(opener)
+    const panel = screen.getByRole('dialog', { name: 'Задание', exact: true })
+    expect(panel).toHaveClass('h-[100dvh]', 'rounded-none')
+    const review = within(panel).getByRole('button', { name: 'Проверить отчёт' })
+    await user.click(review)
+    expect(screen.getByRole('dialog', { name: 'Решение по отчёту' })).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Решение по отчёту' })).not.toBeInTheDocument()
+    expect(panel).toBeInTheDocument()
+    expect(review).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(opener).toHaveFocus()
   })
 })

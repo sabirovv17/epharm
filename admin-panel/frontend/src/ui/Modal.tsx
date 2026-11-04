@@ -11,6 +11,7 @@ interface ModalProps {
   children: ReactNode
   footer?: ReactNode
   width?: number
+  placement?: 'center' | 'right'
 }
 
 const openDialogs: HTMLElement[] = []
@@ -23,6 +24,7 @@ export function Modal({
   children,
   footer,
   width = 520,
+  placement = 'center',
 }: ModalProps) {
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -99,13 +101,13 @@ export function Modal({
   if (!open) return null
   return (
     <div
-      className="scrim fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6"
+      className={`scrim fixed inset-0 z-[80] flex ${placement === 'right' ? 'items-stretch justify-end' : 'items-center justify-center p-3 sm:p-6'}`}
       onClick={onClose}
     >
       <div
         ref={dialogRef}
         tabIndex={-1}
-        className="card slide-in flex max-h-[calc(100dvh-24px)] w-full min-w-0 flex-col overflow-hidden rounded-2xl shadow-elevated outline-none sm:max-h-[calc(100dvh-48px)]"
+        className={`card slide-in flex w-full min-w-0 flex-col overflow-hidden shadow-elevated outline-none ${placement === 'right' ? 'h-[100dvh] max-h-[100dvh] rounded-none' : 'max-h-[calc(100dvh-24px)] rounded-2xl sm:max-h-[calc(100dvh-48px)]'}`}
         style={{ maxWidth: width }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
@@ -126,7 +128,11 @@ export function Modal({
             <IconClose size={18} />
           </IconButton>
         </div>
-        <div className="scrollbar-thin min-h-0 overflow-auto px-4 py-4 sm:px-6">{children}</div>
+        <div
+          className={`scrollbar-thin min-h-0 overflow-auto px-4 py-4 sm:px-6 ${placement === 'right' ? 'flex-1' : ''}`}
+        >
+          {children}
+        </div>
         {footer && (
           <div className="hairline flex shrink-0 flex-wrap items-center justify-end gap-2 border-t bg-paper-input px-4 py-3 sm:px-6">
             {footer}

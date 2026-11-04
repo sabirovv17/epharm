@@ -118,15 +118,15 @@ function TaskWorkspace({
   return (
     <div className="flex min-w-0 flex-col gap-5">
       <PageHeader
-        title="Задания мерча"
-        subtitle="Задания, фотоотчёты и проверка отдельных пунктов в вашей области аптек."
+        title="Задания мерчендайзинга"
+        subtitle="Проверка отчётов и назначение заданий"
         actions={
           <Button disabled={!canCreate} onClick={() => setCreating(true)}>
             Новое задание
           </Button>
         }
       />
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-200 bg-white px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ink-200 bg-white px-4 py-3">
         <p className="text-xs font-semibold text-ink-500">Инструменты заданий</p>
         <div className="flex flex-wrap items-center gap-2">
           {canExecute && (
@@ -169,7 +169,7 @@ function TaskWorkspace({
         />
       )}
       <form
-        className="card flex flex-wrap items-end gap-3 p-4"
+        className="flex flex-wrap items-end gap-3 rounded-lg border border-ink-200 bg-white p-4"
         onSubmit={(event) => {
           event.preventDefault()
           setQuery(search.trim())
@@ -249,7 +249,7 @@ function TaskWorkspace({
         </div>
       )}
       {list.data && (
-        <div className="card min-w-0 overflow-hidden">
+        <div className="min-w-0 overflow-hidden rounded-lg border border-ink-200 bg-white">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-200 p-4">
             <h2 className="font-bold">
               {queue === 'mine'
@@ -358,7 +358,7 @@ function TaskWorkspace({
                               ? 'Без вознаграждения'
                               : formatKzt(task.rewardAmountKzt)}
                         </td>
-                        <td className="p-3">
+                        <td className="whitespace-nowrap p-3">
                           <Button variant="outline" size="sm" onClick={() => openListedTask(task)}>
                             {queue === 'mine'
                               ? 'Открыть мой пункт'
@@ -410,39 +410,47 @@ function TaskWorkspace({
         </div>
       )}
       {selected && (
-        <div
-          ref={detailRegion}
-          role="region"
-          aria-label="Открытое задание"
-          tabIndex={-1}
-          className="scroll-mt-20 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand-green-400"
+        <Modal
+          open
+          placement="right"
+          title="Задание мерчендайзинга"
+          width={920}
+          onClose={() => setSelected('')}
         >
-          <div className="mb-3 flex flex-wrap justify-between gap-2 border-t border-ink-200 pt-5">
-            <Button variant="ghost" onClick={() => setSelected('')}>
-              Скрыть задание
-            </Button>
-            <a
-              className="btn btn-md btn-outline"
-              href={`/learn/merch/tasks/${encodeURIComponent(selected)}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Открыть в личном кабинете
-            </a>
+          <div
+            ref={detailRegion}
+            role="region"
+            aria-label="Открытое задание"
+            tabIndex={-1}
+            className="min-w-0 scroll-mt-20 outline-none focus-visible:ring-2 focus-visible:ring-brand-green-400"
+          >
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-ink-200 pb-4">
+              <Button variant="ghost" onClick={() => setSelected('')}>
+                Скрыть задание
+              </Button>
+              <a
+                className="btn btn-md btn-outline"
+                href={`/learn/merch/tasks/${encodeURIComponent(selected)}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Открыть в личном кабинете
+              </a>
+            </div>
+            <MerchTaskDetail
+              key={selected}
+              id={selected}
+              gateway={adminTaskGateway}
+              canExecute={canExecute}
+              canReview={canReview}
+              canComment={canComment}
+              canCancel={canCancel}
+              focusReview={reviewFocus}
+              preferredItemId={executionItemId}
+              onChanged={list.reload}
+            />
           </div>
-          <MerchTaskDetail
-            key={selected}
-            id={selected}
-            gateway={adminTaskGateway}
-            canExecute={canExecute}
-            canReview={canReview}
-            canComment={canComment}
-            canCancel={canCancel}
-            focusReview={reviewFocus}
-            preferredItemId={executionItemId}
-            onChanged={list.reload}
-          />
-        </div>
+        </Modal>
       )}
       {creating && (
         <CreateTaskDialog
@@ -572,6 +580,7 @@ function CreateTaskDialog({
   return (
     <Modal
       open
+      placement="right"
       title="Новое задание аптеки"
       width={920}
       onClose={() => {
@@ -588,220 +597,254 @@ function CreateTaskDialog({
         </>
       }
     >
-      <div className="flex flex-col gap-4">
-        {branches.pending && <p role="status">Загружаем доступные аптеки…</p>}
-        {!!branches.error && <p role="alert">{describeError(branches.error)}</p>}
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={multiple}
-            disabled={pending}
-            onChange={(event) => {
-              setMultiple(event.target.checked)
-              setReward('0')
-            }}
-          />
-          Назначить нескольким аптекам
-        </label>
-        {multiple ? (
-          <Field
-            label="Аптеки мерча *"
-            hint="Выберите до 50 аптек; для каждой создаётся отдельное задание. Ctrl/⌘ — несколько строк."
-          >
-            <select
-              aria-label="Аптеки массового задания"
-              multiple
-              className="inp min-h-36"
-              value={branchIds}
+      <div className="flex min-w-0 flex-col gap-5">
+        <section aria-label="Аптеки задания" className="space-y-4">
+          <h2 className="text-sm font-bold text-ink-900">Аптеки</h2>
+          {branches.pending && <p role="status">Загружаем доступные аптеки…</p>}
+          {!!branches.error && <p role="alert">{describeError(branches.error)}</p>}
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={multiple}
               disabled={pending}
               onChange={(event) => {
-                setBranchIds(Array.from(event.target.selectedOptions, (option) => option.value))
+                setMultiple(event.target.checked)
                 setReward('0')
               }}
+            />
+            Назначить нескольким аптекам
+          </label>
+          {multiple ? (
+            <Field
+              label="Аптеки мерча *"
+              hint="Выберите до 50 аптек; для каждой создаётся отдельное задание. Ctrl/⌘ — несколько строк."
             >
-              {(branches.data ?? [])
-                .filter((item) => item.active && item.createEligible)
-                .map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.city} · {item.name} · {item.address}
-                  </option>
-                ))}
-            </select>
-            <p>
-              Выбрано: {branchIds.length}. Пунктов всего: {branchIds.length * items.length}.
-            </p>
-          </Field>
-        ) : (
-          <Field label="Аптека мерча *">
-            <Select
-              ariaLabel="Аптека нового задания"
-              value={branchId}
-              disabled={pending}
-              onChange={(value) => {
-                setBranchId(value)
-                setReward('0')
-              }}
-              options={(branches.data ?? [])
-                .filter((item: TaskBranch) => item.active && item.createEligible)
-                .map((item) => ({
-                  value: item.id,
-                  label: `${item.city} · ${item.name} · ${item.address}`,
-                }))}
-            />
-          </Field>
-        )}
-        {branches.data && !branches.data.some((item) => item.active && item.createEligible) && (
-          <p className="text-[13px] text-ink-500">
-            Нет активных аптек, в которых разрешено создание. Существующие задания остаются доступны
-            для просмотра.
-          </p>
-        )}
-        <Field label="Название задания *">
-          <Input
-            aria-label="Название нового задания"
-            value={title}
-            maxLength={160}
-            disabled={pending}
-            onChange={(event) => setTitle(event.target.value)}
-          />
-        </Field>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="Срок, время Алматы *">
-            <Input
-              aria-label="Срок задания Алматы"
-              type="datetime-local"
-              value={due}
-              disabled={pending}
-              onChange={(event) => setDue(event.target.value)}
-            />
-          </Field>
-          <Field label="Приоритет">
-            <Select
-              value={priority}
-              onChange={setPriority}
-              disabled={pending}
-              options={[
-                { value: 'low', label: 'Низкий' },
-                { value: 'normal', label: 'Обычный' },
-                { value: 'high', label: 'Высокий' },
-                { value: 'urgent', label: 'Срочный' },
-              ]}
-            />
-          </Field>
-          <Field
-            label="Вознаграждение, ₸"
-            hint={
-              !financial
-                ? 'Нет права задавать денежное вознаграждение'
-                : 'Предусмотренная сумма; начисление после проверки'
-            }
-          >
-            <Input
-              aria-label="Вознаграждение нового задания"
-              type="number"
-              min={0}
-              step={1}
-              value={reward}
-              disabled={pending || !financial}
-              onChange={(event) => setReward(event.target.value)}
-            />
-          </Field>
-        </div>
-        <Field label="Доступно с, время Алматы" optional>
-          <Input
-            aria-label="Начало доступности задания Алматы"
-            type="datetime-local"
-            value={availableFrom}
-            disabled={pending}
-            onChange={(event) => setAvailableFrom(event.target.value)}
-          />
-        </Field>
-        {items.map((item, index) => (
-          <div key={index} className="flex flex-col gap-3 rounded-lg border border-paper-line p-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold">Пункт {index + 1}</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={pending || items.length === 1}
-                onClick={() => setItems((current) => current.filter((_, i) => i !== index))}
+              <select
+                aria-label="Аптеки массового задания"
+                multiple
+                className="inp min-h-36"
+                value={branchIds}
+                disabled={pending}
+                onChange={(event) => {
+                  setBranchIds(Array.from(event.target.selectedOptions, (option) => option.value))
+                  setReward('0')
+                }}
               >
-                Удалить пункт
-              </Button>
-            </div>
-            <Field label="Название пункта *">
+                {(branches.data ?? [])
+                  .filter((item) => item.active && item.createEligible)
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.city} · {item.name} · {item.address}
+                    </option>
+                  ))}
+              </select>
+              <p>
+                Выбрано: {branchIds.length}. Пунктов всего: {branchIds.length * items.length}.
+              </p>
+            </Field>
+          ) : (
+            <Field label="Аптека мерча *">
+              <Select
+                ariaLabel="Аптека нового задания"
+                value={branchId}
+                disabled={pending}
+                onChange={(value) => {
+                  setBranchId(value)
+                  setReward('0')
+                }}
+                options={(branches.data ?? [])
+                  .filter((item: TaskBranch) => item.active && item.createEligible)
+                  .map((item) => ({
+                    value: item.id,
+                    label: `${item.city} · ${item.name} · ${item.address}`,
+                  }))}
+              />
+            </Field>
+          )}
+          {branches.data && !branches.data.some((item) => item.active && item.createEligible) && (
+            <p className="text-[13px] text-ink-500">
+              Нет активных аптек, в которых разрешено создание. Существующие задания остаются
+              доступны для просмотра.
+            </p>
+          )}
+        </section>
+        <section aria-label="Условия задания" className="space-y-4 border-t border-ink-200 pt-5">
+          <h2 className="text-sm font-bold text-ink-900">Задание и сроки</h2>
+          <Field label="Название задания *">
+            <Input
+              aria-label="Название нового задания"
+              value={title}
+              maxLength={160}
+              disabled={pending}
+              onChange={(event) => setTitle(event.target.value)}
+            />
+          </Field>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Field label="Срок, время Алматы *">
               <Input
-                aria-label={`Название пункта ${index + 1}`}
-                maxLength={240}
-                value={item.title}
+                aria-label="Срок задания Алматы"
+                type="datetime-local"
+                value={due}
                 disabled={pending}
-                onChange={(event) => patchItem(index, { title: event.target.value })}
+                onChange={(event) => setDue(event.target.value)}
               />
             </Field>
-            <Field label="Инструкция">
-              <textarea
-                aria-label={`Инструкция пункта ${index + 1}`}
-                className="inp min-h-20 py-2"
-                maxLength={4000}
-                value={item.instructions}
+            <Field label="Приоритет">
+              <Select
+                value={priority}
+                onChange={setPriority}
                 disabled={pending}
-                onChange={(event) => patchItem(index, { instructions: event.target.value })}
+                options={[
+                  { value: 'low', label: 'Низкий' },
+                  { value: 'normal', label: 'Обычный' },
+                  { value: 'high', label: 'Высокий' },
+                  { value: 'urgent', label: 'Срочный' },
+                ]}
               />
             </Field>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 text-[13px]">
-                <input
-                  type="checkbox"
-                  checked={item.required}
-                  disabled={pending}
-                  onChange={(event) => patchItem(index, { required: event.target.checked })}
-                />
-                Обязательный пункт
-              </label>
-              <Field label="Фото, минимум">
+            <Field
+              label="Вознаграждение, ₸"
+              hint={
+                !financial
+                  ? 'Нет права задавать денежное вознаграждение'
+                  : 'Предусмотренная сумма; начисление после проверки'
+              }
+            >
+              <Input
+                aria-label="Вознаграждение нового задания"
+                type="number"
+                min={0}
+                step={1}
+                value={reward}
+                disabled={pending || !financial}
+                onChange={(event) => setReward(event.target.value)}
+              />
+            </Field>
+          </div>
+          <Field label="Доступно с, время Алматы" optional>
+            <Input
+              aria-label="Начало доступности задания Алматы"
+              type="datetime-local"
+              value={availableFrom}
+              disabled={pending}
+              onChange={(event) => setAvailableFrom(event.target.value)}
+            />
+          </Field>
+        </section>
+        <section aria-label="Пункты задания" className="space-y-4 border-t border-ink-200 pt-5">
+          <div>
+            <h2 className="text-sm font-bold text-ink-900">Пункты и приёмка</h2>
+            <p className="mt-1 text-xs text-ink-500">
+              Укажите, что выполнить и какие доказательства приложить.
+            </p>
+          </div>
+          {items.map((item, index) => (
+            <div
+              key={index}
+              className="flex flex-col gap-3 rounded-lg border border-paper-line p-3"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-bold">Пункт {index + 1}</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={pending || items.length === 1}
+                  onClick={() => setItems((current) => current.filter((_, i) => i !== index))}
+                >
+                  Удалить пункт
+                </Button>
+              </div>
+              <Field label="Название пункта *">
                 <Input
-                  aria-label={`Минимум фото пункта ${index + 1}`}
-                  type="number"
-                  min={0}
-                  max={12}
-                  value={item.requiredPhotos}
+                  aria-label={`Название пункта ${index + 1}`}
+                  maxLength={240}
+                  value={item.title}
+                  disabled={pending}
+                  onChange={(event) => patchItem(index, { title: event.target.value })}
+                />
+              </Field>
+              <Field label="Инструкция">
+                <textarea
+                  aria-label={`Инструкция пункта ${index + 1}`}
+                  className="inp min-h-20 py-2"
+                  maxLength={4000}
+                  value={item.instructions}
+                  disabled={pending}
+                  onChange={(event) => patchItem(index, { instructions: event.target.value })}
+                />
+              </Field>
+              <div className="flex flex-wrap items-end gap-4">
+                <label className="flex items-center gap-2 text-[13px]">
+                  <input
+                    type="checkbox"
+                    checked={item.required}
+                    disabled={pending}
+                    onChange={(event) => patchItem(index, { required: event.target.checked })}
+                  />
+                  Обязательный пункт
+                </label>
+                <Field label="Фото, минимум">
+                  <Input
+                    aria-label={`Минимум фото пункта ${index + 1}`}
+                    type="number"
+                    min={0}
+                    max={12}
+                    value={item.requiredPhotos}
+                    disabled={pending}
+                    onChange={(event) =>
+                      patchItem(index, { requiredPhotos: Number(event.target.value) })
+                    }
+                  />
+                </Field>
+              </div>
+              <Field label="Чек-лист — одна проверка в строке" optional>
+                <textarea
+                  aria-label={`Чек-лист пункта ${index + 1}`}
+                  className="inp min-h-20 py-2"
+                  value={item.checklist.join('\n')}
                   disabled={pending}
                   onChange={(event) =>
-                    patchItem(index, { requiredPhotos: Number(event.target.value) })
+                    patchItem(index, { checklist: event.target.value.split('\n') })
                   }
                 />
               </Field>
             </div>
-            <Field label="Чек-лист — одна проверка в строке" optional>
-              <textarea
-                aria-label={`Чек-лист пункта ${index + 1}`}
-                className="inp min-h-20 py-2"
-                value={item.checklist.join('\n')}
-                disabled={pending}
-                onChange={(event) =>
-                  patchItem(index, { checklist: event.target.value.split('\n') })
-                }
-              />
-            </Field>
+          ))}
+          <div>
+            <Button
+              variant="outline"
+              disabled={
+                pending ||
+                items.length >= (multiple ? Math.floor(500 / Math.max(1, branchIds.length)) : 200)
+              }
+              onClick={() =>
+                setItems((current) => [
+                  ...current,
+                  { title: '', instructions: '', required: true, requiredPhotos: 1, checklist: [] },
+                ])
+              }
+            >
+              Добавить пункт
+            </Button>
           </div>
-        ))}
-        <div>
-          <Button
-            variant="outline"
-            disabled={
-              pending ||
-              items.length >= (multiple ? Math.floor(500 / Math.max(1, branchIds.length)) : 200)
-            }
-            onClick={() =>
-              setItems((current) => [
-                ...current,
-                { title: '', instructions: '', required: true, requiredPhotos: 1, checklist: [] },
-              ])
-            }
-          >
-            Добавить пункт
-          </Button>
-        </div>
+        </section>
+        <section aria-label="Итог назначения" className="rounded-lg bg-paper-input p-4">
+          <h2 className="text-sm font-bold text-ink-900">Перед созданием</h2>
+          <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+            <div>
+              <dt className="text-ink-500">Аптек</dt>
+              <dd className="mt-1 font-semibold">{selectedBranches.length}</dd>
+            </div>
+            <div>
+              <dt className="text-ink-500">Пунктов в каждой</dt>
+              <dd className="mt-1 font-semibold">{items.length}</dd>
+            </div>
+            <div>
+              <dt className="text-ink-500">Всего пунктов</dt>
+              <dd className="mt-1 font-semibold">{selectedBranches.length * items.length}</dd>
+            </div>
+          </dl>
+        </section>
         {validation && <p className="text-[12px] text-ink-500">{validation}</p>}
         {failure && (
           <p role="alert" className="text-[13px] text-accent-danger">
