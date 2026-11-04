@@ -52,15 +52,20 @@ beforeEach(() => {
     canViewAccounts: false,
     canManageAccounts: false,
   })
-  useUiStore.setState({ authedUser: null, tokens: null, passwordChangedNotice: false })
+  useUiStore.setState({
+    authedUser: null,
+    tokens: null,
+    passwordChangedNotice: false,
+    sessionExpiredNotice: false,
+  })
 })
 
-function renderLogin() {
+function renderLogin(entry: string | { pathname: string; state?: unknown } = '/login') {
   return render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <MemoryRouter initialEntries={['/login']}>
+      <MemoryRouter initialEntries={[entry]}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<AdministrativeHome />} />
@@ -74,6 +79,24 @@ function renderLogin() {
 }
 
 describe('LoginPage — рендер', () => {
+  it('explains an expired session and returns to the requested page after login', async () => {
+    useUiStore.setState({ sessionExpiredNotice: true })
+    authApi.login.mockResolvedValueOnce(mockLoginResponse)
+    renderLogin({
+      pathname: '/login',
+      state: { from: { pathname: '/rules', search: '?status=active', hash: '' } },
+    })
+
+    expect(screen.getByRole('status')).toHaveTextContent('Сессия истекла')
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText(/Email/i), 'person@example.test')
+    await user.type(screen.getByLabelText(/Пароль/i), 'synthetic-password')
+    await user.click(screen.getByRole('button', { name: 'Войти', exact: true }))
+
+    expect(await screen.findByText('RulesPage')).toBeInTheDocument()
+    expect(useUiStore.getState().sessionExpiredNotice).toBe(false)
+  })
+
   it('keeps the transient password confirmation until the next login attempt', async () => {
     useUiStore.setState({ passwordChangedNotice: true })
     authApi.login.mockRejectedValue({ code: 'INVALID_CREDENTIALS' })

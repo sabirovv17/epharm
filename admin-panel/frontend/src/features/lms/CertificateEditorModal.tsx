@@ -228,7 +228,7 @@ export function CertificateEditorModal({
 const previewProgram: TrainingProgramDto = {
   id: 'certificate-preview-program',
   name: 'Безопасный отпуск лекарственных средств',
-  shortDescription: 'Демонстрационная программа',
+  shortDescription: 'Программа обучения',
   description: '',
   coverUrl: null,
   certificateEpharmLogoUrl: null,

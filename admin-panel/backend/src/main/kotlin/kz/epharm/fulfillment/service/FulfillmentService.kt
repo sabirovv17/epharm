@@ -6,6 +6,7 @@ import java.security.SecureRandom
 import java.sql.ResultSet
 import java.sql.Timestamp
 import java.time.Instant
+import java.time.Duration
 import java.time.temporal.ChronoUnit
 import java.util.Base64
 import java.util.UUID
@@ -741,46 +742,55 @@ class FulfillmentService(
             updatedAt = rs.getTimestamp("updated_at").toInstant(),
         )
 
-    private fun dto(order: FulfillmentOrderRecord): FulfillmentOrderDto = FulfillmentOrderDto(
-        orderId = order.orderId,
-        number = order.number,
-        pharmacyExternalId = order.pharmacyExternalId,
-        pharmacyId = order.pharmacyId,
-        pharmacyName = order.pharmacyName,
-        pharmacyAddress = order.pharmacyAddress,
-        createdAt = order.createdAt,
-        total = order.total,
-        currency = order.currency,
-        delivery = order.delivery,
-        paymentMethod = order.paymentMethod,
-        paymentStatus = order.paymentStatus,
-        paymentStatusClaimed = order.paymentStatusClaimed,
-        paymentAuthority = order.paymentAuthority,
-        demo = order.demo,
-        status = order.status.name,
-        version = order.version,
-        pickupAttempts = order.pickupAttempts,
-        pickupLockedUntil = order.pickupLockedUntil,
-        cancellationReason = order.cancellationReason,
-        completedAt = order.completedAt,
-        updatedAt = order.updatedAt,
-        lines = jdbc.query(
-            """
-            SELECT product_id, sku, title, quantity, unit_price
-            FROM fulfillment_order_lines WHERE order_id = ? ORDER BY line_no
-            """.trimIndent(),
-            { rs, _ ->
-                FulfillmentLineDto(
-                    rs.getString(1),
-                    rs.getString(2),
-                    rs.getString(3),
-                    rs.getInt(4),
-                    rs.getBigDecimal(5),
-                )
-            },
-            order.orderId,
-        ),
-    )
+    private fun dto(order: FulfillmentOrderRecord): FulfillmentOrderDto {
+        val ageMinutes = Duration.between(order.updatedAt, Instant.now()).toMinutes().coerceAtLeast(0)
+        val requiresAttention =
+            order.status in setOf(FulfillmentStatus.submitted, FulfillmentStatus.assembling, FulfillmentStatus.ready) &&
+                ageMinutes >= 24 * 60
+        return FulfillmentOrderDto(
+            orderId = order.orderId,
+            number = order.number,
+            pharmacyExternalId = order.pharmacyExternalId,
+            pharmacyId = order.pharmacyId,
+            pharmacyName = order.pharmacyName,
+            pharmacyAddress = order.pharmacyAddress,
+            createdAt = order.createdAt,
+            total = order.total,
+            currency = order.currency,
+            delivery = order.delivery,
+            paymentMethod = order.paymentMethod,
+            paymentStatus = order.paymentStatus,
+            paymentStatusClaimed = order.paymentStatusClaimed,
+            paymentAuthority = order.paymentAuthority,
+            demo = order.demo,
+            status = order.status.name,
+            version = order.version,
+            pickupAttempts = order.pickupAttempts,
+            pickupLockedUntil = order.pickupLockedUntil,
+            cancellationReason = order.cancellationReason,
+            completedAt = order.completedAt,
+            updatedAt = order.updatedAt,
+            ageMinutes = ageMinutes,
+            requiresAttention = requiresAttention,
+            attentionReason = if (requiresAttention) "Нет обновлений больше 24 часов" else null,
+            lines = jdbc.query(
+                """
+                SELECT product_id, sku, title, quantity, unit_price
+                FROM fulfillment_order_lines WHERE order_id = ? ORDER BY line_no
+                """.trimIndent(),
+                { rs, _ ->
+                    FulfillmentLineDto(
+                        rs.getString(1),
+                        rs.getString(2),
+                        rs.getString(3),
+                        rs.getInt(4),
+                        rs.getBigDecimal(5),
+                    )
+                },
+                order.orderId,
+            ),
+        )
+    }
 
     private fun ack(order: FulfillmentOrderRecord, accepted: Boolean) = StorefrontOrderAck(
         orderId = order.orderId,

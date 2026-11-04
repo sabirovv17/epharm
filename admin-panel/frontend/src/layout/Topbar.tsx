@@ -7,7 +7,6 @@ import { Avatar } from '@/ui'
 import {
   IconChevDown,
   IconChevRight,
-  IconCommand,
   IconLogout,
   IconSearch,
   IconUsers,
@@ -15,6 +14,7 @@ import {
 import { roleLabel, type User } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
 import { PeriodPicker } from './PeriodPicker'
+import { Menu as MenuIcon } from 'lucide-react'
 
 interface TopbarProps {
   sectionLabel: string
@@ -40,14 +40,23 @@ export function Topbar({
 }: TopbarProps) {
   const t = useT()
   return (
-    <header className="topbar-bg sticky top-0 z-30 flex h-[58px] flex-none items-center gap-4 px-5">
+    <header className="topbar-bg sticky top-0 z-30 flex h-[58px] min-w-0 flex-none items-center gap-2 px-3 sm:gap-4 sm:px-5">
       {/* Left: hamburger (mobile-only) + breadcrumb */}
       <div className="flex min-w-0 items-center gap-2">
         <button
           onClick={onMenu}
           className="flex h-9 w-9 items-center justify-center rounded-md text-ink-500 hover:bg-ink-100 md:hidden"
+          aria-label="Открыть основную навигацию"
         >
-          <IconCommand size={18} />
+          <MenuIcon size={20} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={onCommand}
+          className="flex h-9 w-9 items-center justify-center rounded-md text-ink-500 hover:bg-ink-100 md:hidden"
+          aria-label="Открыть поиск"
+        >
+          <IconSearch size={18} />
         </button>
         <div className="hidden items-center gap-1.5 text-[12px] text-ink-500 xl:flex">
           <span>{workspaceLabel}</span>
@@ -71,8 +80,10 @@ export function Topbar({
 
       {/* Right: period · role dropdown */}
       <div className="ml-auto flex items-center gap-1.5">
-        <PeriodPicker />
-        <span className="mx-1 h-5 w-px bg-ink-200" />
+        <div className="hidden sm:block">
+          <PeriodPicker />
+        </div>
+        <span className="mx-1 hidden h-5 w-px bg-ink-200 sm:block" />
         <RolePill
           role={role}
           onRoleSwitch={onRoleSwitch}

@@ -225,6 +225,9 @@ class ManagedTrainingAuthorizationIntegrationTest {
         assertThat(send("PATCH","/api/admin/lms/courses/$id",mapOf("status" to "published")).response.status).isEqualTo(403)
         assertThat(send("PATCH","/api/admin/lms/courses/$id",mapOf("bonus" to 500)).response.status).isEqualTo(403)
         grants(grant("courses","edit",all=true),grant("courses","publish",all=true),grant("courses","configure_bonus",all=true))
+        assertThat(send("POST","/api/admin/lms/courses/$id/lessons",mapOf("title" to "Synthetic lesson","kind" to "text","content" to "Synthetic training material")).response.status).isEqualTo(403)
+        grants(grant("courses","create",all=true),grant("courses","edit",all=true),grant("courses","publish",all=true),grant("courses","configure_bonus",all=true))
+        assertThat(send("POST","/api/admin/lms/courses/$id/lessons",mapOf("title" to "Synthetic lesson","kind" to "text","content" to "Synthetic training material")).response.status).isEqualTo(200)
         assertThat(send("PATCH","/api/admin/lms/courses/$id",mapOf("status" to "published","bonus" to 500)).response.status).isEqualTo(200)
         assertThat(jdbc.queryForObject("SELECT bonus FROM courses WHERE id=?",Int::class.java,id)).isEqualTo(500)
     }

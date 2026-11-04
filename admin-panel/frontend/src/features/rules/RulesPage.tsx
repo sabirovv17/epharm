@@ -115,38 +115,34 @@ export default function RulesPage() {
       )}
 
       {/* Main work area: list + read-only detail */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'minmax(0, 1fr) 480px' }}>
+      <div className="grid min-w-0 grid-cols-1 gap-4 2xl:grid-cols-[minmax(620px,1fr)_minmax(380px,480px)]">
         {/* Left — rules list */}
-        <div className="card flex min-h-[640px] flex-col">
+        <div className="card flex min-w-0 flex-col overflow-hidden 2xl:min-h-[640px]">
           <div className="px-5 pt-4">
-            <Tabs<RulesTab>
-              value={tab}
-              onChange={onChangeTab}
-              items={tabItems}
-              trailing={
-                // flex-none — каждый input сохраняет ширину, не сжимается; если узко —
-                // search+select переносятся на следующую строку (flex-wrap).
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  <SearchInput
-                    value={q}
-                    onChange={setQ}
-                    placeholder={t('rules.searchPh')}
-                    className="!h-9 !w-[220px] flex-none"
-                  />
-                  {tab !== 'archive' && (
-                    <Select
-                      value={filter}
-                      onChange={(v) => setFilter(v as StatusFilter)}
-                      options={STATUS_OPTIONS}
-                      className="w-[170px] flex-none"
-                    />
-                  )}
-                </div>
-              }
-            />
+            <div className="scrollbar-thin min-w-0 overflow-x-auto">
+              <div className="min-w-max">
+                <Tabs<RulesTab> value={tab} onChange={onChangeTab} items={tabItems} />
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-end">
+              <SearchInput
+                value={q}
+                onChange={setQ}
+                placeholder={t('rules.searchPh')}
+                className="!h-9 !w-full sm:!w-[260px]"
+              />
+              {tab !== 'archive' && (
+                <Select
+                  value={filter}
+                  onChange={(v) => setFilter(v as StatusFilter)}
+                  options={STATUS_OPTIONS}
+                  className="w-full sm:w-[190px]"
+                />
+              )}
+            </div>
           </div>
 
-          <div className="scrollbar-thin flex-1 overflow-auto">
+          <div className="scrollbar-thin min-h-[360px] flex-1 overflow-auto">
             {isLoading && !hasData ? (
               <Empty
                 title={t('rules.loading')}
@@ -187,7 +183,7 @@ export default function RulesPage() {
 
         {/* Right — read-only detail panel */}
         <div
-          className="card sticky top-[88px] flex min-h-[640px] flex-col self-start"
+          className="card flex min-h-[460px] min-w-0 flex-col self-start overflow-hidden 2xl:sticky 2xl:top-[88px] 2xl:min-h-[640px]"
           data-testid="rule-builder-panel"
         >
           {selected ? (

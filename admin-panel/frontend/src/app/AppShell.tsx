@@ -2,7 +2,7 @@
 // ⌘K / Ctrl+K listener, esc для CommandPalette, sync Sidebar.active с роутом.
 // Защищён RequireAuth — authedUser гарантированно не null.
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { type SectionId } from '@/mocks/fixtures'
 import { Sidebar, Topbar, CommandPalette, RoleSwitcher, ContractModal } from '@/layout'
@@ -29,6 +29,12 @@ export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
   const t = useT()
+  const isMobile = useNarrowAdminShell()
+  const locationKey = `${location.pathname}${location.search}`
+  const [mobileSidebarLocation, setMobileSidebarLocation] = useState<string | null>(null)
+  const mobileSidebarOpen = isMobile && mobileSidebarLocation === locationKey
+  const sidebarRef = useRef<HTMLElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const {
     canViewMerchInventory,
     canViewMerchPlacements,
@@ -92,12 +98,17 @@ export function AppShell() {
             : id === 'merch_tasks'
               ? canViewMerchTasks
               : canAccessSection(authedUser.role, id))
-    )
+    ) {
+      setMobileSidebarLocation(null)
       navigate(SECTION_ROUTES[id])
+    }
   }
 
   const onSelectTrainingTab = (tab: TrainingTab) => {
-    if (authedUser && canAccessSection(authedUser.role, 'lms')) navigate(trainingPath(tab))
+    if (authedUser && canAccessSection(authedUser.role, 'lms')) {
+      setMobileSidebarLocation(null)
+      navigate(trainingPath(tab))
+    }
   }
 
   const onNavigate = (path: string) => {
@@ -110,8 +121,10 @@ export function AppShell() {
         staffAccess: canViewMerchStaffAccess,
         ledger: canViewLedger,
       }).some((module) => module.items.some((item) => item.available && item.path === path))
-    )
+    ) {
+      setMobileSidebarLocation(null)
       navigate(path)
+    }
   }
 
   // Global ⌘K / Ctrl+K — toggle command palette
@@ -119,6 +132,7 @@ export function AppShell() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
+        setMobileSidebarLocation(null)
         if (commandPaletteOpen) closeCommandPalette()
         else openCommandPalette()
       } else if (e.key === 'Escape' && commandPaletteOpen) {
@@ -134,6 +148,70 @@ export function AppShell() {
     navigate('/login', { replace: true })
   }
 
+  const handleSidebarToggle = () => {
+    if (isMobile)
+      setMobileSidebarLocation((openAt) => (openAt === locationKey ? null : locationKey))
+    else toggleSidebar()
+  }
+
+  useEffect(() => {
+    const closeOnHistoryNavigation = () => setMobileSidebarLocation(null)
+    window.addEventListener('popstate', closeOnHistoryNavigation)
+    return () => window.removeEventListener('popstate', closeOnHistoryNavigation)
+  }, [])
+
+  useEffect(() => {
+    const sidebar = sidebarRef.current
+    const content = contentRef.current
+    if (!mobileSidebarOpen || !sidebar || !content) return
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    // Capture the opener before making the workspace inert; inert may blur it.
+    content.inert = true
+    sidebar.querySelector<HTMLElement>('[data-mobile-navigation-close]')?.focus()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setMobileSidebarLocation(null)
+        return
+      }
+      if (event.key !== 'Tab') return
+      const targets = Array.from(
+        sidebar.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getClientRects().length > 0 && !element.closest('[inert]'))
+      const first = targets[0]
+      const last = targets.at(-1)
+      if (!first || !last) {
+        event.preventDefault()
+        sidebar.focus()
+      } else if (
+        event.shiftKey &&
+        (document.activeElement === first || !sidebar.contains(document.activeElement))
+      ) {
+        event.preventDefault()
+        last.focus()
+      } else if (
+        !event.shiftKey &&
+        (document.activeElement === last || !sidebar.contains(document.activeElement))
+      ) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey, true)
+    return () => {
+      content.inert = false
+      document.removeEventListener('keydown', onKey, true)
+      if (
+        previous?.isConnected &&
+        (document.activeElement === document.body || sidebar.contains(document.activeElement))
+      ) {
+        previous.focus({ preventScroll: true })
+      }
+    }
+  }, [mobileSidebarOpen])
+
   // RequireAuth уже гарантирует не-null user; этот guard — для TS narrowing.
   if (!authedUser) return null
 
@@ -144,13 +222,28 @@ export function AppShell() {
 
   return (
     <ToastHost>
-      <div className="admin-console flex h-screen min-w-[1024px] overflow-hidden bg-paper">
+      <div className="admin-console flex h-dvh w-full min-w-0 overflow-hidden bg-paper">
+        {mobileSidebarOpen && (
+          <button
+            type="button"
+            aria-label="Закрыть основную навигацию"
+            tabIndex={-1}
+            className="scrim fixed inset-0 z-40 md:hidden"
+            onClick={() => setMobileSidebarLocation(null)}
+          />
+        )}
         <Sidebar
+          navigationRef={sidebarRef}
           active={activeSection}
           onSelect={onSelectSection}
-          collapsed={sidebarCollapsed}
-          onToggle={toggleSidebar}
-          onContractOpen={openContractModal}
+          collapsed={isMobile ? false : sidebarCollapsed}
+          mobileOpen={mobileSidebarOpen}
+          onMobileClose={() => setMobileSidebarLocation(null)}
+          onToggle={handleSidebarToggle}
+          onContractOpen={() => {
+            setMobileSidebarLocation(null)
+            openContractModal()
+          }}
           user={authedUser}
           activeTrainingTab={activeTrainingTab}
           onSelectTrainingTab={onSelectTrainingTab}
@@ -162,18 +255,21 @@ export function AppShell() {
           canViewMerchStaffAccess={canViewMerchStaffAccess}
           canViewLedger={canViewLedger}
         />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div ref={contentRef} className="flex min-w-0 flex-1 flex-col">
           <Topbar
             sectionLabel={activeLabel}
             workspaceLabel={workspaceLabelForRole(authedUser.role)}
             role={authedUser}
             onRoleSwitch={roleSwitchEnabled ? openRoleSwitcher : undefined}
             onLogout={handleLogout}
-            onProfile={() => navigate('/account')}
-            onMenu={toggleSidebar}
+            onProfile={() => {
+              setMobileSidebarLocation(null)
+              navigate('/account')
+            }}
+            onMenu={handleSidebarToggle}
             onCommand={openCommandPalette}
           />
-          <main className="scrollbar-thin flex-1 overflow-auto px-5 pb-8 pt-4">
+          <main className="scrollbar-thin min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-3 pb-8 pt-4 sm:px-5">
             <Outlet />
           </main>
         </div>
@@ -193,6 +289,12 @@ export function AppShell() {
             onClose={closeCommandPalette}
             onNav={onSelectSection}
             onNavigate={onNavigate}
+            onOpenPharmacy={(id) => {
+              if (canAccessSection(authedUser.role, 'pharmacies')) {
+                setMobileSidebarLocation(null)
+                navigate(`/pharmacies/${id}`)
+              }
+            }}
             canViewMerchInventory={canViewMerchInventory}
             canViewMerchPlacements={canViewMerchPlacements}
             canViewMerchTasks={canViewMerchTasks}
@@ -203,4 +305,20 @@ export function AppShell() {
       </div>
     </ToastHost>
   )
+}
+
+function useNarrowAdminShell() {
+  const [matches, setMatches] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(max-width: 767px)').matches,
+  )
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const media = window.matchMedia('(max-width: 767px)')
+    const onChange = (event: MediaQueryListEvent) => setMatches(event.matches)
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [])
+
+  return matches
 }

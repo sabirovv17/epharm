@@ -71,9 +71,12 @@ export function SummaryBar({ metrics }: { metrics: RulesMetrics }) {
     },
   ]
   return (
-    <div className="card flex items-stretch divide-x divide-ink-100 overflow-hidden">
+    <div className="card grid grid-cols-1 overflow-hidden sm:grid-cols-2 xl:grid-cols-4">
       {items.map((it) => (
-        <div key={it.label} className="flex flex-1 items-center gap-3 px-5 py-3.5">
+        <div
+          key={it.label}
+          className="hairline flex min-w-0 items-center gap-3 border-b px-4 py-3.5 sm:[&:nth-last-child(-n+2)]:border-b-0 sm:[&:nth-child(odd)]:border-r xl:border-b-0 xl:[&:not(:last-child)]:border-r"
+        >
           <span className="h-9 w-1.5 flex-none rounded-full" style={{ background: it.dot }} />
           <div className="min-w-0 flex-1">
             <div className="truncate text-[11px] font-bold uppercase tracking-[0.04em] text-ink-500">

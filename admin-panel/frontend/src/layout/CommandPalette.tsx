@@ -1,13 +1,14 @@
 // CommandPalette — admin §11.4
 // ⌘K / Ctrl+K (или клик на topbar search) → top-aligned 12vh, max-w 560.
-// Фильтрует 12 разделов админки. (Поиск по товарам/аптекам был завязан на
-// демо-fixtures, которые обнулены, — мёртвую ветку убрали; вернуть можно через
-// реальные хуки useProducts/usePharmacies с дебаунсом.)
+// Фильтрует доступные разделы админки и реальный реестр аптек. Аптеки
+// запрашиваются только для роли с доступом к сети и после ввода минимум двух знаков.
 
 import { useState, type ReactNode } from 'react'
 import type { UserDto } from '@/lib/api-types'
 import { type SectionId } from '@/mocks/fixtures'
 import { adminNavigationForRole, navigationIcon } from '@/app/adminNavigation'
+import { canAccessSection } from '@/app/accessPolicy'
+import { usePharmacies } from '@/lib/queries/pharmacies'
 import { IconSearch } from '@/ui/icons'
 import { useT } from '@/i18n'
 
@@ -16,6 +17,7 @@ interface CommandPaletteProps {
   onNav: (id: SectionId) => void
   user: UserDto
   onNavigate?: (path: string) => void
+  onOpenPharmacy?: (id: string) => void
   canViewMerchInventory?: boolean
   canViewMerchPlacements?: boolean
   canViewMerchTasks?: boolean
@@ -30,6 +32,7 @@ interface Item {
   label: string
   sub: string
   icon: ReactNode
+  kind: 'section' | 'pharmacy'
 }
 
 // Монтируется ТОЛЬКО когда открыта (см. AppShell), поэтому состояние поиска
@@ -39,6 +42,7 @@ export function CommandPalette({
   onNav,
   user,
   onNavigate,
+  onOpenPharmacy,
   canViewMerchInventory = false,
   canViewMerchPlacements = false,
   canViewMerchTasks = false,
@@ -47,6 +51,16 @@ export function CommandPalette({
 }: CommandPaletteProps) {
   const t = useT()
   const [q, setQ] = useState('')
+  const normalizedQuery = q.trim().toLocaleLowerCase('ru')
+  const canSearchPharmacies = canAccessSection(user.role, 'pharmacies')
+  const {
+    data: pharmacies = [],
+    isFetching: pharmaciesLoading,
+    isError: pharmaciesError,
+  } = usePharmacies(
+    {},
+    canSearchPharmacies && normalizedQuery.length >= 2,
+  )
 
   const items: Item[] = adminNavigationForRole(user.role, {
     inventory: canViewMerchInventory,
@@ -66,16 +80,45 @@ export function CommandPalette({
           label: item.labelKey ? t(item.labelKey) : (item.label ?? ''),
           sub: t(`module.${module.id}`),
           icon: <Icon size={16} />,
+          kind: 'section' as const,
         }
       }),
   )
 
-  const filtered = q
-    ? items.filter((i) => `${i.label} ${i.sub}`.toLowerCase().includes(q.toLowerCase()))
+  const filteredSections = normalizedQuery
+    ? items.filter((i) => `${i.label} ${i.sub}`.toLocaleLowerCase('ru').includes(normalizedQuery))
     : items
+  const pharmacyItems: Item[] =
+    normalizedQuery.length >= 2
+      ? pharmacies
+          .filter((pharmacy) =>
+            [
+              pharmacy.name,
+              pharmacy.chainName,
+              pharmacy.city,
+              pharmacy.district,
+              pharmacy.addr,
+            ]
+              .join(' ')
+              .toLocaleLowerCase('ru')
+              .includes(normalizedQuery),
+          )
+          .slice(0, 8)
+          .map((pharmacy) => ({
+            id: `pharmacy:${pharmacy.id}`,
+            section: 'pharmacies' as const,
+            path: `/pharmacies/${pharmacy.id}`,
+            label: pharmacy.name,
+            sub: [pharmacy.city, pharmacy.addr].filter(Boolean).join(' · '),
+            icon: <IconSearch size={16} />,
+            kind: 'pharmacy' as const,
+          }))
+      : []
+  const filtered = [...filteredSections, ...pharmacyItems]
 
   const onPick = (it: Item) => {
-    if (onNavigate) onNavigate(it.path)
+    if (it.kind === 'pharmacy' && onOpenPharmacy) onOpenPharmacy(it.path.split('/').at(-1)!)
+    else if (onNavigate) onNavigate(it.path)
     else if (it.section) onNav(it.section)
     onClose()
   }
@@ -101,7 +144,12 @@ export function CommandPalette({
           <span className="kbd">esc</span>
         </div>
         <div className="scrollbar-thin max-h-[50vh] overflow-auto py-2">
-          {filtered.length === 0 ? (
+          {pharmaciesError && normalizedQuery.length >= 2 && (
+            <div role="alert" className="py-8 text-center text-[13px] text-accent-danger">
+              {t('palette.error')}
+            </div>
+          )}
+          {filtered.length === 0 && !pharmaciesLoading && !pharmaciesError ? (
             <div className="py-8 text-center text-[13px] text-ink-400">{t('palette.empty')}</div>
           ) : (
             filtered.map((it) => (
@@ -118,7 +166,7 @@ export function CommandPalette({
                   <div className="truncate text-[12px] text-ink-500">{it.sub}</div>
                 </div>
                 <span className="text-[11px] font-bold uppercase text-ink-400">
-                  {t('palette.kind.section')}
+                  {t(it.kind === 'pharmacy' ? 'palette.kind.pharmacy' : 'palette.kind.section')}
                 </span>
               </button>
             ))

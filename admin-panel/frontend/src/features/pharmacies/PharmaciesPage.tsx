@@ -1,7 +1,7 @@
 // Pharmacies — Сеть аптек ТЗ §3.2.
 // Этап 3.4: подключён реальный backend через usePharmacies / useChains.
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Empty, Metric, PageHeader, SearchInput, Tabs, useToast, type TabItem } from '@/ui'
 import { IconPharmacy, IconShield, IconLift, IconPlus } from '@/ui/icons'
@@ -28,6 +28,7 @@ export default function PharmaciesPage() {
   const [tab, setTab] = useState<PhTab>('all')
   const [q, setQ] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
+  const mobileList = useNarrowPharmacyList()
 
   const { data: chains = [] } = useChains()
   const { data: pharmacies = [], isLoading, isError, error, refetch } = usePharmacies()
@@ -98,7 +99,7 @@ export default function PharmaciesPage() {
         pending={createPharmacy.isPending}
       />
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         <Metric
           label={t('ph.mTotal')}
           value={formatNum(counts.all)}
@@ -122,14 +123,18 @@ export default function PharmaciesPage() {
       </div>
 
       <div className="card flex min-h-[480px] flex-col">
-        <div className="hairline flex flex-wrap items-center gap-3 border-b px-5 py-3">
-          <Tabs<PhTab> items={tabs} value={tab} onChange={setTab} />
-          <SearchInput
-            value={q}
-            onChange={setQ}
-            placeholder={t('ph.search')}
-            className="!h-9 !w-[280px] flex-none"
-          />
+        <div className="hairline flex flex-wrap items-center gap-3 border-b px-3 py-3 sm:px-5">
+          <div className="w-full overflow-x-auto sm:w-auto">
+            <Tabs<PhTab> items={tabs} value={tab} onChange={setTab} />
+          </div>
+          <div className="w-full sm:w-[280px]">
+            <SearchInput
+              value={q}
+              onChange={setQ}
+              placeholder={t('ph.search')}
+              className="!h-9 !w-full"
+            />
+          </div>
         </div>
 
         {showWarningBanner && (
@@ -165,65 +170,25 @@ export default function PharmaciesPage() {
               body={q || tab !== 'all' ? t('common.notFoundBody') : t('ph.emptyBody')}
               icon={<IconPharmacy size={26} />}
             />
-          ) : (
-            <table
-              className="w-full min-w-[1280px] table-fixed text-[13px]"
-              data-testid="pharmacies-table"
-            >
-              <colgroup>
-                <col className="w-[30%]" />
-                <col className="w-[260px]" />
-                <col className="w-[160px]" />
-                <col className="w-[150px]" />
-                <col className="w-[160px]" />
-                <col className="w-[80px]" />
-                <col className="w-[120px]" />
-                <col className="w-[120px]" />
-                <col className="w-[80px]" />
-              </colgroup>
-              <thead className="hairline border-b">
-                <tr className="text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-500">
-                  <th className="px-5 py-2.5 align-middle">{t('ph.thName')}</th>
-                  <th className="px-3 py-2.5 align-middle">{t('ph.thPosmId')}</th>
-                  <th className="px-3 py-2.5 align-middle">{t('ph.thChain')}</th>
-                  <th className="px-3 py-2.5 align-middle">{t('ph.thCity')}</th>
-                  <th className="px-3 py-2.5 align-middle">{t('ph.thGroup')}</th>
-                  <th className="px-3 py-2.5 text-right align-middle">{t('ph.thPharm')}</th>
-                  <th className="px-3 py-2.5 text-right align-middle">{t('ph.thReceipts')}</th>
-                  <th className="px-3 py-2.5 text-right align-middle">{t('ph.thGmv')}</th>
-                  <th className="px-5 py-2.5 text-right align-middle">{t('ph.thLift')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-100">
-                {filtered.map((p) => (
-                  <tr
-                    key={p.id}
+          ) : mobileList ? (
+            <div className="divide-y divide-ink-100" role="list" aria-label="Аптеки">
+              {filtered.map((p) => (
+                <article key={p.id} role="listitem">
+                  <button
+                    type="button"
                     onClick={() => onRowClick(p)}
-                    className="cursor-pointer hover:bg-paper-hover"
-                    data-testid={`pharmacy-row-${p.id}`}
+                    className="w-full space-y-3 p-4 text-left transition hover:bg-paper-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-green-400"
+                    data-testid={`pharmacy-card-${p.id}`}
                   >
-                    <td className="min-w-0 px-5 py-2.5 align-middle">
-                      <div className="line-clamp-2 font-extrabold leading-snug text-ink-900">
-                        {p.name}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-extrabold leading-snug text-ink-900">{p.name}</p>
+                        <p className="mt-1 text-xs text-ink-500">
+                          {[p.city, p.addr].filter(Boolean).join(' · ') || 'Адрес не указан'}
+                        </p>
                       </div>
-                      <div className="mt-1 truncate text-[11px] text-ink-500">{p.addr}</div>
-                    </td>
-                    <td className="min-w-0 px-3 py-2.5 align-middle">
                       <span
-                        className="num block w-full select-text truncate rounded-md border border-ink-100 bg-paper px-2.5 py-1.5 text-[11px] font-extrabold leading-none text-ink-700"
-                        title={`${p.id} — ${t('ph.posmIdHint')}`}
-                        data-testid={`pharmacy-posm-id-${p.id}`}
-                      >
-                        {p.id}
-                      </span>
-                    </td>
-                    <td className="truncate px-3 py-2.5 align-middle text-ink-700">
-                      {p.chainName}
-                    </td>
-                    <td className="truncate px-3 py-2.5 align-middle text-ink-700">{p.city}</td>
-                    <td className="px-3 py-2.5 align-middle">
-                      <span
-                        className={`chip ${
+                        className={`chip flex-none ${
                           !p.active
                             ? 'chip-ink'
                             : p.group === 'pilot'
@@ -233,18 +198,6 @@ export default function PharmaciesPage() {
                                 : 'chip-amber'
                         }`}
                       >
-                        <span
-                          className="chip-dot"
-                          style={{
-                            background: !p.active
-                              ? '#9D9388' // тёплый ink-400
-                              : p.group === 'pilot'
-                                ? '#D97757' // коралл-PRIMARY
-                                : p.group === 'control'
-                                  ? '#BE5A38' // коралл-акцент
-                                  : '#F1B416',
-                          }}
-                        />
                         {!p.active
                           ? t('ph.inactive')
                           : p.group === 'pilot'
@@ -253,28 +206,177 @@ export default function PharmaciesPage() {
                               ? t('ph.gControl')
                               : t('ph.gRolled')}
                       </span>
-                    </td>
-                    <td className="num px-3 py-2.5 text-right align-middle">{p.pharmacists}</td>
-                    <td className="num px-3 py-2.5 text-right align-middle">
-                      {formatNum(p.receipts30d)}
-                    </td>
-                    <td className="num px-3 py-2.5 text-right align-middle">
-                      {p.gmv30d == null ? '—' : formatKzt(p.gmv30d)}
-                    </td>
-                    <td
-                      className={`num px-5 py-2.5 text-right align-middle font-extrabold ${
-                        p.liftPct > 0 ? 'text-brand-green-700' : 'text-ink-400'
-                      }`}
-                    >
-                      {p.liftPct > 0 ? `+${p.liftPct.toFixed(1)}%` : '—'}
-                    </td>
+                    </div>
+                    <div className="rounded-md border border-ink-100 bg-paper px-3 py-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-ink-400">
+                        {t('ph.thPosmId')}
+                      </p>
+                      <p className="num mt-1 break-all text-xs font-extrabold text-ink-700">
+                        {p.id}
+                      </p>
+                    </div>
+                    <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                      <div>
+                        <dt className="text-xs text-ink-500">{t('ph.thChain')}</dt>
+                        <dd className="mt-0.5 font-semibold text-ink-800">{p.chainName}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-ink-500">{t('ph.thPharm')}</dt>
+                        <dd className="num mt-0.5 font-semibold text-ink-800">{p.pharmacists}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-ink-500">{t('ph.thReceipts')}</dt>
+                        <dd className="num mt-0.5 font-semibold text-ink-800">
+                          {formatNum(p.receipts30d)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-ink-500">{t('ph.thGmv')}</dt>
+                        <dd className="num mt-0.5 font-semibold text-ink-800">
+                          {p.gmv30d == null ? '—' : formatKzt(p.gmv30d)}
+                        </dd>
+                      </div>
+                    </dl>
+                    <p className="text-sm font-extrabold text-brand-green-700">
+                      Lift: {p.liftPct > 0 ? `+${p.liftPct.toFixed(1)}%` : '—'}
+                    </p>
+                  </button>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div
+              role="region"
+              aria-label="Таблица аптек"
+              tabIndex={0}
+              className="scrollbar-thin max-w-full overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-green-400"
+            >
+              <table
+                className="w-full min-w-[1280px] table-fixed text-[13px]"
+                data-testid="pharmacies-table"
+              >
+                <colgroup>
+                  <col className="w-[30%]" />
+                  <col className="w-[260px]" />
+                  <col className="w-[160px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[160px]" />
+                  <col className="w-[80px]" />
+                  <col className="w-[120px]" />
+                  <col className="w-[120px]" />
+                  <col className="w-[80px]" />
+                </colgroup>
+                <thead className="hairline border-b">
+                  <tr className="text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-500">
+                    <th className="px-5 py-2.5 align-middle">{t('ph.thName')}</th>
+                    <th className="px-3 py-2.5 align-middle">{t('ph.thPosmId')}</th>
+                    <th className="px-3 py-2.5 align-middle">{t('ph.thChain')}</th>
+                    <th className="px-3 py-2.5 align-middle">{t('ph.thCity')}</th>
+                    <th className="px-3 py-2.5 align-middle">{t('ph.thGroup')}</th>
+                    <th className="px-3 py-2.5 text-right align-middle">{t('ph.thPharm')}</th>
+                    <th className="px-3 py-2.5 text-right align-middle">{t('ph.thReceipts')}</th>
+                    <th className="px-3 py-2.5 text-right align-middle">{t('ph.thGmv')}</th>
+                    <th className="px-5 py-2.5 text-right align-middle">{t('ph.thLift')}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-ink-100">
+                  {filtered.map((p) => (
+                    <tr
+                      key={p.id}
+                      onClick={() => onRowClick(p)}
+                      className="cursor-pointer hover:bg-paper-hover"
+                      data-testid={`pharmacy-row-${p.id}`}
+                    >
+                      <td className="min-w-0 px-5 py-2.5 align-middle">
+                        <div className="line-clamp-2 font-extrabold leading-snug text-ink-900">
+                          {p.name}
+                        </div>
+                        <div className="mt-1 truncate text-[11px] text-ink-500">{p.addr}</div>
+                      </td>
+                      <td className="min-w-0 px-3 py-2.5 align-middle">
+                        <span
+                          className="num block w-full select-text truncate rounded-md border border-ink-100 bg-paper px-2.5 py-1.5 text-[11px] font-extrabold leading-none text-ink-700"
+                          title={`${p.id} — ${t('ph.posmIdHint')}`}
+                          data-testid={`pharmacy-posm-id-${p.id}`}
+                        >
+                          {p.id}
+                        </span>
+                      </td>
+                      <td className="truncate px-3 py-2.5 align-middle text-ink-700">
+                        {p.chainName}
+                      </td>
+                      <td className="truncate px-3 py-2.5 align-middle text-ink-700">{p.city}</td>
+                      <td className="px-3 py-2.5 align-middle">
+                        <span
+                          className={`chip ${
+                            !p.active
+                              ? 'chip-ink'
+                              : p.group === 'pilot'
+                                ? 'chip-green'
+                                : p.group === 'control'
+                                  ? 'chip-blue'
+                                  : 'chip-amber'
+                          }`}
+                        >
+                          <span
+                            className="chip-dot"
+                            style={{
+                              background: !p.active
+                                ? '#9D9388' // тёплый ink-400
+                                : p.group === 'pilot'
+                                  ? '#D97757' // коралл-PRIMARY
+                                  : p.group === 'control'
+                                    ? '#BE5A38' // коралл-акцент
+                                    : '#F1B416',
+                            }}
+                          />
+                          {!p.active
+                            ? t('ph.inactive')
+                            : p.group === 'pilot'
+                              ? t('ph.gPilot')
+                              : p.group === 'control'
+                                ? t('ph.gControl')
+                                : t('ph.gRolled')}
+                        </span>
+                      </td>
+                      <td className="num px-3 py-2.5 text-right align-middle">{p.pharmacists}</td>
+                      <td className="num px-3 py-2.5 text-right align-middle">
+                        {formatNum(p.receipts30d)}
+                      </td>
+                      <td className="num px-3 py-2.5 text-right align-middle">
+                        {p.gmv30d == null ? '—' : formatKzt(p.gmv30d)}
+                      </td>
+                      <td
+                        className={`num px-5 py-2.5 text-right align-middle font-extrabold ${
+                          p.liftPct > 0 ? 'text-brand-green-700' : 'text-ink-400'
+                        }`}
+                      >
+                        {p.liftPct > 0 ? `+${p.liftPct.toFixed(1)}%` : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
     </div>
   )
+}
+
+function useNarrowPharmacyList() {
+  const [matches, setMatches] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(max-width: 767px)').matches,
+  )
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const media = window.matchMedia('(max-width: 767px)')
+    const onChange = (event: MediaQueryListEvent) => setMatches(event.matches)
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [])
+
+  return matches
 }

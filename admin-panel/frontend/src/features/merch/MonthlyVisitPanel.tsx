@@ -3,6 +3,7 @@ import { Button, Field, Input, Select } from '@/ui'
 import { describeError } from '@/lib/describeError'
 import { usePlacementRead } from './usePlacementRead'
 import { adminTaskApi, type TaskBranch } from './tasks-api'
+import { useLearnerT } from '@/features/learner/learner-i18n'
 
 type Request = <T>(path: string, init?: RequestInit) => Promise<T>
 export default function MonthlyVisitPanel({
@@ -46,6 +47,7 @@ function VisitForm({
   }) => Promise<{ dispatchId: string; resumed: boolean }>
   onStarted: (id: string) => void
 }) {
+  const t = useLearnerT()
   const read = usePlacementRead(load)
   const [branch, setBranch] = useState('')
   const [month, setMonth] = useState(
@@ -61,47 +63,58 @@ function VisitForm({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   const selected = read.data?.find((item) => item.id === branch && item.active)
+  const activeBranches = read.data?.filter((item) => item.active) ?? []
   return (
     <section className="card space-y-5 p-4 sm:p-6">
       <div>
-        <h2 className="text-xl font-bold">Месячный визит</h2>
+        <h2 className="text-xl font-bold">{t('Месячный визит')}</h2>
         <p className="mt-2 text-sm text-ink-500">
-          Фотоотчёт по подтверждённым размещениям месяца. Повторный вход продолжает ваш сохранённый
-          визит. Вознаграждение не предусмотрено.
+          {t(
+            'Фотоотчёт по подтверждённым размещениям месяца. Повторный вход продолжает ваш сохранённый визит. Вознаграждение не предусмотрено.',
+          )}
         </p>
       </div>
-      {read.pending && <p role="status">Проверяем доступные аптеки…</p>}
+      {read.pending && <p role="status">{t('Проверяем доступные аптеки…')}</p>}
       {!!read.error && (
         <div role="alert" className="space-y-3 rounded-xl bg-surface-danger p-4 text-sm">
-          <p>Не удалось загрузить аптеки. {describeError(read.error)}</p>
+          <p>
+            {t('Не удалось загрузить аптеки.')} {describeError(read.error)}
+          </p>
           <Button variant="outline" onClick={read.reload}>
-            Повторить загрузку аптек
+            {t('Повторить загрузку аптек')}
           </Button>
         </div>
       )}
-      {read.data && !read.data.some((item) => item.active) && (
-        <p role="status" className="rounded-xl bg-paper-input p-4 text-sm text-ink-500">
-          Нет доступных аптек для месячного визита. Уточните доступ у ответственного сотрудника.
-        </p>
+      {read.data && activeBranches.length === 0 && (
+        <div role="status" className="rounded-xl bg-paper-input p-4 text-sm text-ink-500">
+          <p className="font-semibold text-ink-700">
+            {t('Нет доступных аптек для месячного визита.')}
+          </p>
+          <p className="mt-1">
+            {t(
+              'Для визита нужна активная аптека с проверенной привязкой к вашему профилю. Если аптека уже указана в профиле, попросите ответственного за мерчендайзинг проверить её привязку.',
+            )}
+          </p>
+        </div>
       )}
-      <Field label="Аптека визита">
+      <Field label={t('Аптека визита')}>
         <Select
-          ariaLabel="Аптека визита"
+          ariaLabel={t('Аптека визита')}
           value={branch}
-          disabled={pending || read.pending || !!read.error}
+          disabled={pending || read.pending || !!read.error || activeBranches.length === 0}
           onChange={setBranch}
           options={[
-            { value: '', label: 'Выберите свою аптеку' },
-            ...(read.data ?? []).map((item) => ({
+            { value: '', label: t('Выберите свою аптеку') },
+            ...activeBranches.map((item) => ({
               value: item.id,
               label: `${item.name} · ${item.city} · ${item.address}`,
             })),
           ]}
         />
       </Field>
-      <Field label="Месяц визита" hint="Период по времени Алматы (Asia/Almaty).">
+      <Field label={t('Месяц визита')} hint={t('Период по времени Алматы (Asia/Almaty).')}>
         <Input
-          aria-label="Месяц визита"
+          aria-label={t('Месяц визита')}
           type="month"
           value={month}
           disabled={pending}
@@ -126,7 +139,7 @@ function VisitForm({
           }
         }}
       >
-        {pending ? 'Открываем визит…' : 'Начать или продолжить визит'}
+        {pending ? t('Открываем визит…') : t('Начать или продолжить визит')}
       </Button>
     </section>
   )

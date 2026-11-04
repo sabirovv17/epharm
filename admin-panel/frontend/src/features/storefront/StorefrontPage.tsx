@@ -13,6 +13,28 @@ import type { StorefrontProductDto } from '@/lib/api-types'
 
 const PAGE = 50
 
+const CATEGORY_LABELS: Record<string, string> = {
+  'lekarstva-i-bady': 'Лекарства и БАДы',
+  lekarstva: 'Лекарства',
+  bady: 'БАДы',
+  'med-pribory-i-izdeliya': 'Медицинские приборы и изделия',
+  gigiyena: 'Гигиена',
+  kosmetika: 'Косметика',
+  linzy: 'Линзы',
+  'mama-i-malysh': 'Мама и малыш',
+  'sport-i-fitnes': 'Спорт и фитнес',
+  'zagar-i-zashita-ot-solnca': 'Загар и защита от солнца',
+  intim: 'Интимные товары',
+  drugoe: 'Другое',
+  'prochie-tovary': 'Прочие товары',
+}
+
+function readableCategory(value: string | null | undefined): string {
+  const clean = value?.trim()
+  if (!clean) return '—'
+  return CATEGORY_LABELS[clean.toLowerCase()] ?? clean.replaceAll('-', ' ')
+}
+
 export default function StorefrontPage() {
   const t = useT()
   const [qInput, setQInput] = useState('')
@@ -110,7 +132,7 @@ export default function StorefrontPage() {
                         <span className="text-ink-400">—</span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-ink-700">{p.category ?? '—'}</td>
+                    <td className="px-3 py-2.5 text-ink-700">{readableCategory(p.category)}</td>
                     <td className="num px-5 py-2.5 text-right font-semibold">
                       <PriceCell product={p} fallback={t('sf.priceNa')} />
                     </td>

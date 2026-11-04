@@ -11,7 +11,7 @@ import {
 } from '@/mocks/fixtures'
 import { IconChevLeft, IconChevRight, IconShield } from '@/ui/icons'
 import { useT } from '@/i18n'
-import { useState } from 'react'
+import { useState, type Ref } from 'react'
 import { isTrainingWorkspaceRole } from '@/app/accessPolicy'
 import {
   activeNavigationItem,
@@ -23,9 +23,12 @@ import type { TrainingTab } from '@/app/trainingNavigation'
 import { Logo } from './Logo'
 
 interface SidebarProps {
+  navigationRef?: Ref<HTMLElement>
   active: SectionId
   onSelect: (id: SectionId) => void
   collapsed: boolean
+  mobileOpen?: boolean
+  onMobileClose?: () => void
   onToggle: () => void
   onContractOpen: () => void
   user: User
@@ -41,9 +44,12 @@ interface SidebarProps {
 }
 
 export function Sidebar({
+  navigationRef,
   active,
   onSelect,
   collapsed,
+  mobileOpen = false,
+  onMobileClose,
   onToggle,
   onContractOpen,
   user,
@@ -143,9 +149,13 @@ export function Sidebar({
 
   return (
     <aside
-      className={`cursor-sidebar sidebar-bg sticky top-0 z-40 flex h-screen flex-none flex-col overflow-hidden text-white transition-[width] duration-200 ${
-        collapsed ? 'w-16' : 'w-[248px]'
-      }`}
+      ref={navigationRef}
+      role={mobileOpen ? 'dialog' : undefined}
+      aria-modal={mobileOpen ? true : undefined}
+      tabIndex={-1}
+      className={`cursor-sidebar sidebar-bg fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(86vw,320px)] flex-none flex-col overflow-hidden text-white transition-[width,transform] duration-200 md:sticky md:top-0 md:z-40 md:h-screen md:translate-x-0 ${
+        mobileOpen ? 'visible translate-x-0' : 'invisible -translate-x-full'
+      } ${collapsed ? 'md:w-16' : 'md:w-[248px]'} md:visible`}
       aria-label="Основная навигация"
     >
       {/* Logo header */}
@@ -180,9 +190,18 @@ export function Sidebar({
               onClick={onToggle}
               title="Свернуть"
               aria-label="Свернуть сайдбар"
-              className="flex h-7 w-7 flex-none items-center justify-center rounded-md text-white/50 transition hover:bg-white/[0.08] hover:text-white"
+              className="hidden h-7 w-7 flex-none items-center justify-center rounded-md text-white/50 transition hover:bg-white/[0.08] hover:text-white md:flex"
             >
               <IconChevLeft size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={onMobileClose}
+              aria-label="Закрыть навигацию"
+              data-mobile-navigation-close
+              className="flex h-9 w-9 flex-none items-center justify-center rounded-md text-white/70 transition hover:bg-white/[0.08] hover:text-white md:hidden"
+            >
+              <IconChevLeft size={18} />
             </button>
           </>
         )}

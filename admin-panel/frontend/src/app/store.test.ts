@@ -42,7 +42,7 @@ const mockLoginResponse: LoginResponse = {
 
 describe('useUiStore — auth (async)', () => {
   beforeEach(() => {
-    useUiStore.setState({ authedUser: null, tokens: null })
+    useUiStore.setState({ authedUser: null, tokens: null, sessionExpiredNotice: false })
     authApi.login.mockReset()
     authApi.logout.mockReset()
     setApiTokens.mockReset()

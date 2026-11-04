@@ -100,7 +100,7 @@ export const ru: Dict = {
   'group.Система': 'Система',
 
   // ── topbar / shell ──────────────────────────────────────────────────────
-  'topbar.search': 'Найти правило, аптеку, фармацевта…',
+  'topbar.search': 'Найти раздел или аптеку…',
   'topbar.changeRole': 'Сменить роль',
   'topbar.logout': 'Выйти',
   'sidebar.contract': 'Контракт',
@@ -114,7 +114,8 @@ export const ru: Dict = {
   'period.current': 'Текущий месяц',
 
   // ── command palette ─────────────────────────────────────────────────────
-  'palette.search': 'Что найти…',
+  'palette.search': 'Раздел или аптека…',
+  'palette.error': 'Не удалось загрузить аптеки',
   'palette.empty': 'Ничего не найдено',
   'palette.kind.section': 'Раздел',
   'palette.kind.product': 'Товар',
@@ -1356,7 +1357,7 @@ export const kk: Dict = {
   'group.Система': 'Жүйе',
 
   // ── topbar / shell ──────────────────────────────────────────────────────
-  'topbar.search': 'Ереже, дәріхана, фармацевт іздеу…',
+  'topbar.search': 'Бөлімді немесе дәріхананы табу…',
   'topbar.changeRole': 'Рөлді ауыстыру',
   'topbar.logout': 'Шығу',
   'sidebar.contract': 'Келісімшарт',
@@ -1370,7 +1371,8 @@ export const kk: Dict = {
   'period.current': 'Ағымдағы ай',
 
   // ── command palette ─────────────────────────────────────────────────────
-  'palette.search': 'Не табу…',
+  'palette.search': 'Бөлім немесе дәріхана…',
+  'palette.error': 'Дәріханаларды жүктеу мүмкін болмады',
   'palette.empty': 'Ештеңе табылмады',
   'palette.kind.section': 'Бөлім',
   'palette.kind.product': 'Тауар',

@@ -67,6 +67,8 @@ export const test = base.extend<{ artifactApi: ArtifactApi }>({
           })
         }
         if (method === 'GET' && ['/api/admin/rules', '/api/admin/catalog/products'].includes(path)) return json(route, [])
+        if (method === 'GET' && path === '/api/admin/pharmacies/chains') return json(route, [])
+        if (method === 'GET' && path === '/api/admin/pharmacies') return json(route, [])
         if (path === '/api/admin/promo') {
           if (method === 'GET') return json(route, [])
           if (method === 'POST') {

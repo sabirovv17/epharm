@@ -1304,6 +1304,7 @@ class MerchTaskWorkflowIntegrationTest {
     @Test fun `review queue includes pending siblings even when dispatch already requires revision and escapes literal search`() {
         val task=create(0,2)
         jdbc.update("update merch_task_dispatches set status='revision_required',title='Mixed 100% packet' where id=?",task.id)
+        jdbc.update("update merch_task_dispatches set due_at=now()-interval '1 hour' where id=?",task.id)
         jdbc.update("update merch_task_items set status='submitted' where id=?",task.items[0].id)
         jdbc.update("update merch_task_items set status='revision_required' where id=?",task.items[1].id)
         fun query(queue:String,q:String="")=json.readTree(mvc.perform(get("/api/admin/merch/tasks").header("Authorization",adminAuth)
@@ -1313,8 +1314,10 @@ class MerchTaskWorkflowIntegrationTest {
         assertEquals(1,summary["pendingReviewCount"].asInt())
         assertEquals(task.items[0].id.toString(),summary["nextPendingReviewItemId"].asText())
         assertFalse(summary["detailsIncluded"].asBoolean())
+        assertTrue(summary["overdue"].asBoolean())
         assertEquals(0,summary["items"].size())
         assertEquals(1,query("revision")["items"].size())
+        assertEquals(1,query("overdue")["items"].size())
         assertEquals(1,query("review","100%")["items"].size())
         assertEquals(0,query("review","100_")["items"].size())
         assertEquals(0,query("completed")["items"].size())

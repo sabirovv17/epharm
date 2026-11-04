@@ -643,21 +643,48 @@ function statusText(value: string) {
 
 function formatDate(value?: string | null) {
   if (!value) return currentLearnerTranslate('Без срока')
-  const locale = useUiStore.getState().language === 'kk' ? 'kk-KZ' : 'ru-RU'
-  return new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'long', year: 'numeric' }).format(
-    new Date(value),
-  )
+  const date = new Date(value)
+  if (useUiStore.getState().language === 'kk') {
+    const months = [
+      'қаңтар',
+      'ақпан',
+      'наурыз',
+      'сәуір',
+      'мамыр',
+      'маусым',
+      'шілде',
+      'тамыз',
+      'қыркүйек',
+      'қазан',
+      'қараша',
+      'желтоқсан',
+    ]
+    return `${String(date.getDate()).padStart(2, '0')} ${months[date.getMonth()]} ${date.getFullYear()} ж.`
+  }
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  }).format(date)
 }
 
 function formatDateTime(value?: string | null) {
   if (!value) return currentLearnerTranslate('Дата уточняется')
-  const locale = useUiStore.getState().language === 'kk' ? 'kk-KZ' : 'ru-RU'
-  return new Intl.DateTimeFormat(locale, {
+  const date = new Date(value)
+  if (useUiStore.getState().language === 'kk') {
+    const dateOnly = formatDate(value).replace(/ ж\.$/, '')
+    const time = new Intl.DateTimeFormat('kk-KZ', {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date)
+    return `${dateOnly}, ${time}`
+  }
+  return new Intl.DateTimeFormat('ru-RU', {
     day: '2-digit',
     month: 'long',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(value))
+  }).format(date)
 }
 
 function formatKzt(value?: number | null) {
@@ -2723,7 +2750,9 @@ function ProfileView({
             </div>
           </div>
           <p className="mt-4 text-sm leading-6 text-ink-500">
-            {t('Демонстрационный раздел. Банковские операции пока не подключены.')}
+            {t(
+              'Подключение банковской карты пока недоступно. Этот экран не запрашивает и не сохраняет реквизиты.',
+            )}
           </p>
           <button
             type="button"
@@ -3149,6 +3178,7 @@ function OverviewView({
             const testsCount = lessons.filter(
               (lesson) => lesson.kind === 'quiz' || lesson.kind === 'test',
             ).length
+            const resultScore = assignment.score ?? assignment.certificate?.score
             const completed = assignment.status === 'completed'
             const firstLesson = assignment.stages
               .filter((stage) => stage.status !== 'locked')
@@ -3196,9 +3226,11 @@ function OverviewView({
                 </div>
                 {completed && (
                   <p className="mt-3 text-sm font-bold text-brand-green-700">
-                    {assignment.score != null
-                      ? t('Результат: {score}%', { score: assignment.score })
-                      : t('Курс завершён без оценки')}
+                    {resultScore != null
+                      ? t('Результат: {score}%', { score: resultScore })
+                      : testsCount > 0
+                        ? t('Результат теста не сохранён')
+                        : t('Курс без итогового теста')}
                   </p>
                 )}
                 {completed && assignment.completedAt && (
@@ -3624,7 +3656,7 @@ export function PromotionShowcase({ promotions }: { promotions: Promotion[] }) {
             <PackageSearch size={21} /> {t('Препараты и бонусы')}
           </h2>
           <p className="mt-1 text-sm text-ink-500">
-            {t('Демонстрационная витрина из мобильного приложения')}
+            {t('Актуальные предложения и бонусы ePharm')}
           </p>
         </div>
         <span className="chip chip-green shrink-0">

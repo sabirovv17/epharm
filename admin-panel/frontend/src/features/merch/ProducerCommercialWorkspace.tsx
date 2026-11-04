@@ -103,7 +103,10 @@ export default function ProducerCommercialWorkspace({
   )
   const list = usePlacementRead(
     useCallback(
-      (signal) => gateway.list(producerId || undefined, offset, signal),
+      (signal) =>
+        gateway.realm === 'admin' && !producerId
+          ? Promise.resolve({ items: [], total: 0, limit: 50, offset })
+          : gateway.list(producerId || undefined, offset, signal),
       [gateway, producerId, offset],
     ),
   )
@@ -185,7 +188,11 @@ export default function ProducerCommercialWorkspace({
           >
             Новый план на период
           </Button>
-          <Button variant="outline" onClick={changed}>
+          <Button
+            variant="outline"
+            disabled={gateway.realm === 'admin' && !producerId}
+            onClick={changed}
+          >
             Обновить планы
           </Button>
         </div>
@@ -200,9 +207,18 @@ export default function ProducerCommercialWorkspace({
         {gateway.realm === 'admin' && producerId && (
           <CategorySettings key={producerId} id={producerId} gateway={gateway} />
         )}
-        {list.pending && <p role="status">Загружаем бюджетные планы…</p>}
-        {list.error != null && <p role="alert">{errorText(list.error)}</p>}
-        {list.data && (
+        {gateway.realm === 'admin' && !producerId && (
+          <p role="status" className="rounded-lg bg-paper-input p-4 text-sm text-ink-600">
+            Выберите производителя: планы разных компаний не смешиваются в одном списке.
+          </p>
+        )}
+        {list.pending && (gateway.realm !== 'admin' || !!producerId) && (
+          <p role="status">Загружаем бюджетные планы…</p>
+        )}
+        {list.error != null && (gateway.realm !== 'admin' || !!producerId) && (
+          <p role="alert">{errorText(list.error)}</p>
+        )}
+        {list.data && (gateway.realm !== 'admin' || !!producerId) && (
           <>
             <div
               className="max-w-full overflow-x-auto"

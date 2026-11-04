@@ -373,20 +373,27 @@ describe('PharmacistsPage — список и actions', () => {
     expect(screen.getByTestId('pharmacist-row-u_b')).toBeInTheDocument()
   })
 
-  it('показывает ИИН отдельной колонкой без пароля или его хеша', () => {
+  it('маскирует ИИН и телефон до явного раскрытия без пароля или его хеша', async () => {
     const pharmacist = {
       ...mkPharmacist({ iin: '001201000001' }),
       password: 'SyntheticPasswordMustNotBeRendered!',
       passwordHash: '$2b$12$syntheticHashMustNotBeRendered',
     }
     setPharmacists([pharmacist])
+    const user = userEvent.setup()
     renderPage()
 
     const table = screen.getByTestId('pharmacists-table')
     const header = within(table).getByRole('columnheader', { name: 'ИИН' })
     expect(header).toHaveAttribute('scope', 'col')
     const row = screen.getByTestId('pharmacist-row-u_1')
+    expect(within(row).getByRole('cell', { name: '••••••••0001' })).toBeInTheDocument()
+    expect(row).toHaveTextContent('••• ••• 1020')
+    expect(row).not.toHaveTextContent('001201000001')
+    expect(row).not.toHaveTextContent('+7 (701) 100-10-20')
+    await user.click(screen.getByRole('button', { name: 'Показать ИИН и телефоны' }))
     expect(within(row).getByRole('cell', { name: '001201000001' })).toBeInTheDocument()
+    expect(row).toHaveTextContent('+7 (701) 100-10-20')
     expect(within(row).getAllByRole('cell')).toHaveLength(
       within(table).getAllByRole('columnheader').length,
     )
@@ -394,6 +401,35 @@ describe('PharmacistsPage — список и actions', () => {
     expect(table.outerHTML).not.toContain(pharmacist.passwordHash)
     expect(within(table).queryByRole('columnheader', { name: /пароль/i })).not.toBeInTheDocument()
     expect(within(row).getByRole('button', { name: 'Сменить пароль' })).toBeInTheDocument()
+  })
+
+  it('не переносит раскрытие ИИН другому аккаунту или роли в том же экземпляре страницы', async () => {
+    const pharmacist = mkPharmacist({ iin: '001201000001' })
+    setPharmacists([pharmacist])
+    const user = userEvent.setup()
+    renderPage()
+    const row = screen.getByTestId('pharmacist-row-u_1')
+    await user.click(screen.getByRole('button', { name: 'Показать ИИН и телефоны' }))
+    expect(row).toHaveTextContent(pharmacist.iin!)
+
+    act(() =>
+      useUiStore.setState({
+        authedUser: { ...useUiStore.getState().authedUser!, id: 'another-hq' },
+      }),
+    )
+    expect(row).not.toHaveTextContent(pharmacist.iin!)
+    expect(row).toHaveTextContent('••••••••0001')
+    await user.click(screen.getByRole('button', { name: 'Показать ИИН и телефоны' }))
+    expect(row).toHaveTextContent(pharmacist.iin!)
+
+    act(() =>
+      useUiStore.setState({
+        authedUser: { ...useUiStore.getState().authedUser!, role: 'REGIONAL_MANAGER' },
+      }),
+    )
+    expect(row).not.toHaveTextContent(pharmacist.iin!)
+    expect(row).not.toHaveTextContent(pharmacist.phone!)
+    expect(screen.queryByRole('button', { name: 'Скрыть ИИН и телефоны' })).not.toBeInTheDocument()
   })
 
   it('оставляет пустой ИИН явным и сохраняет колонки без массового выбора', () => {
@@ -518,7 +554,7 @@ describe('PharmacistsPage — список и actions', () => {
     const search = screen.getByPlaceholderText('Поиск по имени, аптеке, ИИН, телефону')
     await user.type(search, '021201000002')
     expect(screen.queryByTestId('pharmacist-row-u_first')).not.toBeInTheDocument()
-    expect(screen.getByRole('cell', { name: '021201000002' })).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: '••••••••0002' })).toBeInTheDocument()
     await user.click(screen.getByRole('checkbox', { name: 'Выбрать всех видимых фармацевтов' }))
     expect(screen.getByRole('button', { name: 'Назначить обучение (2)' })).toBeInTheDocument()
 

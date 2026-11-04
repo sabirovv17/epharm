@@ -139,7 +139,8 @@ function TariffForm({
       aria-label={`Тариф ${item.category}`}
     >
       <div className="text-xs text-ink-500">
-        {item.category} · Обновлён {item.updatedAt}
+        {item.category} · Обновлён{' '}
+        {new Date(item.updatedAt).toLocaleString('ru-RU', { timeZone: 'Asia/Almaty' })}
       </div>
       <Field label="Название категории">
         <Input

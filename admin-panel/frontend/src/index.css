@@ -35,9 +35,9 @@
     @apply bg-brand-green-100 text-ink-900;
   }
 
-  /* Минимальная ширина для админ-консоли — design-tokens-admin §4. */
+  /* Shell and page-level scroll regions own their width; the document never does. */
   #root {
-    min-width: 1280px;
+    min-width: 0;
   }
 
   /* The learner portal is also used from phones and must not inherit the HQ desktop floor. */
@@ -299,6 +299,25 @@
 
 .admin-console main {
   background-color: #f2f7f7;
+}
+
+/* A wide dataset scrolls inside its own region instead of widening the whole HQ shell. */
+.admin-console main > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-console main table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+@media (max-width: 767px) {
+  .admin-console main {
+    overscroll-behavior-x: none;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────

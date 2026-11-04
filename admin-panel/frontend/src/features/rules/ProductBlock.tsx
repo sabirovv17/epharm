@@ -65,7 +65,7 @@ export function ProductBlock({ product, accent, fallback }: ProductBlockProps) {
         <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-brand-blue-100 text-brand-blue-600">
           <IconLayers size={18} />
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-extrabold text-ink-900">{name}</div>
           <div className="text-[11px] font-semibold text-ink-500">
             {fallback?.kind?.startsWith('acc_') ? t('rules.accScope') : t('rules.mnnGroup')}
@@ -78,7 +78,7 @@ export function ProductBlock({ product, accent, fallback }: ProductBlockProps) {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
       <ProductIcon product={product} accent={accent} />
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-extrabold text-ink-900">{product.name}</div>
         <div className="truncate text-[11px] font-semibold text-ink-500">{product.brand}</div>
         {conditionDetails}

@@ -1,5 +1,31 @@
 # Admin Console
 
+## Local audit fixes: responsive shell, safe actions and readable state
+
+The authenticated HQ shell now uses a responsive drawer below the desktop
+breakpoint instead of a fixed 1024/1280px canvas. Wide domain tables keep their
+own horizontal scroll; the page itself must not collapse to one character or be
+covered by navigation. Session-expiry logout shows an explicit notice and a
+validated internal return path. The AI Exam route is bundled with the entry graph
+to avoid a stale lazy-chunk failure after an atomic frontend replacement.
+
+At phone width, the top bar exposes separate menu and search actions. Merch task
+queues and the pharmacy network use compact cards rather than clipped desktop
+tables, while desktop keeps its information-dense tables. Pharmacy metrics reflow
+to two columns and tab overflow stays inside the tab strip. These responsive views
+preserve the same routes, permissions and task-opening behavior.
+
+Pharmacist IIN and phone values are masked by default even for permitted legacy
+accounts and require an explicit reveal. Producer commercial plans are not fetched
+in the admin realm until one producer is selected. Payout approval remains a
+server-authoritative operation and is disabled while item data is loading, denied
+or inconsistent with batch totals. Storefront category handles are resolved to
+category names where the source tree is available, with a readable UI fallback.
+
+Task overdue state and fulfillment attention are derived presentation signals;
+they do not replace or mutate the underlying workflow status. Shelf dimensions
+use the database unit (metres), and tariff timestamps render in Asia/Almaty.
+
 ## Local continuation: own account and review queue
 
 `/account` is an authenticated self-service route, available from the account menu
@@ -75,8 +101,9 @@ Stack:
 - lucide-react;
 - Vitest, Testing Library, Playwright.
 
-The admin console is a desktop HQ tool with a 1280px minimum width. The separate `/learn`,
-`/producer` and public task portals do not inherit that minimum and support narrow screens.
+The admin console keeps desktop information density but supports narrow screens through a
+drawer and component-level table scrolling. The separate `/learn`, `/producer` and public
+task portals retain their own responsive layouts.
 
 ## Routes
 
@@ -578,11 +605,17 @@ webServer configuration.
 The operational UI separates placements, period budgets/team, instructions and authorized HQ
 tariffs into named sections. A section mounts on first visit and retains its unsaved fields
 when hidden; changing the session/capability boundary still resets or removes protected content.
+The producer budget workspace has its own recovery boundary: malformed producer data cannot
+replace the entire HQ shell, and an administrator must select one producer before private plans
+are requested. Global search describes its real scope and searches permitted pharmacies by name,
+chain, city, district or address; an API failure is not presented as an empty result.
 The inventory calendar keeps the shelf column fixed within its own horizontal scroll region,
 labels the selected branch/period and explains status colours in words. Floorplan objects can
 also be selected through a labelled select rather than only small graphical targets.
 
-Task queues separate lookup/filter controls from secondary tools. Opening a task or the next
+Task queues separate lookup/filter controls from secondary tools. On phone and ordinary laptop
+widths the queue uses readable cards; the full table remains available on wide desktops.
+Opening a task or the next
 review item moves focus to that content. Item cards distinguish instructions, checklist, current
 attempt, attachments and discussion; the submit section lists unmet requirements without
 weakening server validation. Public free-task guidance distinguishes uploading from submission;

@@ -84,22 +84,22 @@ test.describe('Topbar — role-pill и logout', () => {
 
 test.describe('Topbar — CommandPalette (⌘K / клик)', () => {
   test('клик по топбар-кнопке «⌘K K» открывает palette', async ({ loggedInPage }) => {
-    // На странице видна кнопка «Что найти» с шорткатом — кликаем её (более устойчиво
+    // Кликаем видимую кнопку поиска с шорткатом (более устойчиво,
     // чем keyboard event, который может уйти не в тот focus).
-    await loggedInPage.getByRole('button', { name: /Найти правило/i }).click()
-    await expect(loggedInPage.getByPlaceholder(/Что найти/)).toBeVisible()
+    await loggedInPage.getByRole('button', { name: /Найти раздел или аптеку/i }).click()
+    await expect(loggedInPage.getByPlaceholder('Раздел или аптека…', { exact: true })).toBeVisible()
   })
 
   test('Escape закрывает palette', async ({ loggedInPage }) => {
-    await loggedInPage.getByRole('button', { name: /Найти правило/i }).click()
-    await expect(loggedInPage.getByPlaceholder(/Что найти/)).toBeVisible()
+    await loggedInPage.getByRole('button', { name: /Найти раздел или аптеку/i }).click()
+    await expect(loggedInPage.getByPlaceholder('Раздел или аптека…', { exact: true })).toBeVisible()
     await loggedInPage.keyboard.press('Escape')
-    await expect(loggedInPage.getByPlaceholder(/Что найти/)).not.toBeVisible()
+    await expect(loggedInPage.getByPlaceholder('Раздел или аптека…', { exact: true })).not.toBeVisible()
   })
 
   test('фильтр по тексту работает', async ({ loggedInPage }) => {
-    await loggedInPage.getByRole('button', { name: /Найти правило/i }).click()
-    await loggedInPage.getByPlaceholder(/Что найти/).fill('Rules')
+    await loggedInPage.getByRole('button', { name: /Найти раздел или аптеку/i }).click()
+    await loggedInPage.getByPlaceholder('Раздел или аптека…', { exact: true }).fill('Rules')
     await expect(loggedInPage.getByText('Rules Engine').first()).toBeVisible()
   })
 })

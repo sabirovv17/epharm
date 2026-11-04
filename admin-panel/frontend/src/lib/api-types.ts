@@ -1767,6 +1767,9 @@ export interface FulfillmentOrderDto {
   cancellationReason: string | null
   completedAt: string | null
   updatedAt: string
+  ageMinutes: number
+  requiresAttention: boolean
+  attentionReason: string | null
   lines: FulfillmentLineDto[]
 }
 

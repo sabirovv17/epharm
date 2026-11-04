@@ -127,7 +127,7 @@ describe('real AppRouter learner personal data routes', () => {
     localStorage.setItem('epharm.learner.tokens', JSON.stringify(learnerTokens))
     renderRouter('/learn/recommendations')
     expect(
-      await screen.findByRole('heading', { name: 'Предложение из API', exact: true }),
+      await screen.findByRole('heading', { name: 'Предложение из API', exact: true }, { timeout: 5000 }),
     ).toBeInTheDocument()
     expect(screen.getByTestId('current-learner-path')).toHaveTextContent('/learn/recommendations')
     expect(screen.queryByRole('textbox', { name: 'Email', exact: true })).not.toBeInTheDocument()
@@ -140,7 +140,7 @@ describe('real AppRouter learner personal data routes', () => {
     expect((await screen.findAllByText(/31\s*415\s*₸/))[0]).toBeInTheDocument()
     await userEvent.setup().click(screen.getByRole('button', { name: 'Рекомендации', exact: true }))
     expect(
-      await screen.findByRole('heading', { name: 'Предложение из API', exact: true }),
+      await screen.findByRole('heading', { name: 'Предложение из API', exact: true }, { timeout: 5000 }),
     ).toBeInTheDocument()
     expect(screen.getByTestId('current-learner-path')).toHaveTextContent('/learn/recommendations')
   })

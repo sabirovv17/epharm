@@ -11,6 +11,7 @@ import { useUiStore } from './store'
 import AdministrativeHome from './AdministrativeHome'
 import { SectionRoute } from './SectionRoute'
 import { PublicPortal } from './PublicPortal'
+import AIExam from '@/features/ai-exam/AIExamPage'
 
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'))
 const LearnerTraining = lazy(() => import('@/features/learner/LearnerTrainingPage'))
@@ -25,7 +26,6 @@ const Pharmacies = lazy(() => import('@/features/pharmacies/PharmaciesPage'))
 const PharmacyDetail = lazy(() => import('@/features/pharmacies/PharmacyDetailPage'))
 const Pharmacists = lazy(() => import('@/features/pharmacists/PharmacistsPage'))
 const Reconcile = lazy(() => import('@/features/reconcile/ReconcilePage'))
-const AIExam = lazy(() => import('@/features/ai-exam/AIExamPage'))
 const Finance = lazy(() => import('@/features/finance/FinancePage'))
 const Lift = lazy(() => import('@/features/lift/LiftPage'))
 const LMS = lazy(() => import('@/features/lms/LMSPage'))

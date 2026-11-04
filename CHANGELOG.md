@@ -5,6 +5,29 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-11-04
+
+### Fixed
+
+- Recover the manufacturer workspace locally after a section error; keep unrelated administrative
+  pages available and distinguish failed pharmacy searches from an empty result.
+- Make merchandising tasks, pharmacy/device tables and navigation usable on narrow screens,
+  preserving the existing task panels, server permissions and keyboard focus.
+- Correct Kazakh labels and dates, monthly-visit binding guidance and learner history scores;
+  preserve actual certificate results and distinguish courses without a test from missing results.
+- Serialize payout approval and reject inconsistent reservations or invalid amounts before changing
+  approval metadata; concurrent reviewers cannot approve the same batch twice.
+- Validate published course materials, derive read-only event status, and keep operational metrics
+  and fulfillment alert projections consistent with their existing source records.
+- Mask pharmacist IIN and phone until an authorised account explicitly reveals them; clear the
+  reveal state when the account, role or access version changes.
+
+### Deployment
+
+- Two-image application release with no new migration. Preserve POSM, compound ACC triggers,
+  native merchandising, the separate `/learn`, files, identities and financial history.
+- Production cashier staff authentication and POSM order fulfillment remain disabled.
+
 ## [0.2.5] - 2026-11-04
 
 ### Changed

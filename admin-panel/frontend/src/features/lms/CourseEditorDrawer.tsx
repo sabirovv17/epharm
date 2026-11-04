@@ -152,6 +152,10 @@ export function CourseEditorDrawer({
       setMetadataError('Введите название курса')
       return
     }
+    if (status === 'published' && lessons.length === 0) {
+      setMetadataError('Нельзя опубликовать курс без уроков. Добавьте хотя бы один урок')
+      return
+    }
     setMetadataError(null)
     updateCourse.mutate(
       {

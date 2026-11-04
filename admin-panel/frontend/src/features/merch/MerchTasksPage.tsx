@@ -84,6 +84,7 @@ function TaskWorkspace({
   const [templateOpen, setTemplateOpen] = useState(false)
   const [visitOpen, setVisitOpen] = useState(false)
   const detailRegion = useRef<HTMLDivElement>(null)
+  const mobileList = useNarrowTaskList()
   useEffect(() => {
     if (!selected || reviewFocus) return
     detailRegion.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
@@ -265,13 +266,106 @@ function TaskWorkspace({
             </p>
           </div>
           {list.data.items.length > 0 ? (
-            <div
-              className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-green-400"
-              role="region"
-              aria-label="Таблица заданий"
-              tabIndex={0}
-            >
-              <table className="w-full min-w-[980px] text-left text-[13px]">
+            mobileList ? (
+              <div className="divide-y divide-ink-200" role="list" aria-label="Задания">
+                {list.data.items.map((task) => {
+                  const branch = branchNames.data?.find((entry) => entry.id === task.branchId)
+                  const actionLabel =
+                    queue === 'mine'
+                      ? 'Открыть мой пункт'
+                      : (task.pendingReviewCount ?? 0) > 0
+                        ? 'Открыть отчёт'
+                        : 'Открыть задание'
+                  return (
+                    <article
+                      key={task.id}
+                      role="listitem"
+                      className={`space-y-3 p-4 ${selected === task.id ? 'bg-brand-green-50' : 'bg-white'}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <button
+                            type="button"
+                            className="rounded-sm text-left text-[15px] font-bold leading-5 text-ink-900 underline decoration-ink-300 underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-400"
+                            onClick={() => openListedTask(task)}
+                          >
+                            {task.title}
+                          </button>
+                          <p className="mt-1 text-xs font-medium text-ink-500">
+                            {taskTypeLabel(task.taskType)}
+                          </p>
+                        </div>
+                        <div className="flex flex-none flex-col items-end gap-1">
+                          <TaskStatusBadge status={task.status} />
+                          {task.overdue && <TaskStatusBadge status="overdue" />}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-ink-800">
+                          {branch?.name ??
+                            (branchNames.pending
+                              ? 'Загружаем аптеку…'
+                              : 'Название аптеки недоступно')}
+                        </p>
+                        {branch && (
+                          <p className="mt-1 text-xs text-ink-500">
+                            {[branch.city, branch.address].filter(Boolean).join(' · ') ||
+                              'Адрес не указан'}
+                          </p>
+                        )}
+                      </div>
+                      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                        <div>
+                          <dt className="text-xs text-ink-500">Приоритет</dt>
+                          <dd className="mt-0.5 font-semibold text-ink-800">
+                            {taskPriorityLabel(task.priority)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-ink-500">Срок, Алматы</dt>
+                          <dd className="mt-0.5 font-semibold text-ink-800">
+                            {task.dueAt
+                              ? new Date(task.dueAt).toLocaleString('ru-RU', {
+                                  timeZone: 'Asia/Almaty',
+                                })
+                              : 'Не записан'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-ink-500">Пунктов</dt>
+                          <dd className="mt-0.5 font-semibold text-ink-800">{task.itemCount}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-ink-500">Предусмотрено</dt>
+                          <dd className="mt-0.5 font-semibold text-ink-800">
+                            {task.rewardAmountKzt === null
+                              ? '—'
+                              : task.rewardAmountKzt === 0
+                                ? 'Без вознаграждения'
+                                : formatKzt(task.rewardAmountKzt)}
+                          </dd>
+                        </div>
+                      </dl>
+                      {(task.pendingReviewCount ?? 0) > 0 && (
+                        <p className="text-xs font-semibold text-brand-blue-700">
+                          На проверке пунктов: {task.pendingReviewCount}
+                        </p>
+                      )}
+                      <Button className="w-full" variant="outline" onClick={() => openListedTask(task)}>
+                        {actionLabel}
+                      </Button>
+                    </article>
+                  )
+                })}
+              </div>
+            ) : (
+              <div
+                className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-green-400"
+                role="region"
+                aria-label="Таблица заданий"
+                tabIndex={0}
+              >
+                <table className="w-full min-w-[980px] text-left text-[13px]">
                 <caption className="sr-only">
                   Задания доступных аптек. Откройте задание для работы с его пунктами.
                 </caption>
@@ -330,6 +424,11 @@ function TaskWorkspace({
                         </td>
                         <td className="p-3">
                           <TaskStatusBadge status={task.status} />
+                          {task.overdue && (
+                            <div className="mt-1">
+                              <TaskStatusBadge status="overdue" />
+                            </div>
+                          )}
                         </td>
                         <td className="p-3">{taskPriorityLabel(task.priority)}</td>
                         <td className="p-3">
@@ -371,8 +470,9 @@ function TaskWorkspace({
                     )
                   })}
                 </tbody>
-              </table>
-            </div>
+                </table>
+              </div>
+            )
           ) : (
             <div className="p-6" role="status">
               <h3 className="font-semibold">
@@ -464,6 +564,22 @@ function TaskWorkspace({
       )}
     </div>
   )
+}
+
+function useNarrowTaskList() {
+  const [matches, setMatches] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(max-width: 1199px)').matches,
+  )
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const media = window.matchMedia('(max-width: 1199px)')
+    const onChange = (event: MediaQueryListEvent) => setMatches(event.matches)
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [])
+
+  return matches
 }
 function CreateTaskDialog({
   onClose,

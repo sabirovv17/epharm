@@ -12,6 +12,7 @@ import kz.epharm.pharmacists.repository.PharmacistRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.springframework.http.HttpStatus
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -24,6 +25,7 @@ class PayoutService(
     private val adminUserRepository: AdminUserRepository,
     private val pharmacistRepository: PharmacistRepository,
     private val wallet: PharmacistWalletService,
+    private val jdbc: JdbcTemplate,
 ) {
 
     /**
@@ -90,7 +92,7 @@ class PayoutService(
      */
     @Transactional
     fun approve(batchId: String, approverId: String): PayoutBatchDto {
-        val entity = loadOrThrow(batchId)
+        val entity = loadForUpdateOrThrow(batchId)
         if (entity.status == PayoutBatchStatus.approved) {
             throw AppException(
                 ErrorCode.CONFLICT,
@@ -98,6 +100,7 @@ class PayoutService(
                 HttpStatus.CONFLICT,
             )
         }
+        validateApproval(entity)
         val approver = adminUserRepository.findById(UUID.fromString(approverId)).orElse(null)
         entity.status = PayoutBatchStatus.approved
         entity.reviewerId = approverId
@@ -114,4 +117,62 @@ class PayoutService(
                 HttpStatus.NOT_FOUND,
             )
         }
+
+    private fun loadForUpdateOrThrow(id: String): PayoutBatchEntity =
+        batchRepository.findByIdForUpdate(id).orElseThrow {
+            AppException(
+                ErrorCode.NOT_FOUND,
+                "Payout batch $id not found",
+                HttpStatus.NOT_FOUND,
+            )
+        }
+
+    private fun validateApproval(batch: PayoutBatchEntity) {
+        val items = itemRepository.findAllByBatchIdOrderByAmountDesc(batch.id)
+        // Reject malformed amounts before PostgreSQL negates them (BIGINT MIN cannot be negated).
+        if (!payoutBatchItemsConsistent(batch, items)) rejectInconsistentBatch()
+        val reservations = jdbc.queryForObject(
+            """SELECT COUNT(*) FROM payout_items item
+                JOIN pharmacist_wallet_entries wallet
+                  ON wallet.source = 'payout_reservation'
+                 AND wallet.source_id = item.id
+                 AND wallet.pharmacist_id = item.pharmacist_id
+                 AND wallet.amount_kzt = -item.amount
+                 AND wallet.earned_delta_kzt = 0
+               WHERE item.batch_id = ?""",
+            Long::class.java,
+            batch.id,
+        ) ?: 0L
+        if (!payoutBatchApprovalConsistent(batch, items, reservations)) {
+            rejectInconsistentBatch()
+        }
+    }
+
+    private fun rejectInconsistentBatch(): Nothing = throw AppException(
+        ErrorCode.CONFLICT,
+        "Батч не согласован с позициями и резервами кошелька. Выполните сверку перед утверждением.",
+        HttpStatus.CONFLICT,
+    )
+}
+
+internal fun payoutBatchApprovalConsistent(
+    batch: PayoutBatchEntity,
+    items: List<PayoutItemEntity>,
+    matchingReservations: Long,
+): Boolean = payoutBatchItemsConsistent(batch, items) && matchingReservations == items.size.toLong()
+
+internal fun payoutBatchItemsConsistent(
+    batch: PayoutBatchEntity,
+    items: List<PayoutItemEntity>,
+): Boolean {
+    val uniquePharmacists = items.map { it.pharmacistId }.toSet().size
+    val total = runCatching {
+        items.fold(0L) { sum, item -> Math.addExact(sum, item.amount) }
+    }.getOrNull() ?: return false
+    return items.isNotEmpty() &&
+        items.all { it.amount > 0 } &&
+        batch.items == items.size &&
+        batch.pharmacists == uniquePharmacists &&
+        uniquePharmacists == items.size &&
+        batch.amount == total
 }

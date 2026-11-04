@@ -93,6 +93,9 @@ data class FulfillmentOrderDto(
     val cancellationReason: String?,
     val completedAt: Instant?,
     val updatedAt: Instant,
+    val ageMinutes: Long,
+    val requiresAttention: Boolean,
+    val attentionReason: String?,
     val lines: List<FulfillmentLineDto>,
 )
 
