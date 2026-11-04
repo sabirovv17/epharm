@@ -13,6 +13,7 @@ const access = vi.hoisted(() => ({
   data: { version: 1 },
   refetch: vi.fn(),
 }))
+const workspaces = vi.hoisted(() => ({ producerCrashes: false }))
 vi.mock('@/app/useAdministrativeCapabilities', () => ({
   useAdministrativeCapabilities: () => access,
 }))
@@ -20,7 +21,10 @@ vi.mock('./PlacementWorkspace', () => ({
   default: () => <input aria-label="Черновик размещения" />,
 }))
 vi.mock('./ProducerCommercialWorkspace', () => ({
-  default: () => <input aria-label="Черновик бюджета" />,
+  default: () => {
+    if (workspaces.producerCrashes) throw new Error('malformed producer payload')
+    return <input aria-label="Черновик бюджета" />
+  },
 }))
 vi.mock('./TaskInstructionPanel', () => ({
   default: () => <input aria-label="Черновик инструктажа" />,
@@ -29,6 +33,7 @@ vi.mock('./PricingEditor', () => ({ default: () => <input aria-label="Черно
 
 beforeEach(() => {
   Object.assign(access, { canViewMerchPlacements: true, canViewMerchTariffs: true, isError: false })
+  workspaces.producerCrashes = false
   access.refetch.mockClear()
 })
 afterEach(cleanup)
@@ -78,5 +83,19 @@ describe('placement section navigation', () => {
     mounted.rerender(<MerchPlacementsPage />)
     expect(screen.queryByLabelText('Черновик тарифа')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Черновик размещения')).toBeVisible()
+  })
+
+  it('isolates a producer workspace render failure from the rest of HQ', async () => {
+    workspaces.producerCrashes = true
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const user = userEvent.setup()
+    render(<MerchPlacementsPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Планы на период и бюджет' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Не удалось открыть кабинет производителя')
+    expect(screen.getByRole('button', { name: 'Медиапланы' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Медиапланы' }))
+    expect(screen.getByLabelText('Черновик размещения')).toBeVisible()
+    consoleError.mockRestore()
   })
 })

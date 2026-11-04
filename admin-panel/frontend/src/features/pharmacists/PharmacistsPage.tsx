@@ -53,6 +53,7 @@ import { ASSIGNMENT_STATUS_LABEL, FORMAT_LABEL, dateTime } from '@/features/lms/
 import { useUiStore } from '@/app/store'
 import { canManagePharmacistCredentials } from '@/app/accessPolicy'
 import CredentialExportDialog from './CredentialExportDialog'
+import { maskedIin, maskedPhone } from './personal-data'
 
 type PhTab = 'all' | PharmacistStatus
 
@@ -81,6 +82,7 @@ export default function PharmacistsPage() {
   const [preferenceTargets, setPreferenceTargets] = useState<PharmacistDto[] | null>(null)
   const [trainingProfileId, setTrainingProfileId] = useState<string | null>(null)
   const [standardNMappingsOpen, setStandardNMappingsOpen] = useState(false)
+  const [personalDataVisible, setPersonalDataVisible] = useState(false)
   const [credentialSelection, setCredentialSelection] = useState<{
     ownerId: string
     version: number | null
@@ -228,6 +230,15 @@ export default function PharmacistsPage() {
         subtitle={t('page.pharmacists.subtitle')}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {canManageCredentials && (
+              <Button
+                variant="outline"
+                aria-pressed={personalDataVisible}
+                onClick={() => setPersonalDataVisible((visible) => !visible)}
+              >
+                {personalDataVisible ? 'Скрыть ИИН и телефоны' : 'Показать ИИН и телефоны'}
+              </Button>
+            )}
             {access.canExportLearnerCredentials && (
               <Button
                 variant="outline"
@@ -424,12 +435,14 @@ export default function PharmacistsPage() {
                         </span>
                         <div>
                           <div className="font-extrabold text-ink-900">{p.name}</div>
-                          <div className="text-[11px] text-ink-500">{p.phone ?? '—'}</div>
+                          <div className="text-[11px] text-ink-500">
+                            {personalDataVisible ? p.phone || '—' : maskedPhone(p.phone)}
+                          </div>
                         </div>
                       </div>
                     </td>
                     <td className="num whitespace-nowrap px-3 py-2.5 text-ink-700">
-                      {p.iin || '—'}
+                      {personalDataVisible ? p.iin || '—' : maskedIin(p.iin)}
                       {p.standardNIinMatchStatus === 'MISMATCH' && (
                         <div
                           className="mt-1 max-w-[145px] whitespace-normal text-[11px] font-semibold text-accent-warning"
@@ -599,7 +612,7 @@ export default function PharmacistsPage() {
           open
           onClose={() => setPasswordTarget(null)}
           title={passwordTarget.hasPassword ? 'Сменить пароль' : 'Задать пароль'}
-          subtitle={`${passwordTarget.name} · ИИН ${passwordTarget.iin || '—'}`}
+          subtitle={`${passwordTarget.name} · ИИН ${maskedIin(passwordTarget.iin)}`}
           width={460}
           footer={
             <>

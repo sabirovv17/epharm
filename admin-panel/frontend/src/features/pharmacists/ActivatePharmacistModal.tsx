@@ -3,6 +3,7 @@ import { Button, Field, Modal, Select } from '@/ui'
 import { IconCheck } from '@/ui/icons'
 import type { PharmacistDto, PharmacyDto } from '@/lib/api-types'
 import { useT } from '@/i18n'
+import { maskedIin, maskedPhone } from './personal-data'
 
 interface ActivatePharmacistModalProps {
   pharmacist: PharmacistDto
@@ -60,7 +61,7 @@ export function ActivatePharmacistModal({
         <div>
           <div className="text-[14px] font-extrabold text-ink-900">{pharmacist.name}</div>
           <div className="mt-1 text-[12px] text-ink-500">
-            {pharmacist.phone ?? '—'} · {pharmacist.iin || '—'}
+            {maskedPhone(pharmacist.phone)} · {maskedIin(pharmacist.iin)}
           </div>
         </div>
         <Field label={t('phc.selectPharmacy')}>

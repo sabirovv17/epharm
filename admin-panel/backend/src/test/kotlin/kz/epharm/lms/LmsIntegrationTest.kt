@@ -137,6 +137,17 @@ class LmsIntegrationTest {
     }
 
     @Test
+    fun `POST cannot create an already published empty course`() {
+        mockMvc.perform(
+            post("/api/admin/lms/courses").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"title":"Пустой курс","status":"published"}"""),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+    }
+
+    @Test
     fun `POST create без title → 400`() {
         mockMvc.perform(
             post("/api/admin/lms/courses").header("Authorization", bearer)
@@ -203,6 +214,13 @@ class LmsIntegrationTest {
     @Test
     fun `PATCH course обновляет поля и статус`() {
         mockMvc.perform(
+            post("/api/admin/lms/courses/crs_draft/lessons")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"title":"Введение","kind":"text","content":"Учебный материал"}"""),
+        ).andExpect(status().isOk)
+
+        mockMvc.perform(
             patch("/api/admin/lms/courses/crs_draft")
                 .header("Authorization", bearer)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -213,6 +231,23 @@ class LmsIntegrationTest {
             .andExpect(jsonPath("$.status").value("published"))
             .andExpect(jsonPath("$.bonus").value(500))
             .andExpect(jsonPath("$.category").value("B")) // не передан → прежний
+    }
+
+    @Test
+    fun `PATCH cannot publish course without lessons`() {
+        mockMvc.perform(
+            patch("/api/admin/lms/courses/crs_draft")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"status":"published"}"""),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.message").value("Нельзя опубликовать курс без уроков. Добавьте хотя бы один урок"))
+
+        mockMvc.perform(get("/api/admin/lms/courses/crs_draft").header("Authorization", bearer))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("draft"))
     }
 
     @Test

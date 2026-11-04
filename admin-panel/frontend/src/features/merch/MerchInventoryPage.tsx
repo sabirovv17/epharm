@@ -401,7 +401,8 @@ function CalendarWorkspace({
                         <span className="break-words font-bold">{shelf.code}</span>
                       </label>
                       <p className="mt-1 text-xs text-ink-500">
-                        {shelf.category} · {shelf.width} см{!shelf.active && ' · Неактивна'}
+                        {shelf.category} · {shelf.width.toLocaleString('ru-RU')} м
+                        {!shelf.active && ' · Неактивна'}
                       </p>
                     </th>
                     <td className="num whitespace-nowrap p-3 text-right align-top font-medium">

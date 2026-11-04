@@ -76,7 +76,10 @@ class CourseService(
     @Transactional
     fun create(req: CreateCourseRequest, createdBy: String): CourseDto {
         administrativeAccess.lockWriter()
-        if (req.status == CourseStatus.published) administrativeAccess.requireAll("courses", "publish")
+        if (req.status == CourseStatus.published) {
+            administrativeAccess.requireAll("courses", "publish")
+        }
+        requireCourseContentForPublication(req.status, lessonCount = 0)
         if (req.bonus != 0) administrativeAccess.requireAll("courses", "configure_bonus")
         val entity = CourseEntity(
             id = "crs_${UUID.randomUUID().toString().replace("-", "").take(12)}",
@@ -97,6 +100,8 @@ class CourseService(
         val entity = editableCourse(id)
         if (entity.status == CourseStatus.published || req.status == CourseStatus.published) administrativeAccess.requireAll("courses", "publish")
         if (req.bonus != null && req.bonus != entity.bonus) administrativeAccess.requireAll("courses", "configure_bonus")
+        val structuredLessons = lessons(id)
+        requireCourseContentForPublication(req.status, structuredLessons.size)
         req.title?.let {
             if (it.isBlank()) invalid("Название курса обязательно")
             entity.title = it.trim()
@@ -104,7 +109,6 @@ class CourseService(
         req.status?.let { entity.status = it }
         req.category?.let { entity.category = it.trim() }
         req.description?.let { entity.description = it.trim() }
-        val structuredLessons = lessons(id)
         if (structuredLessons.isNotEmpty() && (req.lessons != null || req.durationMin != null)) {
             invalid("Количество уроков и длительность курса рассчитываются автоматически")
         }

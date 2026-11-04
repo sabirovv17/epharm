@@ -65,6 +65,7 @@ interface UiState {
   // UI flags
   // Ephemeral confirmation only; never persisted with account credentials.
   passwordChangedNotice: boolean
+  sessionExpiredNotice: boolean
   sidebarCollapsed: boolean
   commandPaletteOpen: boolean
   roleSwitcherOpen: boolean
@@ -132,6 +133,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   tokens: initialAuth.tokens,
   querySessionEpoch,
   passwordChangedNotice: false,
+  sessionExpiredNotice: false,
   sidebarCollapsed: false,
   commandPaletteOpen: false,
   roleSwitcherOpen: false,
@@ -157,6 +159,7 @@ export const useUiStore = create<UiState>((set, get) => ({
         commandPaletteOpen: false,
         roleSwitcherOpen: false,
         contractModalOpen: false,
+        sessionExpiredNotice: true,
       })
     })
     onTokensRefreshed((tokens) => {
@@ -169,7 +172,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   },
 
   login: async (email, password) => {
-    set({ passwordChangedNotice: false })
+    set({ passwordChangedNotice: false, sessionExpiredNotice: false })
     const attempt = ++authAttempt
     try {
       const resp = await authApi.login(email, password)
@@ -178,7 +181,12 @@ export const useUiStore = create<UiState>((set, get) => ({
       tokenStore.save({ tokens: resp.tokens, user: resp.user })
       setApiTokens(resp.tokens)
       resetQuerySession(resp.user)
-      set({ authedUser: resp.user, tokens: resp.tokens, querySessionEpoch })
+      set({
+        authedUser: resp.user,
+        tokens: resp.tokens,
+        querySessionEpoch,
+        sessionExpiredNotice: false,
+      })
       return { ok: true }
     } catch (err) {
       const code = errorCodeOf(err)
@@ -214,6 +222,7 @@ export const useUiStore = create<UiState>((set, get) => ({
       commandPaletteOpen: false,
       roleSwitcherOpen: false,
       contractModalOpen: false,
+      sessionExpiredNotice: false,
     })
     try {
       await revoke
@@ -223,7 +232,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   },
 
   setActiveRole: (user) => {
-    set({ passwordChangedNotice: false })
+    set({ passwordChangedNotice: false, sessionExpiredNotice: false })
     authAttempt++
     setApiTokens(get().tokens)
     resetQuerySession(user)

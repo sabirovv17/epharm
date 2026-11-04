@@ -45,7 +45,9 @@ data class MerchTaskDispatchDto(val id: UUID, val branchId: UUID, val title: Str
     // Pending status is navigation metadata, not permission to review an item.
     val pendingReviewCount: Int = 0, val nextPendingReviewItemId: UUID? = null,
     // Only the personal execution list supplies this navigation hint; it never grants execution.
-    val nextExecutionItemId: UUID? = null)
+    val nextExecutionItemId: UUID? = null,
+    // Attention flag is derived from the deadline; it never mutates the workflow status.
+    val overdue: Boolean = false)
 data class MerchTaskDispatchPage(val items: List<MerchTaskDispatchDto>, val limit: Int, val offset: Int, val hasMore: Boolean)
 data class MerchTaskAttemptPage(val items: List<MerchTaskAttemptDto>, val limit: Int, val offset: Int, val hasMore: Boolean)
 

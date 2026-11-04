@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional
 /**
  * Ежедневный пересчёт реальных метрик реестра аптек (ТЗ §3.2) из живых данных:
  *  - receipts30d  = чеки кассы (pos_sales) за 30 дней;
+ *  - gmv30d       = сумма завершённых чеков (pos_sales.total_amount) за 30 дней;
  *  - rulesAccepted = принятые рекомендации (recommendation_events) за всё время.
  *
  * Раньше эти поля были статичным dev-seed и в проде висели нулями. Lift/Dashboard
@@ -41,6 +42,8 @@ class PharmacyMetricsScheduler(
         val since30d = now.minus(30, ChronoUnit.DAYS)
         val receiptsByPharmacy = posSaleRepository.countByPharmacySince(since30d)
             .associate { it.pharmacyId to it.cnt.toInt() }
+        val gmvByPharmacy = posSaleRepository.amountByPharmacySince(since30d)
+            .associate { it.pharmacyId to it.amount }
         // rulesAccepted — накопительно (всё время): передаём раннюю границу.
         val acceptsByPharmacy = recommendationEventRepository.aggregateByPharmacySince(Instant.EPOCH)
             .associate { it.pharmacyId to it.accepts.toInt() }
@@ -49,9 +52,11 @@ class PharmacyMetricsScheduler(
         var changed = 0
         for (ph in pharmacies) {
             val receipts = receiptsByPharmacy[ph.id] ?: 0
+            val gmv = gmvByPharmacy[ph.id] ?: 0L
             val accepts = acceptsByPharmacy[ph.id] ?: 0
-            if (ph.receipts30d != receipts || ph.rulesAccepted != accepts) {
+            if (ph.receipts30d != receipts || ph.gmv30d != gmv || ph.rulesAccepted != accepts) {
                 ph.receipts30d = receipts
+                ph.gmv30d = gmv
                 ph.rulesAccepted = accepts
                 pharmacyRepository.save(ph)
                 changed++

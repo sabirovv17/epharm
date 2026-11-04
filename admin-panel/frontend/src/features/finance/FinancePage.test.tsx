@@ -146,14 +146,22 @@ describe('FinancePage — pending tab', () => {
   it('кнопка «Утвердить» вызывает useApproveBatch', async () => {
     const mutate = vi.fn()
     financeHooks.useApproveBatch.mockReturnValue({ mutate, isPending: false })
-    setBatches([mkBatch({ id: 'pb_x' })])
-    setItems([])
+    setBatches([mkBatch({ id: 'pb_x', pharmacists: 1, items: 1, amount: 15_000 })])
+    setItems([mkItem({ batchId: 'pb_x' })])
     // confirm() возвращает true в тестах если мы его мокаем
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     const user = userEvent.setup()
     renderPage()
     await user.click(screen.getByRole('button', { name: /Утвердить выплату/ }))
     expect(mutate).toHaveBeenCalledWith('pb_x', expect.any(Object))
+  })
+
+  it('блокирует утверждение, если итог батча не совпадает с позициями', () => {
+    setBatches([mkBatch({ pharmacists: 1, items: 1, amount: 15_001 })])
+    setItems([mkItem({ amount: 15_000 })])
+    renderPage()
+    expect(screen.getByRole('alert')).toHaveTextContent('не совпадает')
+    expect(screen.getByRole('button', { name: /Утвердить выплату/ })).toBeDisabled()
   })
 
   it('кнопка disabled и текст «Утверждаем…» при approving', () => {

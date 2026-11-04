@@ -35,12 +35,25 @@ class AdminStorefrontController(
         @RequestParam(defaultValue = "0") offset: Int,
     ): MobileCatalogPageDto {
         requireAdmin(admin)
-        return catalog.search(
+        val page = catalog.search(
             q = q,
             category = null,
             limit = limit,
             offset = offset,
             includeRetailFallbackPrices = true,
+        )
+        val categoryNames = runCatching {
+            catalog.categories().flatMap { category ->
+                listOfNotNull(
+                    category.id.takeIf(String::isNotBlank)?.let { it to category.name },
+                    category.handle?.takeIf(String::isNotBlank)?.let { it to category.name },
+                )
+            }.toMap()
+        }.getOrDefault(emptyMap())
+        return page.copy(
+            items = page.items.map { product ->
+                product.copy(category = product.category?.let { categoryNames[it] ?: it })
+            },
         )
     }
 

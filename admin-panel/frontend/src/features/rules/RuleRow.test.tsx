@@ -65,6 +65,14 @@ describe('RuleRow — рендер', () => {
     const { container } = renderRow({ selected: true })
     expect(container.querySelector('li')).toHaveClass('bg-brand-green-50/60')
   })
+
+  it('на узком экране метрики уходят в отдельную строку, а товары не сжимаются до одной буквы', () => {
+    const { container } = renderRow()
+    const row = container.querySelector('li')
+    const metrics = screen.getByText('36.8%').parentElement?.parentElement
+    expect(row).toHaveClass('flex-wrap', 'xl:flex-nowrap')
+    expect(metrics).toHaveClass('basis-full', 'xl:basis-auto')
+  })
 })
 
 describe('RuleRow — row action menu', () => {

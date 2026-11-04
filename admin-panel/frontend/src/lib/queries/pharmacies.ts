@@ -32,11 +32,12 @@ export function useChains() {
   })
 }
 
-export function usePharmacies(filter: PharmacyListFilter = {}) {
+export function usePharmacies(filter: PharmacyListFilter = {}, enabled = true) {
   return useQuery<PharmacyDto[]>({
     queryKey: pharmacyKeys.list(filter),
     queryFn: () =>
       api.get<PharmacyDto[]>('/api/admin/pharmacies', { params: filter }).then((r) => r.data),
+    enabled,
   })
 }
 

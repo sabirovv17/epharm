@@ -106,6 +106,20 @@ describe('StorefrontPage', () => {
     expect(screen.getByText('2 060 ₸–6 670 ₸')).toBeInTheDocument()
   })
 
+  it('показывает понятное название вместо технического slug категории', () => {
+    hooks.useStorefront.mockReturnValue({
+      data: mkPage([mkProduct({ category: 'med-pribory-i-izdeliya' })]),
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+      isFetching: false,
+    })
+    renderPage()
+    expect(screen.getByText('Медицинские приборы и изделия')).toBeInTheDocument()
+    expect(screen.queryByText('med-pribory-i-izdeliya')).not.toBeInTheDocument()
+  })
+
   it('ошибка загрузки показывает кнопку «Повторить»', () => {
     hooks.useStorefront.mockReturnValue({
       data: undefined,

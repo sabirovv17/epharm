@@ -136,6 +136,29 @@ describe('Sidebar — collapse', () => {
     await user.click(screen.getByTitle(/Развернуть сайдбар/i))
     expect(onToggle).toHaveBeenCalled()
   })
+
+  it('на мобильном сайдбар работает как выезжающий drawer', async () => {
+    const onMobileClose = vi.fn()
+    const user = userEvent.setup()
+    const { container, rerender } = setup({ mobileOpen: false, onMobileClose })
+    expect(container.querySelector('aside')).toHaveClass('invisible', '-translate-x-full')
+
+    rerender(
+      <Sidebar
+        active="rules"
+        onSelect={vi.fn()}
+        collapsed={false}
+        mobileOpen
+        onMobileClose={onMobileClose}
+        onToggle={vi.fn()}
+        onContractOpen={vi.fn()}
+        user={USERS.damir}
+      />,
+    )
+    expect(container.querySelector('aside')).toHaveClass('visible', 'translate-x-0')
+    await user.click(screen.getByRole('button', { name: 'Закрыть навигацию' }))
+    expect(onMobileClose).toHaveBeenCalledOnce()
+  })
 })
 
 describe('Sidebar — Contract widget на пустых данных (MVP)', () => {

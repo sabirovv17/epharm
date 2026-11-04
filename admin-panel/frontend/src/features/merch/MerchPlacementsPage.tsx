@@ -13,6 +13,7 @@ import TaskInstructionPanel from './TaskInstructionPanel'
 import { adminInstructionApi } from './task-instructions-api'
 import { useUiStore } from '@/app/store'
 import PricingEditor from './PricingEditor'
+import { SectionErrorBoundary } from '@/ui/SectionErrorBoundary'
 
 const gateway = placementGateway('admin', async <T,>(path: string, init: RequestInit = {}) => {
   const response = await api.request<T>({
@@ -111,11 +112,13 @@ export default function MerchPlacementsPage() {
         hidden={activeSection !== 'commercial'}
       >
         {visited.includes('commercial') && (
-          <ProducerCommercialWorkspace
-            key={`commercial:${principalKey}`}
-            gateway={commercial}
-            placements={gateway}
-          />
+          <SectionErrorBoundary title="Не удалось открыть кабинет производителя">
+            <ProducerCommercialWorkspace
+              key={`commercial:${principalKey}`}
+              gateway={commercial}
+              placements={gateway}
+            />
+          </SectionErrorBoundary>
         )}
       </div>
       <div

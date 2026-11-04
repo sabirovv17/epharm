@@ -40,6 +40,12 @@ interface PharmacyCountRow {
     val cnt: Long
 }
 
+/** Сумма завершённых продаж по аптеке за период, в тенге. */
+interface PharmacyAmountRow {
+    val pharmacyId: String
+    val amount: Long
+}
+
 /**
  * Одна уже развёрнутая строка журнала показов/продаж. Продажные позиции извлекаются из
  * `pos_sales.items` на стороне PostgreSQL, чтобы API мог читать только запрошенную страницу,
@@ -81,6 +87,16 @@ interface PosSaleRepository : JpaRepository<PosSaleEntity, String> {
         """,
     )
     fun countByPharmacySince(@Param("since") since: Instant): List<PharmacyCountRow>
+
+    /** GMV завершённых чеков за период по каждой аптеке. */
+    @Query(
+        nativeQuery = true,
+        value = """
+            SELECT pharmacy_id AS "pharmacyId", COALESCE(SUM(total_amount), 0) AS "amount"
+            FROM pos_sales WHERE printed_at >= :since GROUP BY pharmacy_id
+        """,
+    )
+    fun amountByPharmacySince(@Param("since") since: Instant): List<PharmacyAmountRow>
 
     /**
      * Всего чеков за период по группе аптек (для пилот/контроль-сумм в lift).

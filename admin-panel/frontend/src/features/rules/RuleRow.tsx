@@ -55,7 +55,7 @@ export function RuleRow({
       }}
       onDragEnd={onDragEnd}
       onClick={onSelect}
-      className={`group relative flex cursor-pointer items-center gap-3 py-3 pl-3 pr-4 ${
+      className={`group relative flex cursor-pointer flex-wrap items-center gap-3 py-3 pl-3 pr-4 xl:flex-nowrap ${
         selected ? 'bg-brand-green-50/60' : 'hover:bg-paper-hover'
       } ${dragging ? 'dragging' : ''}`}
       style={selected ? { boxShadow: 'inset 3px 0 0 #D97757' } : undefined}
@@ -77,7 +77,7 @@ export function RuleRow({
       </span>
       <ProductBlock product={recProduct ?? undefined} accent />
 
-      <div className="flex flex-none items-center gap-5 pl-2">
+      <div className="hairline ml-7 flex min-w-0 basis-full flex-wrap items-center justify-end gap-3 border-t pt-2 sm:gap-5 xl:ml-0 xl:basis-auto xl:flex-none xl:flex-nowrap xl:border-0 xl:pl-2 xl:pt-0">
         <div className="w-14 text-right">
           <div className="num text-[14px] font-extrabold leading-none text-ink-900">
             {rule.convRate.toFixed(1)}%

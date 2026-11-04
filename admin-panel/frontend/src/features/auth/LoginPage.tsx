@@ -3,7 +3,7 @@
 // Async submit — реально дёргает backend через store.login() → POST /api/admin/auth/login.
 
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, Field, Input, IconLMS, IconPharmacy, IconShield } from '@/ui'
 import { Logo } from '@/layout/Logo'
 import { useUiStore } from '@/app/store'
@@ -11,9 +11,11 @@ import { useT } from '@/i18n'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const t = useT()
   const login = useUiStore((s) => s.login)
   const passwordChangedNotice = useUiStore((s) => s.passwordChangedNotice)
+  const sessionExpiredNotice = useUiStore((s) => s.sessionExpiredNotice)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -37,7 +39,17 @@ export default function LoginPage() {
     try {
       const result = await login(email, password)
       if (result.ok) {
-        navigate('/', { replace: true })
+        const from = location.state?.from as
+          | { pathname?: unknown; search?: unknown; hash?: unknown }
+          | undefined
+        const pathname = typeof from?.pathname === 'string' ? from.pathname : ''
+        const target =
+          pathname.startsWith('/') && !pathname.startsWith('//') && pathname !== '/login'
+            ? `${pathname}${typeof from?.search === 'string' ? from.search : ''}${
+                typeof from?.hash === 'string' ? from.hash : ''
+              }`
+            : '/'
+        navigate(target, { replace: true })
       } else if (result.code === 'INVALID_CREDENTIALS') {
         setError('Неверный email или пароль')
       } else if (result.code === 'NETWORK') {
@@ -51,8 +63,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen grid-cols-[minmax(420px,0.9fr)_minmax(560px,1.1fr)] bg-paper">
-      <section className="sidebar-bg flex min-h-screen flex-col justify-between px-12 py-10 text-white">
+    <div className="grid min-h-screen bg-paper lg:grid-cols-[minmax(420px,0.9fr)_minmax(560px,1.1fr)]">
+      <section className="sidebar-bg hidden min-h-screen flex-col justify-between px-12 py-10 text-white lg:flex">
         <div className="flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/10">
             <Logo size={28} />
@@ -88,7 +100,7 @@ export default function LoginPage() {
         </div>
       </section>
 
-      <section className="flex min-h-screen items-center justify-center px-12 py-12">
+      <section className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-8 lg:px-12 lg:py-12">
         <div className="w-full max-w-[420px]">
           <div className="mb-7">
             <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-brand-green-700">
@@ -114,6 +126,14 @@ export default function LoginPage() {
                 className="rounded-md bg-paper-hover p-3 text-sm text-brand-green-700"
               >
                 {t('account.passwordChanged')}
+              </p>
+            )}
+            {sessionExpiredNotice && (
+              <p
+                role="status"
+                className="rounded-md bg-paper-hover p-3 text-sm font-semibold text-ink-700"
+              >
+                Сессия истекла. Войдите снова — после входа мы вернём вас на предыдущую страницу.
               </p>
             )}
             <Field label="Email">

@@ -824,7 +824,8 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
         }, d.id).singleOrNull()
         return MerchTaskDispatchDto(d.id, d.branchId, d.title, d.status, d.dueAt, d.source, d.version, if (money) d.reward else null,
             rows, reward, ids.size, details,d.priority,d.taskType,
-            canCancel=cancelAllowed,pendingReviewCount=pending.size,nextPendingReviewItemId=pending.firstOrNull())
+            canCancel=cancelAllowed,pendingReviewCount=pending.size,nextPendingReviewItemId=pending.firstOrNull(),
+            overdue=d.dueAt?.isBefore(now)==true && d.status !in setOf("completed","cancelled"))
     }
 
     @Transactional(readOnly=true)

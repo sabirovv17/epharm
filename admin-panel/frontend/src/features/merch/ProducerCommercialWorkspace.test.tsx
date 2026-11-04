@@ -128,12 +128,17 @@ describe('producer commercial workspace', () => {
 
   it('does not request a supplier team or expose its private contact metadata in the administrator realm', async () => {
     const { gateway, placements } = fixtures('admin')
+    const user = userEvent.setup()
     render(<ProducerCommercialWorkspace gateway={gateway} placements={placements} />)
-    await screen.findByText('Сохранённых планов нет.')
+    expect(await screen.findByRole('status')).toHaveTextContent('Выберите производителя')
     expect(gateway.workspace).not.toHaveBeenCalled()
+    expect(gateway.list).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: 'Команда и условия' })).not.toBeInTheDocument()
     expect(screen.queryByText('synthetic@example.test')).not.toBeInTheDocument()
     expect(gateway.pricing).not.toHaveBeenCalled()
+    await user.selectOptions(screen.getByLabelText('Производитель бюджета'), 'customer-a')
+    expect(await screen.findByText('Сохранённых планов нет.')).toBeInTheDocument()
+    expect(gateway.list).toHaveBeenCalledWith('customer-a', 0, expect.any(AbortSignal))
   })
 
   it('retains the same draft ID and unsaved input after a CAS failure, without storing the business draft', async () => {

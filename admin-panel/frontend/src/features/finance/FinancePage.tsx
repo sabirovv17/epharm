@@ -44,7 +44,18 @@ export default function FinancePage() {
   const approved = useMemo(() => batches.filter((b) => b.status === 'approved'), [batches])
 
   const currentPending: PayoutBatchDto | null = pending[0] ?? null
-  const { data: items = [] } = usePayoutItems(currentPending?.id ?? null)
+  const itemsQuery = usePayoutItems(currentPending?.id ?? null)
+  const items = itemsQuery.data ?? []
+  const itemsConsistent =
+    currentPending != null &&
+    itemsQuery.data != null &&
+    !itemsQuery.isLoading &&
+    !itemsQuery.isError &&
+    items.length > 0 &&
+    items.length === currentPending.items &&
+    new Set(items.map((item) => item.pharmacistId)).size === currentPending.pharmacists &&
+    items.every((item) => item.amount > 0) &&
+    items.reduce((sum, item) => sum + item.amount, 0) === currentPending.amount
 
   const totalPendingAmount = pending.reduce((a, b) => a + b.amount, 0)
   const totalApprovedAmount = approved.reduce((a, b) => a + b.amount, 0)
@@ -146,6 +157,10 @@ export default function FinancePage() {
               items={items}
               onApprove={handleApprove}
               approving={approveBatch.isPending}
+              readyToApprove={itemsConsistent}
+              itemsLoading={itemsQuery.isLoading}
+              itemsError={itemsQuery.isError ? describeError(itemsQuery.error) : null}
+              onReloadItems={() => void itemsQuery.refetch()}
             />
           ) : (
             <HistoryPanel batches={approved} />
@@ -165,9 +180,22 @@ interface PendingPanelProps {
   items: PayoutItemDto[]
   onApprove: (b: PayoutBatchDto) => void
   approving: boolean
+  readyToApprove: boolean
+  itemsLoading: boolean
+  itemsError: string | null
+  onReloadItems: () => void
 }
 
-function PendingPanel({ batch, items, onApprove, approving }: PendingPanelProps) {
+function PendingPanel({
+  batch,
+  items,
+  onApprove,
+  approving,
+  readyToApprove,
+  itemsLoading,
+  itemsError,
+  onReloadItems,
+}: PendingPanelProps) {
   const t = useT()
   if (!batch) {
     return (
@@ -191,12 +219,24 @@ function PendingPanel({ batch, items, onApprove, approving }: PendingPanelProps)
         <Button
           variant="primary"
           leading={<IconCheck size={14} />}
-          disabled={approving}
+          disabled={approving || !readyToApprove}
           onClick={() => onApprove(batch)}
         >
           {approving ? t('fin.approving') : t('fin.approveBtn')}
         </Button>
       </div>
+      {itemsError ? (
+        <div role="alert" className="border-b border-accent-danger/20 bg-accent-danger/5 px-5 py-3 text-[13px] text-ink-700">
+          Позиции выплаты не загружены: {itemsError}. Утверждение заблокировано.{' '}
+          <button type="button" className="font-bold text-brand-green-700 underline" onClick={onReloadItems}>
+            Повторить
+          </button>
+        </div>
+      ) : !itemsLoading && !readyToApprove ? (
+        <div role="alert" className="border-b border-accent-warning/30 bg-accent-warning/10 px-5 py-3 text-[13px] font-semibold text-ink-700">
+          Итог батча не совпадает с его позициями. Утверждение заблокировано до сверки.
+        </div>
+      ) : null}
       <table className="w-full text-[13px]" data-testid="payout-items-table">
         <thead className="hairline border-b">
           <tr className="text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-500">
@@ -230,7 +270,7 @@ function PendingPanel({ batch, items, onApprove, approving }: PendingPanelProps)
       </table>
       {items.length === 0 && (
         <div className="px-5 py-6 text-center text-[13px] text-ink-500">
-          {t('fin.itemsLoading')}
+          {itemsLoading ? t('fin.itemsLoading') : 'Позиции выплаты отсутствуют'}
         </div>
       )}
     </div>

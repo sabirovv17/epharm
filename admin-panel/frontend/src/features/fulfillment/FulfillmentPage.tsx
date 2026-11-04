@@ -261,6 +261,11 @@ function OrdersPanel() {
                   <td className="px-3 py-3 text-ink-600">{paymentLabel(order)}</td>
                   <td className="px-3 py-3">
                     <OrderStatus status={order.status} />
+                    {order.requiresAttention && (
+                      <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-accent-warning/10 px-2 py-1 text-[10px] font-bold text-ink-800">
+                        <AlertTriangle size={11} /> Требует внимания
+                      </div>
+                    )}
                   </td>
                   <td className="px-5 py-3 text-right font-extrabold text-ink-900">
                     {money(order.total, order.currency)}
@@ -378,7 +383,14 @@ function OrderModal({
       <div className="grid gap-5 md:grid-cols-[1fr_260px]">
         <div>
           <div className="mb-3 flex items-center justify-between">
-            <OrderStatus status={order.status} />
+            <div>
+              <OrderStatus status={order.status} />
+              {order.requiresAttention && (
+                <p className="mt-2 flex items-center gap-1 text-[12px] font-semibold text-accent-warning">
+                  <AlertTriangle size={14} /> {order.attentionReason}
+                </p>
+              )}
+            </div>
             <span className="text-[12px] text-ink-500">{paymentLabel(order)}</span>
           </div>
           <div className="divide-y divide-ink-100 border-y border-ink-100">

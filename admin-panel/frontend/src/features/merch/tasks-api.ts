@@ -93,6 +93,7 @@ export interface MerchTask {
   priority: string
   taskType: string
   canCancel?: boolean
+  overdue?: boolean
 }
 export interface MerchTaskPage {
   items: MerchTask[]

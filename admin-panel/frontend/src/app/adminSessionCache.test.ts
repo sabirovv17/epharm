@@ -169,6 +169,7 @@ describe('Real QueryClient, persister and admin store boundary', () => {
     }) satisfies AxiosAdapter
     await expect(api.get('/api/admin/synthetic-protected')).rejects.toThrow()
     expect(useUiStore.getState().authedUser).toBeNull()
+    expect(useUiStore.getState().sessionExpiredNotice).toBe(true)
     expect(previous.getQueryCache().getAll()).toHaveLength(0)
     expect(session.queryClient).not.toBe(previous)
     expect(localStorage.getItem('epharm.learner.tokens')).toBe('learner-remains')

@@ -1,7 +1,7 @@
 // Pharmacies — Сеть аптек ТЗ §3.2.
 // Этап 3.4: подключён реальный backend через usePharmacies / useChains.
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Empty, Metric, PageHeader, SearchInput, Tabs, useToast, type TabItem } from '@/ui'
 import { IconPharmacy, IconShield, IconLift, IconPlus } from '@/ui/icons'
@@ -28,6 +28,7 @@ export default function PharmaciesPage() {
   const [tab, setTab] = useState<PhTab>('all')
   const [q, setQ] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
+  const mobileList = useNarrowPharmacyList()
 
   const { data: chains = [] } = useChains()
   const { data: pharmacies = [], isLoading, isError, error, refetch } = usePharmacies()
@@ -98,7 +99,7 @@ export default function PharmaciesPage() {
         pending={createPharmacy.isPending}
       />
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         <Metric
           label={t('ph.mTotal')}
           value={formatNum(counts.all)}
@@ -122,14 +123,18 @@ export default function PharmaciesPage() {
       </div>
 
       <div className="card flex min-h-[480px] flex-col">
-        <div className="hairline flex flex-wrap items-center gap-3 border-b px-5 py-3">
-          <Tabs<PhTab> items={tabs} value={tab} onChange={setTab} />
-          <SearchInput
-            value={q}
-            onChange={setQ}
-            placeholder={t('ph.search')}
-            className="!h-9 !w-[280px] flex-none"
-          />
+        <div className="hairline flex flex-wrap items-center gap-3 border-b px-3 py-3 sm:px-5">
+          <div className="w-full overflow-x-auto sm:w-auto">
+            <Tabs<PhTab> items={tabs} value={tab} onChange={setTab} />
+          </div>
+          <div className="w-full sm:w-[280px]">
+            <SearchInput
+              value={q}
+              onChange={setQ}
+              placeholder={t('ph.search')}
+              className="!h-9 !w-full"
+            />
+          </div>
         </div>
 
         {showWarningBanner && (
@@ -165,6 +170,78 @@ export default function PharmaciesPage() {
               body={q || tab !== 'all' ? t('common.notFoundBody') : t('ph.emptyBody')}
               icon={<IconPharmacy size={26} />}
             />
+          ) : mobileList ? (
+            <div className="divide-y divide-ink-100" role="list" aria-label="Аптеки">
+              {filtered.map((p) => (
+                <article key={p.id} role="listitem">
+                  <button
+                    type="button"
+                    onClick={() => onRowClick(p)}
+                    className="w-full space-y-3 p-4 text-left transition hover:bg-paper-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-green-400"
+                    data-testid={`pharmacy-card-${p.id}`}
+                  >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-extrabold leading-snug text-ink-900">{p.name}</p>
+                      <p className="mt-1 text-xs text-ink-500">
+                        {[p.city, p.addr].filter(Boolean).join(' · ') || 'Адрес не указан'}
+                      </p>
+                    </div>
+                    <span
+                      className={`chip flex-none ${
+                        !p.active
+                          ? 'chip-ink'
+                          : p.group === 'pilot'
+                            ? 'chip-green'
+                            : p.group === 'control'
+                              ? 'chip-blue'
+                              : 'chip-amber'
+                      }`}
+                    >
+                      {!p.active
+                        ? t('ph.inactive')
+                        : p.group === 'pilot'
+                          ? t('ph.gPilot')
+                          : p.group === 'control'
+                            ? t('ph.gControl')
+                            : t('ph.gRolled')}
+                    </span>
+                  </div>
+                  <div className="rounded-md border border-ink-100 bg-paper px-3 py-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-ink-400">
+                      {t('ph.thPosmId')}
+                    </p>
+                    <p className="num mt-1 break-all text-xs font-extrabold text-ink-700">{p.id}</p>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                    <div>
+                      <dt className="text-xs text-ink-500">{t('ph.thChain')}</dt>
+                      <dd className="mt-0.5 font-semibold text-ink-800">{p.chainName}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-ink-500">{t('ph.thPharm')}</dt>
+                      <dd className="num mt-0.5 font-semibold text-ink-800">{p.pharmacists}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-ink-500">{t('ph.thReceipts')}</dt>
+                      <dd className="num mt-0.5 font-semibold text-ink-800">
+                        {formatNum(p.receipts30d)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-ink-500">{t('ph.thGmv')}</dt>
+                      <dd className="num mt-0.5 font-semibold text-ink-800">
+                        {p.gmv30d == null ? '—' : formatKzt(p.gmv30d)}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="text-sm font-extrabold text-brand-green-700">
+                    Lift: {p.liftPct > 0 ? `+${p.liftPct.toFixed(1)}%` : '—'}
+                  </p>
+                  </button>
+                </article>
+              ))}
+            </div>
           ) : (
             <table
               className="w-full min-w-[1280px] table-fixed text-[13px]"
@@ -277,4 +354,20 @@ export default function PharmaciesPage() {
       </div>
     </div>
   )
+}
+
+function useNarrowPharmacyList() {
+  const [matches, setMatches] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(max-width: 767px)').matches,
+  )
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const media = window.matchMedia('(max-width: 767px)')
+    const onChange = (event: MediaQueryListEvent) => setMatches(event.matches)
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [])
+
+  return matches
 }

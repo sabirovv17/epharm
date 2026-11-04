@@ -26,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -41,6 +42,7 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.time.Instant
 import java.time.LocalDate
+import java.util.UUID
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -76,6 +78,7 @@ class FinanceIntegrationTest {
     @Autowired private lateinit var chainRepository: ChainRepository
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
+    @Autowired private lateinit var jdbc: JdbcTemplate
 
     private lateinit var bearer: String
 
@@ -104,11 +107,18 @@ class FinanceIntegrationTest {
                 joinedAt = LocalDate.of(2026, 1, 15),
             ).also { it.tier = PharmacistTier.Gold; it.status = kz.epharm.pharmacists.entity.PharmacistStatus.active },
         )
+        pharmacistRepository.save(
+            PharmacistEntity(
+                id = "u_2", name = "Бауыржан", iin = "840909300013", phone = "+7 (701) 100-10-21",
+                pharmacyId = "ph_1", pharmacyName = "Europharma №100", city = "Алматы",
+                joinedAt = LocalDate.of(2026, 2, 15),
+            ).also { it.tier = PharmacistTier.Gold; it.status = kz.epharm.pharmacists.entity.PharmacistStatus.active },
+        )
 
         // 2 батча: 1 pending + 1 approved
         batchRepository.save(
             PayoutBatchEntity(id = "pb_pending", period = "1–15 мая 2026",
-                pharmacists = 100, amount = 1_000_000, items = 100)
+                pharmacists = 2, amount = 45_000, items = 2)
                 .also { it.status = PayoutBatchStatus.pending },
         )
         batchRepository.save(
@@ -128,12 +138,14 @@ class FinanceIntegrationTest {
         )
         itemRepository.save(
             PayoutItemEntity(
-                id = "pi_2", batchId = "pb_pending", pharmacistId = "u_1",
-                pharmacistName = "Айгерим", pharmacy = "Europharma №100", city = "Алматы",
+                id = "pi_2", batchId = "pb_pending", pharmacistId = "u_2",
+                pharmacistName = "Бауыржан", pharmacy = "Europharma №100", city = "Алматы",
                 receipts = 100, rules = 40, amount = 30_000,
                 flag = "Высокий бонус",
             ),
         )
+        reservation("pi_1", "u_1", 15_000)
+        reservation("pi_2", "u_2", 30_000)
 
         adminUserRepository.save(
             AdminUserEntity(
@@ -167,7 +179,7 @@ class FinanceIntegrationTest {
         mockMvc.perform(get("/api/admin/payouts/pb_pending").header("Authorization", bearer))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.period").value("1–15 мая 2026"))
-            .andExpect(jsonPath("$.amount").value(1_000_000))
+            .andExpect(jsonPath("$.amount").value(45_000))
     }
 
     @Test
@@ -196,6 +208,20 @@ class FinanceIntegrationTest {
     }
 
     @Test
+    fun `POST approve inconsistent batch fails closed and keeps it pending`() {
+        val batch = batchRepository.findById("pb_pending").orElseThrow()
+        batch.amount = 45_001
+        batchRepository.saveAndFlush(batch)
+
+        mockMvc.perform(post("/api/admin/payouts/pb_pending/approve").header("Authorization", bearer))
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.code").value("CONFLICT"))
+
+        org.assertj.core.api.Assertions.assertThat(batchRepository.findById("pb_pending").orElseThrow().status)
+            .isEqualTo(PayoutBatchStatus.pending)
+    }
+
+    @Test
     fun `POST approve уже approved → 409 CONFLICT`() {
         mockMvc.perform(post("/api/admin/payouts/pb_approved/approve").header("Authorization", bearer))
             .andExpect(status().isConflict)
@@ -216,5 +242,14 @@ class FinanceIntegrationTest {
                 .content(objectMapper.writeValueAsString(req)),
         ).andExpect(status().isOk).andReturn()
         return objectMapper.readValue(result.response.contentAsString, LoginResponse::class.java)
+    }
+
+    private fun reservation(itemId: String, pharmacistId: String, amount: Long) {
+        jdbc.update(
+            """INSERT INTO pharmacist_wallet_entries
+                (id, pharmacist_id, source, source_id, amount_kzt, earned_delta_kzt, context_key, balance_after_kzt)
+                VALUES (?, ?, 'payout_reservation', ?, ?, 0, ?, 0)""",
+            UUID.randomUUID(), pharmacistId, itemId, -amount, "payout-item:$itemId",
+        )
     }
 }

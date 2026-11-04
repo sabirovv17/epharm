@@ -2292,7 +2292,7 @@ class TrainingService(
             capacity = event.capacity,
             occupied = occupied,
             registrationDeadline = event.registrationDeadline,
-            status = event.status,
+            status = effectiveEventStatus(event),
             materialsUrl = event.materialsUrl,
             comment = event.comment,
             createdAt = event.createdAt,
@@ -2457,7 +2457,7 @@ class TrainingService(
             mapUrl = event.mapUrl,
             capacity = event.capacity,
             occupied = occupied,
-            status = event.status,
+            status = effectiveEventStatus(event),
         )
     }
 

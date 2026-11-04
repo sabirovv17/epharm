@@ -4,6 +4,7 @@ import type {
   TrainingAssignmentStatus,
   TrainingFormat,
   TrainingProgramStatus,
+  TrainingStageStatus,
   TrainingStageType,
 } from '@/lib/api-types'
 
@@ -69,6 +70,16 @@ export const STAGE_TYPE_LABEL: Record<TrainingStageType, string> = {
   ai_exam: 'AI-экзамен',
   offline_event: 'Очное событие',
   manual_review: 'Ручная проверка',
+}
+
+export const STAGE_STATUS_LABEL: Record<TrainingStageStatus, string> = {
+  locked: 'Заблокирован',
+  available: 'Доступен',
+  in_progress: 'В процессе',
+  waiting_review: 'На проверке',
+  completed: 'Завершён',
+  failed: 'Не пройден',
+  skipped: 'Пропущен',
 }
 
 export function dateTime(value: string | null): string {

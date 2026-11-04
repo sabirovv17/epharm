@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useAdministrativeCapabilities } from '@/app/useAdministrativeCapabilities'
@@ -64,6 +64,7 @@ beforeEach(() => {
   vi.mocked(adminTaskApi.create).mockResolvedValue(created)
   vi.mocked(adminTaskGateway.get).mockResolvedValue(created)
 })
+afterEach(() => vi.unstubAllGlobals())
 describe('native task creation capability and required fields', () => {
   it('opens the native task in a focused dialog and returns to the same table row on Escape', async () => {
     const task = await vi.mocked(adminTaskGateway.get)(
@@ -331,6 +332,33 @@ describe('native task creation capability and required fields', () => {
     expect(await screen.findByText('Демо · Демо, 1')).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Всего пунктов' })).toBeInTheDocument()
     expect(adminTaskGateway.get).not.toHaveBeenCalled()
+  })
+  it('uses readable task cards instead of a clipped table on a laptop-width workspace', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({
+        matches: true,
+        media: '(max-width: 1199px)',
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    )
+    const task = await vi.mocked(adminTaskGateway.get)(
+      'task-new-demo',
+      new AbortController().signal,
+    )
+    vi.mocked(adminTaskApi.list).mockResolvedValue({
+      items: [{ ...task, itemCount: 3 }],
+      offset: 0,
+      limit: 20,
+      hasMore: false,
+    })
+
+    render(<MerchTasksPage />)
+    expect(await screen.findByRole('list', { name: 'Задания' })).toBeVisible()
+    expect(screen.getByRole('listitem')).toHaveTextContent('Демо-задание')
+    expect(screen.queryByRole('region', { name: 'Таблица заданий' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Открыть задание' })).toBeVisible()
   })
   it('keeps unknown historical task values and unavailable branch data explicit', async () => {
     const task = await vi.mocked(adminTaskGateway.get)(

@@ -88,6 +88,7 @@ import {
   ASSIGNMENT_STATUS_LABEL,
   FORMAT_LABEL,
   PROGRAM_STATUS_LABEL,
+  STAGE_STATUS_LABEL,
   STAGE_TYPE_LABEL,
   chipClass,
   dateOnly,
@@ -1179,7 +1180,7 @@ function ResultsTab({
               <td className="num px-3 py-3">{stage.score == null ? '—' : `${stage.score}%`}</td>
               <td className="px-3 py-3">
                 <span className={`chip ${chipClass(stage.status)}`}>
-                  {stage.status.replaceAll('_', ' ')}
+                  {STAGE_STATUS_LABEL[stage.status]}
                 </span>
               </td>
               <td className="px-5 py-3 text-right">
@@ -1419,7 +1420,7 @@ function CertificatesTab({
               <td className="px-3 py-3 font-semibold text-ink-800">{certificate.pharmacistName}</td>
               <td className="px-3 py-3 text-ink-700">{certificate.programName}</td>
               <td className="num px-3 py-3">
-                {certificate.score == null ? '—' : `${certificate.score}%`}
+                {certificate.score == null ? 'Без оценки' : `${certificate.score}%`}
               </td>
               <td className="num px-3 py-3 text-ink-600">{dateOnly(certificate.issuedAt)}</td>
               <td className="px-5 py-3 text-right">
@@ -1634,7 +1635,8 @@ function CreateCourseModal({
   const [error, setError] = useState<string | null>(null)
   const submit = () => {
     if (!title.trim()) return setError('Введите название курса')
-    if (status === 'published' && !canPublish) return setError('Нет права на публикацию курса')
+    if (status === 'published')
+      return setError('Сначала создайте курс как черновик и добавьте хотя бы один урок')
     if ((Number(bonus) || 0) !== 0 && !canConfigureBonus)
       return setError('Нет права на настройку бонуса')
     create.mutate(
@@ -1709,13 +1711,15 @@ function CreateCourseModal({
         <Field label="Статус">
           <Select
             value={status}
-            disabled={!canPublish}
+            disabled
             onChange={(value) => setStatus(value as CourseStatus)}
-            options={[
-              { value: 'draft', label: 'Черновик' },
-              { value: 'published', label: 'Опубликован' },
-            ]}
+            options={[{ value: 'draft', label: 'Черновик' }]}
           />
+          <p className="mt-1 text-[11px] text-ink-500">
+            {canPublish
+              ? 'Публикация станет доступна после добавления хотя бы одного урока.'
+              : 'Публикация доступна пользователю с соответствующим правом.'}
+          </p>
         </Field>
       </div>
     </Modal>

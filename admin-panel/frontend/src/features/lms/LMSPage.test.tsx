@@ -880,6 +880,33 @@ describe('Обучение — операционный раздел', () => {
     )
   })
 
+  it('явно показывает отсутствие оценки в выданном сертификате', () => {
+    lmsHooks.useTrainingCertificates.mockReturnValue(
+      queryResult([
+        {
+          id: 'certificate-1',
+          number: 'EPH-2026-0001',
+          assignmentId: assignment.id,
+          pharmacistId: pharmacist.id,
+          pharmacistName: pharmacist.name,
+          programName: program.name,
+          format: 'online',
+          issuedAt: '2026-11-04T08:00:00Z',
+          expiresAt: null,
+          score: null,
+          signerName: 'Руководитель учебного центра',
+          status: 'valid',
+          verificationToken: 'certificate-token',
+          pdfUrl: '/api/public/training/certificates/certificate-token/pdf',
+        },
+      ]),
+    )
+
+    renderPage('/lms?tab=certificates')
+
+    expect(screen.getByText('Без оценки')).toBeInTheDocument()
+  })
+
   it('не показывает редактор сертификата роли только для чтения', () => {
     useUiStore.setState({ authedUser: USERS.bauyrzhan })
     lmsHooks.useTrainingDashboard.mockReturnValue(

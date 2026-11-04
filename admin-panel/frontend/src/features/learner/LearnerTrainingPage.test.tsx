@@ -47,6 +47,52 @@ afterEach(() => {
 })
 
 describe('learner training portal', () => {
+  it('renders Kazakh actions and dates without mixed Russian or locale placeholders', async () => {
+    useUiStore.setState({ language: 'kk' })
+    localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+    const assignment = {
+      id: 'assignment-kk',
+      programName: 'Қауіпсіз кеңес беру',
+      pharmacyName: 'Дәріхана',
+      city: 'Алматы',
+      status: 'not_started',
+      format: 'online',
+      progressPct: 0,
+      dueAt: '2026-10-03T12:00:00+05:00',
+      stages: [
+        {
+          id: 'stage-kk',
+          title: 'Материалдар',
+          type: 'online_course',
+          status: 'available',
+          progressPct: 0,
+          course: {
+            id: 'course-kk',
+            title: 'Материалдар',
+            lessons: [{ id: 'lesson-kk', title: 'Кіріспе', kind: 'text', progressPct: 0 }],
+          },
+        },
+      ],
+    }
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/mobile/auth/me')
+        return json({ id: 'ph-kk', name: 'Айжан', pharmacyName: 'Дәріхана', city: 'Алматы' })
+      if (path === '/api/mobile/training')
+        return json({ total: 1, inProgress: 0, completed: 0, overdue: 0, assignments: [assignment] })
+      if (path === '/api/mobile/me/balance') return json({ balanceKzt: 0 })
+      if (path === '/api/mobile/promotions') return json([])
+      return json({ items: [] })
+    })
+
+    renderPortal('/learn/training')
+    expect(await screen.findByRole('button', { name: 'Курсты бастау' })).toBeVisible()
+    expect(screen.getByText('03 қазан 2026 ж. дейін')).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: 'Басты бет' }))
+    expect(screen.getByRole('button', { name: 'Дәріхананың фотоесебі' })).toBeVisible()
+    expect(screen.queryByText(/M10|Начать курс|Фотоотчёт аптеки/)).not.toBeInTheDocument()
+  })
+
   it('keeps a live lesson locked until the server marks the broadcast ended', async () => {
     sessionStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
     const assignment = {
@@ -1506,7 +1552,7 @@ describe('learner training portal', () => {
       programName: 'Завершено с оценкой',
       status: 'completed',
       progressPct: 100,
-      score: 80,
+      score: null,
       completedAt: '2026-10-29T10:00:00Z',
       certificate: { id: 'cert', number: 'EPH-80', score: 80, pdfUrl: '/certificate-80.pdf' },
     }
@@ -1555,7 +1601,7 @@ describe('learner training portal', () => {
     expect(
       within(scoredCard).getByRole('button', { name: 'Повторить материалы' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('Курс завершён без оценки')).toBeInTheDocument()
+    expect(screen.getByText('Результат теста не сохранён')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Мои курсы 1' }))
     expect(screen.getByRole('heading', { name: active.programName })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Профиль' }))
