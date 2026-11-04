@@ -67,6 +67,20 @@ async function expectNoDocumentOverflow(page: import('@playwright/test').Page) {
   expect(size.document).toBeLessThanOrEqual(size.viewport + 1)
 }
 
+test('built global search opens, filters sections and closes with Escape using its current labels', async ({ page }) => {
+  await openRules(page)
+  const opener = page.getByRole('button', { name: /Найти раздел или аптеку/i })
+  const input = page.getByPlaceholder('Раздел или аптека…', { exact: true })
+  await opener.click()
+  await expect(input).toBeVisible()
+  await input.fill('Rules')
+  await expect(page.getByRole('button', { name: /Rules Engine/ }).last()).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(input).not.toBeVisible()
+  await opener.click()
+  await expect(input).toHaveValue('')
+})
+
 test('HQ shell and Rules remain contained on an ordinary laptop viewport', async ({
   page,
 }, testInfo) => {
