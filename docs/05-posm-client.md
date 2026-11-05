@@ -146,8 +146,10 @@ The reviewed candidate reads `USERS.INN` only for the exact local `SESSIONS.USER
 in the same read-only Firebird snapshot. Missing/invalid/unreadable/ambiguous values
 remain unknown. The observed IIN/status are additive context fields; process, user,
 session, workstation or IIN changes invalidate the old in-memory grant and late responses.
-When IIN is missing/unavailable, the same snapshot may read `USERS.USERNAME_N` by that exact
-user ID. Only a usable full name with at least two complete name words qualifies; login names,
+When IIN is missing/unavailable, the same snapshot may read the textual account label
+`USERS.USERNAME` by that exact user ID, only when its value contains a complete full name.
+The opaque binary `USERNAME_N` is not decoded or treated as text. Only a usable full name
+with at least two complete name words qualifies; arbitrary login names,
 role labels, initials, receipt history and cached user guesses are not substitutes. Name/status
 changes also invalidate the grant. Names are never used to select an ePharm account.
 The new `POST /api/posm/staff/session/check` carries this context in the body, never in

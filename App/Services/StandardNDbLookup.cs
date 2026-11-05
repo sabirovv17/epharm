@@ -178,8 +178,8 @@ namespace CustomerDisplay.Services
                 using var command = connection.CreateCommand();
                 command.Transaction = transaction;
                 command.CommandTimeout = TimeoutSec();
-                // This is the exact account's human name, never a login or a cached sale/action name.
-                command.CommandText = "select first 2 u.USERNAME_N from USERS u where u.ID = @userId";
+                // The exact account label is comparable only when it contains a complete human name.
+                command.CommandText = "select first 2 u.USERNAME from USERS u where u.ID = @userId";
                 command.Parameters.AddWithValue("@userId", userId);
                 using var reader = command.ExecuteReader();
                 var values = new List<object?>(2);
