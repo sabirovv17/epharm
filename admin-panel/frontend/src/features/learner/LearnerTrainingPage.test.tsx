@@ -79,7 +79,13 @@ describe('learner training portal', () => {
       if (path === '/api/mobile/auth/me')
         return json({ id: 'ph-kk', name: 'Айжан', pharmacyName: 'Дәріхана', city: 'Алматы' })
       if (path === '/api/mobile/training')
-        return json({ total: 1, inProgress: 0, completed: 0, overdue: 0, assignments: [assignment] })
+        return json({
+          total: 1,
+          inProgress: 0,
+          completed: 0,
+          overdue: 0,
+          assignments: [assignment],
+        })
       if (path === '/api/mobile/me/balance') return json({ balanceKzt: 0 })
       if (path === '/api/mobile/promotions') return json([])
       return json({ items: [] })
@@ -356,60 +362,67 @@ describe('learner training portal', () => {
     expect(document.documentElement.lang).toBe('kk')
   })
 
-  it('enters the pharmacist portal with IIN and password', async () => {
-    const user = userEvent.setup()
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      const path = String(input)
-      if (path === '/api/mobile/auth/activation/status') {
-        return json({ passwordSet: true, phoneMasked: '+7 (***) ***-00-00' })
-      }
-      if (path === '/api/mobile/auth/login') {
-        return json({
-          tokens,
-          pharmacist: {
+  it.each(['1234', 'Farm123!'])(
+    'enters the pharmacist portal with IIN and password %s',
+    async (password) => {
+      const user = userEvent.setup()
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+        const path = String(input)
+        if (path === '/api/mobile/auth/activation/status') {
+          return json({ passwordSet: true, phoneMasked: '+7 (***) ***-00-00' })
+        }
+        if (path === '/api/mobile/auth/login') {
+          return json({
+            tokens,
+            pharmacist: {
+              id: 'ph-1',
+              name: 'Айжан',
+              phone: '+77070000000',
+              pharmacyName: 'Ауэзова 134',
+              city: 'Алматы',
+            },
+          })
+        }
+        if (path === '/api/mobile/auth/me') {
+          return json({
             id: 'ph-1',
             name: 'Айжан',
             phone: '+77070000000',
             pharmacyName: 'Ауэзова 134',
             city: 'Алматы',
-          },
-        })
-      }
-      if (path === '/api/mobile/auth/me') {
-        return json({
-          id: 'ph-1',
-          name: 'Айжан',
-          phone: '+77070000000',
-          pharmacyName: 'Ауэзова 134',
-          city: 'Алматы',
-        })
-      }
-      if (path === '/api/mobile/training')
-        return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
-      if (path === '/api/mobile/promotions') return json([])
-      return json({ message: `Unexpected request: ${path}` }, 500)
-    })
-    renderPortal()
+          })
+        }
+        if (path === '/api/mobile/training')
+          return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
+        if (path === '/api/mobile/promotions') return json([])
+        return json({ message: `Unexpected request: ${path}` }, 500)
+      })
+      renderPortal()
 
-    const iinInput = screen.getByRole('textbox', { name: 'ИИН' })
-    await user.type(iinInput, '061007500024')
-    expect(iinInput).toHaveValue('061007 500024')
-    await user.click(screen.getByRole('button', { name: 'Продолжить' }))
-    await user.type(screen.getByLabelText('Пароль'), 'Farm123!')
-    await user.click(screen.getByRole('button', { name: 'Войти' }))
+      const iinInput = screen.getByRole('textbox', { name: 'ИИН' })
+      await user.type(iinInput, '061007500024')
+      expect(iinInput).toHaveValue('061007 500024')
+      await user.click(screen.getByRole('button', { name: 'Продолжить' }))
+      expect(screen.getByLabelText('Пароль')).toHaveAttribute('minlength', '4')
+      await user.type(screen.getByLabelText('Пароль'), password.slice(0, 3))
+      expect(screen.getByRole('button', { name: 'Войти' })).toBeDisabled()
+      await user.type(screen.getByLabelText('Пароль'), password.slice(3))
+      expect(screen.getByRole('button', { name: 'Войти' })).toBeEnabled()
+      await user.click(screen.getByRole('button', { name: 'Войти' }))
 
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/mobile/auth/login',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ iin: '061007500024', password: 'Farm123!' }),
-        }),
-      )
-    })
-    expect(await screen.findByRole('heading', { name: 'Айжан' })).toBeInTheDocument()
-    expect(JSON.parse(localStorage.getItem('epharm.learner.tokens') || '{}')).toEqual(tokens)
-  })
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith(
+          '/api/mobile/auth/login',
+          expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({ iin: '061007500024', password }),
+          }),
+        )
+      })
+      expect(await screen.findByRole('heading', { name: 'Айжан' })).toBeInTheDocument()
+      expect(JSON.parse(localStorage.getItem('epharm.learner.tokens') || '{}')).toEqual(tokens)
+    },
+  )
 
   it('migrates an existing tab session to persistent browser storage', async () => {
     sessionStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))

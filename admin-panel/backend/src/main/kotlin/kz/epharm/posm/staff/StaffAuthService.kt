@@ -39,8 +39,7 @@ class StaffAuthService(
     fun login(device: PosmDeviceIdentity, request: StaffLoginRequest): StaffSessionResponse {
         validateContext(request.context)
         limit("login-device:${device.deviceId}",30,300)
-        limit("login-account:${request.iin}",10,300)
-        password(request.password,6)
+        password(request.password,4)
         val person=person(request.iin,true)
         val matches=encoder.matches(request.password,person?.password ?: dummyHash)
         if (!matches || person==null || person.status=="blocked") unauthorized()
@@ -105,7 +104,7 @@ class StaffAuthService(
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
     fun complete(device: PosmDeviceIdentity, request: StaffPasswordRequest, purpose: String): StaffSessionResponse? {
         request.context?.let(::validateContext)
-        password(request.password,8)
+        password(request.password,4)
         val phone=phone(request.phone)
         phoneLock.lock(phone)
         val id=runCatching { UUID.fromString(request.challengeId) }.getOrNull() ?: invalidOtp()
@@ -192,7 +191,7 @@ class StaffAuthService(
         if(count>max) throw AppException(ErrorCode.OTP_TOO_MANY_ATTEMPTS,"Слишком много попыток — попробуйте позже",HttpStatus.TOO_MANY_REQUESTS)
     }
     private fun phone(raw:String):String=PhoneUtil.normalize(raw).also { if(!Regex("\\+7[0-9]{10}").matches(it)) invalid() }
-    private fun password(value:String,min:Int) { if(value.length !in min..128 || value.toByteArray(Charsets.UTF_8).size>72) invalid() }
+    private fun password(value:String,min:Int) { if(value.isBlank() || value.length !in min..128 || value.toByteArray(Charsets.UTF_8).size>72) invalid() }
     private fun validateContext(context: StaffContext) { if(!StaffIinObservation.valid(context)) invalid() }
     private fun randomToken()=ByteArray(32).also(random::nextBytes).let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
     private fun hash(value:String)=MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }

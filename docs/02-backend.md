@@ -100,6 +100,12 @@ password or device credentials revokes grants. Password reset also revokes mobil
 tokens; previously issued mobile access JWTs retain their existing short lifetime until expiry.
 Transient expired staff challenges/sessions/rate counters are purged after 24 hours.
 
+RPS passwords accept 4–128 characters and at most 72 UTF-8 bytes, excluding all-whitespace
+values. Existing-password mobile/`/learn` login accepts the same minimum; unrelated password
+creation policies are unchanged. Both HTTP password-login controllers use one durable hashed-IIN
+budget (10 attempts / 5 minutes) before the authentication transaction. Failed logins do not
+roll back the budget, and switching routes or devices cannot bypass it. Device/SMS limits remain.
+
 The existing POSM heartbeat accepts optional `staffAuthStatus` from a strict fixed allowlist.
 Unknown/free-text values are discarded without rejecting the heartbeat; an omitted value clears
 obsolete diagnostics from an older client. The connected-screen API exposes the bounded current

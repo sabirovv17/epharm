@@ -119,8 +119,8 @@ namespace CustomerDisplay.Config
         public bool PharmacistPreview { get; set; } = false;
         /// <summary>Авто-обновление клиента из админки. false (env EPHARM_UPDATE_ENABLED=false) — выкл.</summary>
         public bool UpdateEnabled { get; set; } = true;
-        /// <summary>Production pause: only a reviewed new binary can re-enable staff windows, never JSON/env.</summary>
-        public static bool StaffAuthenticationReleaseEnabled => false;
+        /// <summary>Reviewed client implementation; local opt-out and server capability must also allow staff sign-in.</summary>
+        public static bool StaffAuthenticationReleaseEnabled => true;
         /// <summary>Opt-out switch; the release gate and backend capabilities must also enable sign-in.</summary>
         public bool StaffAuthenticationEnabled { get; set; } = true;
         /// <summary>Safety policy, not a verified Standard-N heartbeat cadence; confirm on the pilot.</summary>

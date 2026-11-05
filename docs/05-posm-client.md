@@ -30,8 +30,9 @@ The POSM client runs on a Windows cash-desk machine:
 11. Stores outgoing non-real-time events in a local SQLite outbox and retries safely.
 12. Sends any cashier id/name found in Standard-N as an audit signal; the backend decides the trusted
     internal pharmacist used for bonuses.
-13. Retains optional employee sign-in/registration/phone-reset code for a future pilot. Production
-    POSM 1.0.72 does not start this module; Standard-N/Windows and ordinary POSM loops stay usable.
+13. Supports employee sign-in/registration/phone-reset in POSM 1.0.76 when both local configuration
+    and the server protocol-2 capability enable it. Unavailable identity/service/SMS releases the
+    cashier prompt with a diagnostic; ordinary POSM loops remain independent.
 14. Shows and processes only non-demo pickup orders with cash payment. Missing delivery or payment
     fields fail closed. Cached orders are rechecked on startup; server-removed cards close after
     the next successful poll. Recommendations remain on a separate path.
@@ -139,7 +140,7 @@ catalog product ids.
 
 ## Config
 
-### Staff identity candidate (3 November 2026, not enabled in production)
+### Staff identity release (POSM 1.0.76)
 
 The reviewed candidate reads `USERS.INN` only for the exact local `SESSIONS.USER_ID`
 in the same read-only Firebird snapshot. Missing/invalid/unreadable/ambiguous values
@@ -177,7 +178,7 @@ The Windows CI job saves boolean proof and synthetic renders; an explicit nonint
 opt-in is recorded as such and does not prove physical cashier desktop integration.
 The interactive Windows/Standard-N pilot remains required before enabling staff gates.
 
-POSM 1.0.72 temporarily disables the entire staff module with the read-only
+The historical POSM 1.0.72–1.0.75 production pause disabled the staff module with the read-only
 `EpharmConfig.StaffAuthenticationReleaseEnabled=false` release gate. No HTTP client, staff DB
 observer, tray or staff window starts; JSON, environment or server capabilities cannot override it.
 Production also keeps `POSM_STAFF_AUTH_ENABLED=false` so older responsive clients close their
@@ -215,7 +216,7 @@ Staff-channel failures must not stop receipt polling, updates, QR, recommendatio
 | `AppLogPath`                           | `EPHARM_APP_LOG`                           | POSM app log path.                                                                 |
 | `StandardNLogPaths`                    | `EPHARM_STANDARDN_LOG_PATHS`               | Optional explicit paths (`;`-separated in env).                                    |
 | `StandardNReceiptPollMs`               | `EPHARM_STANDARDN_RECEIPT_POLL_MS`         | Active receipt poll interval; default 400ms.                                       |
-| `StaffAuthenticationEnabled`           | `EPHARM_STAFF_AUTH_ENABLED`                | Local opt-out; cannot override the disabled release gate in 1.0.72.                |
+| `StaffAuthenticationEnabled`           | `EPHARM_STAFF_AUTH_ENABLED`                | Local opt-out; server protocol-2 capability must also allow sign-in.               |
 | `StaffSessionMaxAgeSec`                | `EPHARM_STAFF_SESSION_MAX_AGE_SEC`         | Staff DB-heartbeat freshness policy, default 300s; verify actual cadence in pilot. |
 | `ReceiptCaptureEnabled`                | `EPHARM_RECEIPT_CAPTURE_ENABLED`           | Enables exact-only local capture; default true.                                    |
 | `ReceiptCaptureDir`                    | `EPHARM_RECEIPT_CAPTURE_DIR`               | Root for active/pending/quarantine receipt artifacts.                              |
@@ -237,7 +238,7 @@ cash-event marker is observed. The cache is `C:\Epharm\standardn-log-paths.txt`.
 
 `Enabled` is effective only when key identity fields are present.
 
-When the staff module is explicitly re-enabled in a future release, staff identity is observed
+When the reviewed staff module is explicitly enabled, staff identity is observed
 independently of an open receipt: one local cashier process
 (PID/start time), exact canonical workstation and one fresh session. It never borrows the
 receipt reader's sole-foreign-session or substring fallback. Unknown/stale/ambiguous observations
@@ -536,3 +537,22 @@ while the separately calculated total was already current. Identity merge, row o
 absolute quantity, zero/removal and recommendation triggers retain their contracts.
 The core lifecycle suite compiles this real method instead of a fake upsert.
 The staff module remains disabled; this candidate does not publish a fleet update.
+
+### Password and presentation contract in 1.0.76
+
+The reviewed release gate is enabled in the new binary; old paused binaries remain unchanged.
+Both `StaffAuthenticationEnabled` and `POSM_STAFF_AUTH_ENABLED` are still required. The latter
+remains false by default and is the fleet emergency disable switch (capability poll up to 60 seconds).
+Do not confuse a prepared release with confirmed delivery to every connected or offline cash desk.
+
+RPS registration, activation, reset and login accept 4–128 characters, at most 72 UTF-8 bytes;
+all-whitespace passwords are rejected without trimming valid passwords. Existing-password login
+in the separate `/learn` accepts the same minimum. Its unrelated password-creation flows and
+admin-password policy are unchanged. Both public password-login routes share a durable per-IIN
+budget of ten attempts per five minutes; the device limit and SMS limits remain independent.
+
+The preserved teal/terracotta design uses the current ePharm logo, Manrope, responsive panels,
+scrolling and input templates with an unclipped content host. Presentation does not replace
+current context checks, fresh-generation acceptance, automatic closure or fail-open behavior.
+Eight synthetic native WPF cases include four-character registration and all six input geometries.
+Their fake HTTP evidence is separate from an interactive Standard-N/real-SMS pilot.

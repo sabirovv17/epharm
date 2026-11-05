@@ -35,7 +35,7 @@ data class IinPasswordLoginRequest(
     @field:Iin
     val iin: String,
     @field:NotBlank
-    @field:Size(min = 6, max = 128)
+    @field:Size(min = 4, max = 128)
     val password: String,
 )
 

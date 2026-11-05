@@ -40,11 +40,14 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/mobile/auth")
 class MobileAuthController(
     private val mobileAuthService: MobileAuthService,
+    private val passwordLoginLimiter: kz.epharm.mobile.auth.service.PharmacistPasswordLoginLimiter,
 ) {
 
     @PostMapping("/login")
-    fun login(@Valid @RequestBody req: IinPasswordLoginRequest): MobileAuthResponse =
-        mobileAuthService.login(req.iin, req.password)
+    fun login(@Valid @RequestBody req: IinPasswordLoginRequest): MobileAuthResponse {
+        passwordLoginLimiter.check(req.iin)
+        return mobileAuthService.login(req.iin, req.password)
+    }
 
     @PostMapping("/activation/status")
     fun activationStatus(@Valid @RequestBody req: ActivationStatusRequest): ActivationStatusResponse =

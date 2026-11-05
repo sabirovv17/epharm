@@ -17,7 +17,7 @@ data class StaffContext(
 )
 data class StaffLoginRequest(
     @field:Iin @field:NotBlank @field:Size(min=12,max=12) val iin: String,
-    @field:Size(min=6,max=128) val password: String,
+    @field:NotBlank @field:Size(min=4,max=128) val password: String,
     @field:Valid val context: StaffContext,
 )
 data class StaffOtpRequest(
@@ -30,7 +30,7 @@ data class StaffPasswordRequest(
     @field:Pattern(regexp="[0-9]{4,8}") val code: String,
     @field:Iin @field:NotBlank @field:Size(min=12,max=12) val iin: String,
     @field:Size(max=32) @field:Pattern(regexp="[+0-9 ()\\-]{6,32}") val phone: String,
-    @field:Size(min=8,max=128) val password: String,
+    @field:NotBlank @field:Size(min=4,max=128) val password: String,
     @field:Size(min=3,max=255) val name: String? = null,
     @field:Valid val context: StaffContext? = null,
 )

@@ -25,7 +25,7 @@ internal static class Program
 {
     private const string FixtureIin = "000101500011";
     private const string FixturePhone = "+77000000012";
-    private const string FixturePassword = "Fixture-only-2026";
+    private const string FixturePassword = "F4x!";
     private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true, WriteIndented = true };
     private static readonly List<CaseProof> Results = new();
     private static readonly List<StaffAuthWindow> Windows = new();
@@ -73,6 +73,7 @@ internal static class Program
                 await Run("sms-error-bypasses-without-grant", proof => ServiceFailure(true, proof));
                 await Run("sms-wait-bypasses-without-grant", SmsWait);
                 await Run("unknown-cashier-context-is-closable", UnknownContext);
+                await Run("responsive-inputs-preserve-native-text-height", InputGeometry);
             }
             catch (Exception error)
             {
@@ -82,7 +83,7 @@ internal static class Program
             {
                 watchdog.Stop();
                 foreach (var window in Windows) if (window.IsVisible) window.Dismiss();
-                var success = Results.Count == 7 && Results.All(result => result.Passed);
+                var success = Results.Count == 8 && Results.All(result => result.Passed);
                 WriteProof(success, null);
                 application.Shutdown(success ? 0 : 1);
             }
@@ -215,6 +216,7 @@ internal static class Program
         Field<TextBox>(window, "_code").Text = "5445";
         SaveOwnWindow(window, "02-registration-ready");
         Click(Field<Button>(window, "_submit")); await Until(() => !window.IsVisible || !Busy(window));
+        Check(proof, "four-character-password-is-accepted", FixturePassword.Length == 4 && handler.RegisterContextMatched);
         Check(proof, "fake-register-request-has-exact-context", handler.RegisterContextMatched);
         Check(proof, "registration-authenticated-event", eventSeen);
         Check(proof, "parent-generation-context-grant-accepted", parentAccepted && state.IsAuthenticated(DateTimeOffset.UtcNow));
@@ -275,6 +277,30 @@ internal static class Program
         Check(proof, "unknown-session-retains-registration", Field<Button>(window, "_newStaff").IsEnabled);
         window.Close(); await Idle(); Check(proof, "unknown-session-window-can-close", !window.IsVisible && state.Grant == null);
         Check(proof, "no-http-requests", handler.TotalCalls == 0);
+    }
+
+    private static async Task InputGeometry(Dictionary<string, bool> proof)
+    {
+        using var handler = new FakeHandler(); using var client = new StaffAuthClient(Config(), handler);
+        var window = Window(client, Context(), false);
+        window.Width = 720; window.Height = 520;
+        RegistrationFields(window); Field<TextBox>(window, "_code").Text = "5445";
+        await Idle(); window.UpdateLayout();
+        Check(proof, "compact-layout-hides-brand-instead-of-cropping-form", Field<Border>(window, "_brandPanel").Visibility == Visibility.Collapsed);
+        foreach (var name in new[] { "_iin", "_name", "_phone", "_password", "_passwordConfirmation", "_code" })
+        {
+            var input = Field<Control>(window, name);
+            input.BringIntoView(); await Idle(); window.UpdateLayout(); input.ApplyTemplate();
+            var host = input.Template.FindName("PART_ContentHost", input) as ScrollViewer;
+            Check(proof, name + "-native-host-retained", host != null);
+            Check(proof, name + "-padding-applied-once", host!.Margin == new Thickness(0));
+            Check(proof, name + "-text-has-enough-height", host.ActualHeight - host.Padding.Top - host.Padding.Bottom >= input.FontSize * 1.2);
+        }
+        Click(Field<Button>(window, "_languageKk"));
+        Check(proof, "kazakh-form-keeps-four-character-policy", Field<TextBlock>(window, "_passwordHint").Text.Contains("4–128", StringComparison.Ordinal));
+        Check(proof, "language-change-retains-entered-password", Field<PasswordBox>(window, "_password").Password == FixturePassword);
+        SaveOwnWindow(window, "03-registration-compact-kazakh");
+        Check(proof, "presentation-never-sends-requests", handler.TotalCalls == 0);
     }
 
     private static void WriteProof(bool passed, string? note)
