@@ -448,14 +448,37 @@ export default function PharmacistsPage() {
                     </td>
                     <td className="num whitespace-nowrap px-3 py-2.5 text-ink-700">
                       {personalDataVisible ? p.iin || '—' : maskedIin(p.iin)}
-                      {p.standardNIinMatchStatus === 'MISMATCH' && (
+                      {p.standardNIinMatchStatus === 'MISMATCH' ||
+                      (p.standardNIdentityMatchMethod === 'IIN' &&
+                        p.standardNIdentityMatchStatus === 'MISMATCH') ? (
                         <div
                           className="mt-1 max-w-[145px] whitespace-normal text-[11px] font-semibold text-accent-warning"
-                          title="При последнем входе ИИН сотрудника отличался от ИИН текущего аккаунта Стандарт‑Н. Это диагностическая пометка, а не подтверждение получателя бонусов."
+                          title={t('phc.standardNIinMismatchHint')}
                         >
-                          ИИН не совпадает со Стандарт‑Н
+                          {t('phc.standardNIinMismatch')}
                         </div>
-                      )}
+                      ) : p.standardNIdentityMatchMethod === 'NAME' &&
+                        (p.standardNIdentityMatchStatus === 'MATCH' ||
+                          p.standardNIdentityMatchStatus === 'MISMATCH') ? (
+                        <div
+                          className={`mt-1 max-w-[145px] whitespace-normal text-[11px] font-semibold ${
+                            p.standardNIdentityMatchStatus === 'MISMATCH'
+                              ? 'text-accent-warning'
+                              : 'text-ink-500'
+                          }`}
+                          title={t(
+                            p.standardNIdentityMatchStatus === 'MISMATCH'
+                              ? 'phc.standardNNameMismatchHint'
+                              : 'phc.standardNNameMatchHint',
+                          )}
+                        >
+                          {t(
+                            p.standardNIdentityMatchStatus === 'MISMATCH'
+                              ? 'phc.standardNNameMismatch'
+                              : 'phc.standardNNameMatch',
+                          )}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2.5 text-ink-700">
                       <div className={!p.pharmacyName ? 'font-bold text-accent-warning' : ''}>

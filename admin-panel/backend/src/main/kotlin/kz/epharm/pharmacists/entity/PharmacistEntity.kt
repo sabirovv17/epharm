@@ -83,6 +83,15 @@ class PharmacistEntity(
 
     @Column(name = "standard_n_iin_checked_at", insertable = false, updatable = false)
     var standardNIinCheckedAt: Instant? = null,
+
+    @Column(name = "standard_n_identity_match_method", nullable = false, length = 8, updatable = false)
+    var standardNIdentityMatchMethod: String = "NONE",
+
+    @Column(name = "standard_n_identity_match_status", nullable = false, length = 8, updatable = false)
+    var standardNIdentityMatchStatus: String = "UNKNOWN",
+
+    @Column(name = "standard_n_identity_checked_at", insertable = false, updatable = false)
+    var standardNIdentityCheckedAt: Instant? = null,
 ) {
     var tier: PharmacistTier
         get() = PharmacistTier.valueOf(tierRaw)

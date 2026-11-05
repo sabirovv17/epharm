@@ -69,8 +69,7 @@ public sealed class StaffAuthWindow : Window
     {
         _client = client;
         _context = context;
-        requireSignIn = requireSignIn && context?.StandardNIinStatus == "available" &&
-            Regex.IsMatch(context.StandardNIin ?? "", "^[0-9]{12}$");
+        requireSignIn = requireSignIn && StaffPromptPolicy.HasComparableIdentity(context);
         _requireSignIn = requireSignIn;
         _sessionRequiredMessage = (sessionReason ?? "Кассовая сессия ещё не подтверждена.") +
             " Вход будет доступен после определения текущей сессии Standard-N. Регистрация и восстановление пароля доступны сейчас; касса продолжает работать.";

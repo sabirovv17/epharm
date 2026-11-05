@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace CustomerDisplay.Services;
 
@@ -9,18 +10,39 @@ public sealed record StaffCashSessionRow(long SessionId, string UserId, long? Wo
     DateTime? HeartbeatAt = null, DateTime? DatabaseNow = null);
 public sealed record StaffObservedSession(string ProcessIdentity, string ExternalUserId,
     string ExternalSessionId, string WorkstationId, string? StandardNIin = null,
-    string StandardNIinStatus = "unavailable")
+    string StandardNIinStatus = "unavailable", string? StandardNFullName = null,
+    string StandardNFullNameStatus = "unavailable")
 {
     public string Key => ProcessIdentity + ":" + WorkstationId + ":" + ExternalSessionId + ":" + ExternalUserId +
-        ":" + StandardNIinStatus + ":" + StandardNIin;
+        ":" + StandardNIinStatus + ":" + StandardNIin + ":" + StandardNFullNameStatus + ":" + StandardNFullName;
 }
 public sealed record StaffSessionObservation(string Status, StaffObservedSession? Session = null);
 public sealed record StaffIinObservation(string Status, string? Iin = null);
+public sealed record StaffNameObservation(string Status, string? FullName = null);
 
 /// <summary>Authoritative staff observations never inherit the receipt-reader's heuristic fallbacks.</summary>
 public static class StaffSessionResolver
 {
     public const int MaximumObservationRows = 100;
+    private static readonly HashSet<string> GenericNames = new(StringComparer.OrdinalIgnoreCase) {
+        "админ", "администратор", "менеджер", "кассир", "касса", "оператор", "пользователь", "сотрудник",
+        "фармацевт", "аптека", "тест", "демо", "әкімші", "пайдаланушы", "дәріхана", "сынақ",
+        "cashier", "admin", "administrator", "user", "operator", "employee", "demo", "test", "manager",
+    };
+    private static readonly Regex FullNameWord = new(@"\A\p{L}+(?:[-'’]\p{L}+)*\z", RegexOptions.CultureInvariant);
+
+    public static StaffNameObservation ReadFullName(IEnumerable<object?> values)
+    {
+        var rows = values.Take(2).ToArray();
+        if (rows.Length > 1) return new("ambiguous");
+        if (rows.Length == 0 || rows[0] == null || rows[0] == DBNull.Value) return new("missing");
+        if (rows[0] is not string value || value.Length > 255) return new("invalid");
+        var parts = value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return new("missing");
+        if (parts.Length < 2 || parts.Any(part => GenericNames.Contains(part) || part.Count(char.IsLetter) < 2 ||
+            !FullNameWord.IsMatch(part))) return new("invalid");
+        return new("available", string.Join(" ", parts));
+    }
 
     // The vendor's USERS.INN is text. Never invent leading zeroes or infer IIN from a name/login.
     public static StaffIinObservation ReadIin(IEnumerable<object?> values)

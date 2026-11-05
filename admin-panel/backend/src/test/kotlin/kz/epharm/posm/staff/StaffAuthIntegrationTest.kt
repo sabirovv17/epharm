@@ -117,6 +117,68 @@ class StaffAuthIntegrationTest {
             .andExpect(status().`is`(expected))
     }
 
+    @Test fun `name fallback registration is active scoped explicit and exactly bound while legacy remains usable`() {
+        val newIin="000101500011";val number="+77000000012"
+        val observed=context.copy(standardNIinStatus="missing",standardNFullName="Мұхтар\u00a0Әуезов",standardNFullNameStatus="available")
+        val id=challenge("register",newIin,number)
+        val before=jdbc.queryForObject("SELECT count(*) FROM posm_pharmacist_mappings",Long::class.java)
+        val result=post("/register",StaffPasswordRequest(id,"1234",newIin,number,"A1!b","ӘУЕЗОВ Мұхтар",observed))
+        assertEquals("authenticated",result["status"].asText())
+        assertEquals(json.valueToTree<com.fasterxml.jackson.databind.JsonNode>(observed),result["context"])
+        val row=jdbc.queryForMap("""SELECT status,pharmacy_id,standard_n_iin_match_status,
+            standard_n_identity_match_method,standard_n_identity_match_status,standard_n_identity_checked_at FROM pharmacists WHERE iin=?""",newIin)
+        assertEquals("active",row["status"]);assertEquals("staff-pharmacy",row["pharmacy_id"])
+        assertEquals("UNKNOWN",row["standard_n_iin_match_status"])
+        assertEquals("NAME",row["standard_n_identity_match_method"]);assertEquals("MATCH",row["standard_n_identity_match_status"])
+        assertNotNull(row["standard_n_identity_checked_at"])
+        val token=result["sessionToken"].asText()
+        checkedSession(token,observed)
+        checkedSession(token,observed.copy(standardNFullName="Другой Мұхтар"),401)
+        checkedSession(token,observed.copy(standardNFullName=null,standardNFullNameStatus="missing"),401)
+        checkedSession(token,context,401)
+        val legacy=mvc.perform(get("/api/posm/staff/session").header("X-Posm-Key",key).header("X-Staff-Session",token)
+            .param("standardNUserId",context.standardNUserId).param("standardNSessionId",context.standardNSessionId)
+            .param("workstationId",context.workstationId).param("processInstanceId",context.processInstanceId))
+            .andExpect(status().isOk).andReturn()
+        val legacyContext=json.readTree(legacy.response.contentAsByteArray)["context"]
+        assertTrue(legacyContext["standardNIin"].isNull);assertTrue(legacyContext["standardNFullName"].isNull)
+        assertEquals("unavailable",legacyContext["standardNFullNameStatus"].asText())
+        mobileLogin(newIin,"A1!b")
+        assertEquals(before,jdbc.queryForObject("SELECT count(*) FROM posm_pharmacist_mappings",Long::class.java))
+    }
+
+    @Test fun `name diagnostics never rescue an IIN mismatch or authenticate a different account`() {
+        jdbc.update("UPDATE pharmacists SET name='Сабиров Амир' WHERE id='staff-person'")
+        val named=context.copy(standardNIinStatus="missing",standardNFullName="Амир Сабиров",standardNFullNameStatus="available")
+        for((observed,expected) in listOf(
+            named to Triple("NAME","MATCH","UNKNOWN"),
+            named.copy(standardNFullName="Асанов Амир") to Triple("NAME","MISMATCH","UNKNOWN"),
+            named.copy(standardNIinStatus="invalid") to Triple("NONE","UNKNOWN","UNKNOWN"),
+            named.copy(standardNIin="000101500011",standardNIinStatus="available") to Triple("IIN","MISMATCH","MISMATCH"),
+            named.copy(standardNIin=iin,standardNIinStatus="available") to Triple("IIN","MATCH","MATCH"),
+        )) {
+            post("/login",StaffLoginRequest(iin,"Password123!",observed))
+            val row=jdbc.queryForMap("SELECT standard_n_iin_match_status,standard_n_identity_match_method,standard_n_identity_match_status FROM pharmacists WHERE id='staff-person'")
+            assertEquals(expected.first,row["standard_n_identity_match_method"]);assertEquals(expected.second,row["standard_n_identity_match_status"])
+            assertEquals(expected.third,row["standard_n_iin_match_status"])
+        }
+        post("/login",StaffLoginRequest("880404400014","Password123!",named),expected=401)
+        post("/login",StaffLoginRequest(iin,"wrong",named),expected=401)
+        post("/login",StaffLoginRequest(iin,"Password123!",named),credential=key2,expected=401)
+        jdbc.update("UPDATE pharmacists SET status='blocked' WHERE id='staff-person'")
+        post("/login",StaffLoginRequest(iin,"Password123!",named),expected=401)
+    }
+
+    @Test fun `name capability is additive to protocol two and malformed name context is rejected`() {
+        val response=mvc.perform(get("/api/posm/staff/capabilities").header("X-Posm-Key",key)).andExpect(status().isOk).andReturn()
+        val capabilities=json.readTree(response.response.contentAsByteArray)
+        assertEquals(2,capabilities["protocolVersion"].asInt());assertTrue(capabilities["nameFallbackSupported"].asBoolean())
+        post("/login",StaffLoginRequest(iin,"Password123!",context.copy(standardNFullName="Сабиров Амир")),expected=400)
+        post("/login",StaffLoginRequest(iin,"Password123!",context.copy(standardNFullNameStatus="available")),expected=400)
+        post("/login",StaffLoginRequest(iin,"Password123!",context.copy(standardNFullName="А".repeat(256),standardNFullNameStatus="available")),expected=400)
+        login()
+    }
+
     @Test fun `four character registration authenticates in POSM and learn while three is rejected`() {
         val newIin="000101500011";val number="+77000000012"
         val observed=context.copy(standardNIin=newIin,standardNIinStatus="available")
@@ -441,6 +503,9 @@ class StaffAuthIntegrationTest {
         assertEquals("Updated profile name",fresh.name)
         assertEquals("MISMATCH",fresh.standardNIinMatchStatus)
         assertEquals(checked?.toInstant(),fresh.standardNIinCheckedAt)
+        assertEquals("IIN",fresh.standardNIdentityMatchMethod)
+        assertEquals("MISMATCH",fresh.standardNIdentityMatchStatus)
+        assertNotNull(fresh.standardNIdentityCheckedAt)
     }
 
     @Test fun `expired authentication data is purged without deleting current grants and proofs`() {

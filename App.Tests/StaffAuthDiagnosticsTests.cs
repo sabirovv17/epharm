@@ -47,8 +47,9 @@ public sealed class StaffAuthDiagnosticsTests
     [Fact]
     public void CapabilityDistinguishesServerDisabledAndUnsupportedProtocol()
     {
-        Assert.Equal(new(true, "enabled"), StaffAuthDiagnostics.Capability(new(true, 2)));
-        Assert.Equal(new(false, "server_disabled"), StaffAuthDiagnostics.Capability(new(false, 2)));
+        Assert.Equal(new(true, "enabled"), StaffAuthDiagnostics.Capability(new(true, 2, true)));
+        Assert.Equal(new(false, "server_disabled"), StaffAuthDiagnostics.Capability(new(false, 2, true)));
+        Assert.Equal(new(false, "unsupported_protocol"), StaffAuthDiagnostics.Capability(new(true, 2)));
         Assert.Equal(new(false, "unsupported_protocol"), StaffAuthDiagnostics.Capability(new(true, 1)));
         Assert.Equal(new(false, "unsupported_protocol"), StaffAuthDiagnostics.Capability(new(true, 3)));
         Assert.Equal(new(false, "unsupported_protocol"), StaffAuthDiagnostics.Capability(null));

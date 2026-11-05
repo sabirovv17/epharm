@@ -28,8 +28,8 @@ public static class StaffAuthDiagnostics
         _ => "endpoint_unavailable",
     });
 
-    // A v1 backend cannot complete the new contextual flow; never open a mandatory prompt on it.
-    public static StaffCapabilityCheck Capability(StaffCapabilities? capabilities) => capabilities?.ProtocolVersion != 2
+    // Older protocol-2 backends cannot echo the name context; do not start a prompt on them.
+    public static StaffCapabilityCheck Capability(StaffCapabilities? capabilities) => capabilities?.ProtocolVersion != 2 || !capabilities.NameFallbackSupported
         ? new(false, "unsupported_protocol")
         : capabilities.Enabled ? new(true, "enabled") : new(false, "server_disabled");
 

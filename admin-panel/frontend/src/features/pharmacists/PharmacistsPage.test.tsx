@@ -45,8 +45,9 @@ vi.mock('@/lib/queries/lms', () => lmsHooks)
 const accessHooks = vi.hoisted(() => ({ useAdministrativeCapabilities: vi.fn() }))
 vi.mock('@/app/useAdministrativeCapabilities', () => accessHooks)
 const originalUser = useUiStore.getState().authedUser
+const originalLanguage = useUiStore.getState().language
 afterEach(() => {
-  act(() => useUiStore.setState({ authedUser: originalUser }))
+  act(() => useUiStore.setState({ authedUser: originalUser, language: originalLanguage }))
 })
 
 function mkPharmacist(over: Partial<PharmacistDto> = {}): PharmacistDto {
@@ -91,6 +92,7 @@ beforeEach(() => {
     data: { version: 1 },
   })
   useUiStore.setState({
+    language: 'ru',
     authedUser: {
       id: 'hq-test',
       email: 'hq@test.invalid',
@@ -498,19 +500,95 @@ describe('PharmacistsPage — список и actions', () => {
   it('показывает пометку только при подтверждённом несовпадении ИИН Стандарт‑Н', () => {
     setPharmacists([
       mkPharmacist({ id: 'mismatch', standardNIinMatchStatus: 'MISMATCH' }),
+      mkPharmacist({
+        id: 'identity-iin-mismatch',
+        standardNIdentityMatchMethod: 'IIN',
+        standardNIdentityMatchStatus: 'MISMATCH',
+      }),
+      mkPharmacist({
+        id: 'iin-primary',
+        standardNIinMatchStatus: 'MISMATCH',
+        standardNIdentityMatchMethod: 'NAME',
+        standardNIdentityMatchStatus: 'MATCH',
+      }),
       mkPharmacist({ id: 'match', standardNIinMatchStatus: 'MATCH' }),
       mkPharmacist({ id: 'unknown', standardNIinMatchStatus: 'UNKNOWN' }),
       mkPharmacist({ id: 'legacy' }),
     ])
     renderPage()
     const warning = 'ИИН не совпадает со Стандарт‑Н'
-    expect(within(screen.getByTestId('pharmacist-row-mismatch')).getByText(warning)).toBeVisible()
+    for (const id of ['mismatch', 'identity-iin-mismatch', 'iin-primary']) {
+      const row = screen.getByTestId(`pharmacist-row-${id}`)
+      expect(within(row).getByText(warning)).toBeVisible()
+      expect(within(row).queryByText('Совпадение по ФИО')).not.toBeInTheDocument()
+    }
     for (const id of ['match', 'unknown', 'legacy']) {
       expect(
         within(screen.getByTestId(`pharmacist-row-${id}`)).queryByText(warning),
       ).not.toBeInTheDocument()
     }
   })
+
+  it.each(['ru', 'kk'] as const)(
+    'показывает диагностику по ФИО на языке %s без раскрытия персональных данных',
+    (language) => {
+      useUiStore.setState({ language })
+      setPharmacists([
+        ...(['MATCH', 'MISMATCH', 'UNKNOWN'] as const).map((status) =>
+          mkPharmacist({
+            id: `name-${status}`,
+            standardNIinMatchStatus: 'UNKNOWN',
+            standardNIdentityMatchMethod: 'NAME',
+            standardNIdentityMatchStatus: status,
+            standardNIdentityCheckedAt: '2026-11-06T00:00:00Z',
+          }),
+        ),
+        mkPharmacist({
+          id: 'redacted',
+          iin: null,
+          phone: null,
+          standardNIinMatchStatus: null,
+          standardNIinCheckedAt: null,
+          standardNIdentityMatchMethod: null,
+          standardNIdentityMatchStatus: null,
+          standardNIdentityCheckedAt: null,
+        }),
+        mkPharmacist({
+          id: 'none',
+          standardNIdentityMatchMethod: 'NONE',
+          standardNIdentityMatchStatus: 'UNKNOWN',
+        }),
+      ])
+      renderPage()
+
+      const matchLabel = language === 'ru' ? 'Совпадение по ФИО' : 'Аты-жөні бойынша сәйкестік'
+      const mismatchLabel = language === 'ru' ? 'ФИО не совпадает' : 'Аты-жөні сәйкес келмейді'
+      const match = within(screen.getByTestId('pharmacist-row-name-MATCH')).getByText(matchLabel)
+      expect(match).toBeVisible()
+      expect(match).toHaveClass('text-ink-500')
+      expect(match.title).toContain(
+        language === 'ru' ? 'ИИН текущего аккаунта Стандарт‑Н недоступен' : 'ЖСН-і қолжетімсіз',
+      )
+      const mismatch = within(screen.getByTestId('pharmacist-row-name-MISMATCH')).getByText(
+        mismatchLabel,
+      )
+      expect(mismatch).toBeVisible()
+      expect(mismatch).toHaveClass('text-accent-warning')
+      for (const id of ['name-UNKNOWN', 'redacted', 'none']) {
+        const row = screen.getByTestId(`pharmacist-row-${id}`)
+        expect(within(row).queryByText(matchLabel)).not.toBeInTheDocument()
+        expect(within(row).queryByText(mismatchLabel)).not.toBeInTheDocument()
+        expect(row).not.toHaveTextContent('null')
+      }
+      const table = screen.getByTestId('pharmacists-table')
+      expect(table).not.toHaveTextContent('950101000001')
+      expect(table).not.toHaveTextContent('+7 (701) 100-10-20')
+      expect(table).not.toHaveTextContent('2026-11-06T00:00:00Z')
+      expect(
+        within(screen.getByTestId('pharmacist-row-name-MATCH')).getAllByRole('cell'),
+      ).toHaveLength(within(table).getAllByRole('columnheader').length)
+    },
+  )
 
   it('сохраняет настоящий ноль и полную сумму для нескрытых балансов', () => {
     setPharmacists([

@@ -93,6 +93,17 @@ assign or activate a pharmacist. `POSM_STAFF_AUTH_ENABLED=false` is the safe def
 Neither this flag nor a failed login gates Standard-N, recommendation delivery or sales.
 See [manual staff acceptance](rollout/rps-auth-test.md).
 
+Protocol 2 additionally advertises `nameFallbackSupported=true`; the new client requires this
+marker and disables its whole staff flow on an older server. `StaffContext` appends optional
+`standardNFullName` and `standardNFullNameStatus`, persisted by V096 and bound to POST session
+validation. Legacy GET projects both IIN and name observations away for old four-field clients.
+An available IIN always takes priority. Only missing/unavailable IIN permits exact full-name
+comparison against the already authenticated profile: case/whitespace and word order are
+normalized, with all words retained. Initials, generic role labels and fuzzy/partial matches
+do not identify a person. There is no account lookup or financial seller binding by name.
+IIN-only diagnostics remain `UNKNOWN` for this path; separate permission-filtered identity
+method/status/check time explain name matches and mismatches without exposing source names.
+
 OTP issuance/verification serializes Daribar's phone-wide codes across mobile and POSM.
 New staff challenges are purpose/account/device-bound and one-use; independent transactions
 preserve invalidation and attempt budgets on request errors. Changing staff status/pharmacy/

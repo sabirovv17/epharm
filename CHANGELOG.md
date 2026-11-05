@@ -14,6 +14,9 @@ All notable production changes to Epharm are recorded here. The format follows
 - Accept passwords of at least four characters in RPS registration, activation, recovery and
   login, including existing-password login in the separate `/learn` cabinet. Keep administrator
   password policy unchanged and enforce one shared IIN login limiter across both entry points.
+- Compare the authenticated pharmacist's full name with the exact Standard-N user's display
+  name when source IIN is missing or unavailable. Keep actual IIN mismatches authoritative,
+  preserve personal IIN/password authentication, and report name matching separately in the registry.
 
 ### Fixed
 
@@ -25,7 +28,8 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ### Deployment
 
-- No new migration; preserve existing identities, data, campaigns, merchandising, POSM and `/learn`.
+- V096 adds optional session name observations and separate pharmacist comparison metadata;
+  existing identities, data, campaigns, merchandising, POSM and `/learn` are preserved.
   Enable server staff authentication and publish the signed POSM update only after release
   acceptance and the live pilot. POSM order fulfillment and automatic sale bonuses remain off.
 - After accepting four-character passwords, recovery must keep a compatible backend and disable

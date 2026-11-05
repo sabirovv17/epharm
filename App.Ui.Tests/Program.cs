@@ -74,6 +74,8 @@ internal static class Program
                 await Run("sms-wait-bypasses-without-grant", SmsWait);
                 await Run("unknown-cashier-context-is-closable", UnknownContext);
                 await Run("responsive-inputs-preserve-native-text-height", InputGeometry);
+                await Run("missing-iin-with-full-name-prompts-and-closes-after-login", FullNameLogin);
+                await Run("changed-full-name-rejects-earlier-login-grant", ChangedFullName);
             }
             catch (Exception error)
             {
@@ -83,7 +85,7 @@ internal static class Program
             {
                 watchdog.Stop();
                 foreach (var window in Windows) if (window.IsVisible) window.Dismiss();
-                var success = Results.Count == 8 && Results.All(result => result.Passed);
+                var success = Results.Count == 10 && Results.All(result => result.Passed);
                 WriteProof(success, null);
                 application.Shutdown(success ? 0 : 1);
             }
@@ -120,7 +122,7 @@ internal static class Program
     {
         var state = new StaffSessionState();
         state.Observe(new("resolved", new StaffObservedSession(context.ProcessInstanceId, context.StandardNUserId,
-            context.StandardNSessionId, context.WorkstationId, context.StandardNIin, context.StandardNIinStatus)));
+            context.StandardNSessionId, context.WorkstationId, context.StandardNIin, context.StandardNIinStatus, context.StandardNFullName, context.StandardNFullNameStatus)));
         return state;
     }
     private static StaffAuthWindow Window(StaffAuthClient client, StaffAuthContext? context, bool required)
@@ -303,6 +305,49 @@ internal static class Program
         Check(proof, "presentation-never-sends-requests", handler.TotalCalls == 0);
     }
 
+    private static StaffAuthContext NameContext() => Context() with {
+        StandardNIin = null, StandardNIinStatus = "missing", StandardNFullName = "Иванов Иван", StandardNFullNameStatus = "available",
+    };
+
+    private static async Task FullNameLogin(Dictionary<string, bool> proof)
+    {
+        var context = NameContext(); var state = State(context); var policy = new StaffPromptPolicy();
+        using var handler = new FakeHandler { ObservedContext = context }; using var client = new StaffAuthClient(Config(), handler);
+        Check(proof, "no-source-iin-is-invented", context.StandardNIin == null);
+        Check(proof, "actual-full-name-allows-presentation", policy.RequiresSignIn(state.Observation, state.Generation, false));
+        var window = Window(client, context, true); await Idle();
+        Check(proof, "name-only-context-is-fullscreen", window.WindowStyle == WindowStyle.None && window.Topmost);
+        var accepted = false;
+        window.Authenticated += response => {
+            accepted = policy.AcceptAuthentication(state, state.Generation, state.Observation.Session!.Key, context, response, DateTimeOffset.UtcNow);
+            if (accepted) window.Dismiss();
+        };
+        Field<TextBox>(window, "_iin").Text = FixtureIin; Field<PasswordBox>(window, "_password").Password = FixturePassword;
+        SaveOwnWindow(window, "04-full-name-fallback-login");
+        Click(Field<Button>(window, "_submit")); await Until(() => !window.IsVisible || !Busy(window));
+        Check(proof, "fresh-context-grant-is-accepted", accepted && state.IsAuthenticated(DateTimeOffset.UtcNow));
+        Check(proof, "name-fallback-login-closes-window", !window.IsVisible);
+        Check(proof, "authentication-still-uses-iin-password", handler.LoginContextMatched);
+    }
+
+    private static async Task ChangedFullName(Dictionary<string, bool> proof)
+    {
+        var context = NameContext(); var state = State(context); var policy = new StaffPromptPolicy();
+        using var handler = new FakeHandler { ObservedContext = context }; using var client = new StaffAuthClient(Config(), handler);
+        var window = Window(client, context, true); var generation = state.Generation; var key = state.Observation.Session!.Key;
+        var eventSeen = false; var accepted = false;
+        window.Authenticated += response => {
+            eventSeen = true;
+            state.Observe(state.Observation with { Session = state.Observation.Session! with { StandardNFullName = "Петров Петр" } });
+            accepted = policy.AcceptAuthentication(state, generation, key, context, response, DateTimeOffset.UtcNow);
+            if (accepted) window.Dismiss();
+        };
+        Field<TextBox>(window, "_iin").Text = FixtureIin; Field<PasswordBox>(window, "_password").Password = FixturePassword;
+        Click(Field<Button>(window, "_submit")); await Until(() => eventSeen && !Busy(window));
+        Check(proof, "source-name-change-rejects-old-grant", !accepted && !state.IsAuthenticated(DateTimeOffset.UtcNow));
+        Check(proof, "unconfirmed-window-is-not-released-by-old-grant", window.IsVisible);
+    }
+
     private static void WriteProof(bool passed, string? note)
     {
         using var process = Process.GetCurrentProcess();
@@ -316,6 +361,8 @@ internal static class Program
 
     private sealed class FakeHandler : HttpMessageHandler
     {
+        public StaffAuthContext ObservedContext { get; init; } = Context();
+        public bool LoginContextMatched { get; private set; }
         public bool WrongRegistrationContext { get; init; }
         public bool UnavailableLogin { get; init; }
         public bool UnavailableOtp { get; init; }
@@ -339,13 +386,16 @@ internal static class Program
                 case "/api/posm/staff/register":
                     RegisterCalls++;
                     var context = JsonSerializer.Deserialize<StaffAuthContext>(body.RootElement.GetProperty("context").GetRawText(), Json);
-                    RegisterContextMatched = context == Context() && body.RootElement.GetProperty("iin").GetString() == FixtureIin &&
+                    RegisterContextMatched = context == ObservedContext && body.RootElement.GetProperty("iin").GetString() == FixtureIin &&
                         body.RootElement.GetProperty("phone").GetString() == FixturePhone && body.RootElement.GetProperty("password").GetString() == FixturePassword;
                     if (WrongRegistrationContext) context = context! with { StandardNSessionId = "DEV-DIFFERENT-SESSION" };
                     return Reply(new StaffRegistrationResponse("authenticated", "DEV-SYNTHETIC-GRANT-NOT-A-VALID-TOKEN", DateTimeOffset.UtcNow.AddHours(1), new StaffIdentity("DEV-PERSON", "DEV synthetic employee"), context));
                 case "/api/posm/staff/login":
+                    var loginContext = JsonSerializer.Deserialize<StaffAuthContext>(body.RootElement.GetProperty("context").GetRawText(), Json);
+                    LoginContextMatched = loginContext == ObservedContext && body.RootElement.GetProperty("iin").GetString() == FixtureIin &&
+                        body.RootElement.GetProperty("password").GetString() == FixturePassword;
                     if (UnavailableLogin) return Reply(new { code = "UPSTREAM_UNAVAILABLE" }, HttpStatusCode.ServiceUnavailable);
-                    return Reply(new StaffAuthResponse("authenticated", "DEV-SYNTHETIC-GRANT-NOT-A-VALID-TOKEN", DateTimeOffset.UtcNow.AddHours(1), new StaffIdentity("DEV-PERSON", "DEV synthetic employee"), Context()));
+                    return Reply(new StaffAuthResponse("authenticated", "DEV-SYNTHETIC-GRANT-NOT-A-VALID-TOKEN", DateTimeOffset.UtcNow.AddHours(1), new StaffIdentity("DEV-PERSON", "DEV synthetic employee"), ObservedContext));
                 default:
                     UnexpectedCalls++; throw new InvalidOperationException("Unexpected fake route.");
             }

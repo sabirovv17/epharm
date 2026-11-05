@@ -177,7 +177,7 @@ public partial class MainWindow
 
     private static StaffAuthContext StaffContext(StaffObservedSession observed) =>
         new(observed.ExternalUserId, observed.ExternalSessionId, observed.WorkstationId, observed.ProcessIdentity,
-            observed.StandardNIin, observed.StandardNIinStatus);
+            observed.StandardNIin, observed.StandardNIinStatus, observed.StandardNFullName, observed.StandardNFullNameStatus);
 
     private void OpenStaffWindow(bool activate = false)
     {

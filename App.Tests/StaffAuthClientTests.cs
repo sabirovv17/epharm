@@ -22,10 +22,14 @@ public sealed class StaffAuthClientTests
         Assert.Equal(Context, context);
         Assert.Null(context.StandardNIin);
         Assert.Equal("unavailable", context.StandardNIinStatus);
+        Assert.Null(context.StandardNFullName);
+        Assert.Equal("unavailable", context.StandardNFullNameStatus);
     }
 
     [Theory]
-    [InlineData("{\"enabled\":true,\"protocolVersion\":2}", true)]
+    [InlineData("{\"enabled\":true,\"protocolVersion\":2,\"nameFallbackSupported\":true}", true)]
+    [InlineData("{\"enabled\":true,\"protocolVersion\":2}", false)]
+    [InlineData("{\"enabled\":true,\"protocolVersion\":2,\"nameFallbackSupported\":false}", false)]
     [InlineData("{\"enabled\":false,\"protocolVersion\":2}", false)]
     [InlineData("{\"enabled\":true,\"protocolVersion\":1}", false)]
     [InlineData("{\"enabled\":true,\"protocolVersion\":3}", false)]
@@ -34,6 +38,32 @@ public sealed class StaffAuthClientTests
     {
         using var client = Client(new Handler((_, _) => System.Threading.Tasks.Task.FromResult(Response(json))));
         Assert.Equal(enabled, await client.IsEnabledAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RollbackToAnOldProtocolTwoServerDisablesTheWholeStaffFlow()
+    {
+        var calls = 0;
+        using var client = Client(new Handler((_, _) => Task.FromResult(Response(++calls == 1
+            ? "{\"enabled\":true,\"protocolVersion\":2,\"nameFallbackSupported\":true}"
+            : "{\"enabled\":true,\"protocolVersion\":2}"))));
+        Assert.True((await client.CheckCapabilitiesAsync(TestContext.Current.CancellationToken)).Enabled);
+        Assert.Equal(new(false, "unsupported_protocol"), await client.CheckCapabilitiesAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ExactNameObservationIsBoundToThePostContextWithoutPersonalQuery()
+    {
+        var context = Context with { StandardNIinStatus = "missing", StandardNFullName = "Иванов Иван", StandardNFullNameStatus = "available" };
+        using var client = Client(new Handler(async (request, ct) => {
+            Assert.Empty(request.RequestUri!.Query);
+            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct));
+            var sent = body.RootElement.GetProperty("context");
+            Assert.Equal(context.StandardNFullName, sent.GetProperty("standardNFullName").GetString());
+            Assert.Equal("available", sent.GetProperty("standardNFullNameStatus").GetString());
+            return Response(JsonSerializer.Serialize(new { status = "pending", context }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+        }));
+        Assert.Equal(context, (await client.LoginAsync("000101500011", "F4x!", context, TestContext.Current.CancellationToken)).Context);
     }
 
     [Fact]

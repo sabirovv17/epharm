@@ -334,6 +334,9 @@ export interface PharmacistDto {
   phone: string | null
   standardNIinMatchStatus?: 'MATCH' | 'MISMATCH' | 'UNKNOWN' | null
   standardNIinCheckedAt?: string | null
+  standardNIdentityMatchMethod?: 'IIN' | 'NAME' | 'NONE' | null
+  standardNIdentityMatchStatus?: 'MATCH' | 'MISMATCH' | 'UNKNOWN' | null
+  standardNIdentityCheckedAt?: string | null
   pharmacyId: string
   pharmacyName: string
   city: string

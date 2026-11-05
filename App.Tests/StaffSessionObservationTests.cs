@@ -12,6 +12,55 @@ public sealed class StaffSessionObservationTests
         StaffSessionResolver.Resolve([Row(session: session, user: user)], "KASSA1", process);
 
     [Theory]
+    [InlineData("  Иванов \tИван  ", "Иванов Иван")]
+    [InlineData("Анна-Мария О’Нил", "Анна-Мария О’Нил")]
+    public void FullNameUsesOnlyActualCompleteNameWords(string raw, string normalized) =>
+        Assert.Equal(new("available", normalized), StaffSessionResolver.ReadFullName([raw]));
+
+    [Theory]
+    [InlineData("Кассир")]
+    [InlineData("Главный Кассир")]
+    [InlineData("ADMIN USER")]
+    [InlineData("Иванов И.")]
+    [InlineData("Иванов И")]
+    [InlineData("Иванов Иван123")]
+    [InlineData("user_login Operator")]
+    [InlineData("Саб--иров Амир")]
+    [InlineData("Әкімші Қызметкер")]
+    public void GenericLoginAndInitialsNeverBecomeAComparableFullName(string raw) =>
+        Assert.Equal(new("invalid"), StaffSessionResolver.ReadFullName([raw]));
+
+    [Fact]
+    public void MissingNumericOversizedAndDuplicateNamesAreNotAvailable()
+    {
+        Assert.Equal(new("missing"), StaffSessionResolver.ReadFullName([]));
+        Assert.Equal(new("missing"), StaffSessionResolver.ReadFullName([DBNull.Value]));
+        Assert.Equal(new("missing"), StaffSessionResolver.ReadFullName([" "]));
+        Assert.Equal(new("invalid"), StaffSessionResolver.ReadFullName([1234]));
+        Assert.Equal(new("invalid"), StaffSessionResolver.ReadFullName([new string('я', 256)]));
+        Assert.Equal(new("ambiguous"), StaffSessionResolver.ReadFullName(["Иванов Иван", "Иванов Иван"]));
+    }
+
+    [Fact]
+    public void AChangedOrLostFullNameInvalidatesTheEarlierContextGrant()
+    {
+        var observation = Observe() with { Session = Observe().Session! with {
+            StandardNIinStatus = "missing", StandardNFullName = "Иванов Иван", StandardNFullNameStatus = "available",
+        } };
+        foreach (var changed in new[] {
+            observation.Session! with { StandardNFullName = "Петров Петр" },
+            observation.Session! with { StandardNFullName = null, StandardNFullNameStatus = "missing" },
+        }) {
+            var state = new StaffSessionState(); state.Observe(observation);
+            var generation = state.Generation; var key = state.Observation.Session!.Key;
+            Assert.True(state.Accept(generation, key, "grant", Now.AddMinutes(5), Now));
+            state.Observe(observation with { Session = changed });
+            Assert.False(state.IsAuthenticated(Now));
+            Assert.False(state.Accept(generation, key, "late-grant", Now.AddMinutes(5), Now));
+        }
+    }
+
+    [Theory]
     [InlineData("951212500015", "951212500015")]
     [InlineData(" 000101500011  ", "000101500011")]
     public void ExactTextIinIsTrimmedWithoutLosingLeadingZeroes(string raw, string expected)
