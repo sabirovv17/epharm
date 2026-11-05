@@ -5,6 +5,31 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-11-06
+
+### Added
+
+- Prepare production POSM 1.0.76 staff sign-in with the current ePharm design, native input
+  rendering, registration, SMS recovery and the existing Standard-N session/IIN checks.
+- Accept passwords of at least four characters in RPS registration, activation, recovery and
+  login, including existing-password login in the separate `/learn` cabinet. Keep administrator
+  password policy unchanged and enforce one shared IIN login limiter across both entry points.
+
+### Fixed
+
+- Clear notification timers when the toast host unmounts, preventing stale callbacks after
+  navigation or application teardown.
+
+### Deployment
+
+- No new migration; preserve existing identities, data, campaigns, merchandising, POSM and `/learn`.
+  Enable server staff authentication and publish the signed POSM update only after release
+  acceptance and the live pilot. POSM order fulfillment and automatic sale bonuses remain off.
+- After accepting four-character passwords, recovery must keep a compatible backend and disable
+  its RPS gate if necessary; v0.2.6 cannot authenticate these new short credentials.
+- This forward release supersedes the undeployed v0.2.7 candidate. Its published tag is retained
+  unchanged; that candidate failed the dated-changelog release check before reaching Sentry.
+
 ## [0.2.6] - 2026-11-04
 
 ### Fixed
