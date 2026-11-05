@@ -22,7 +22,7 @@ class StaffAuthController(
     @GetMapping("/capabilities")
     fun capabilities(@RequestHeader("X-Posm-Key",required=false) key:String?):ResponseEntity<*> {
         device(key,false)
-        return response(mapOf("enabled" to enabled,"protocolVersion" to 2))
+        return response(mapOf("enabled" to enabled,"protocolVersion" to 2,"nameFallbackSupported" to true))
     }
     @PostMapping("/login")
     fun login(@RequestHeader("X-Posm-Key",required=false) key:String?,@Valid @RequestBody request:StaffLoginRequest):ResponseEntity<StaffSessionResponse> {

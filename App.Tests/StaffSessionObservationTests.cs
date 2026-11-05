@@ -12,6 +12,55 @@ public sealed class StaffSessionObservationTests
         StaffSessionResolver.Resolve([Row(session: session, user: user)], "KASSA1", process);
 
     [Theory]
+    [InlineData("  Иванов \tИван  ", "Иванов Иван")]
+    [InlineData("Анна-Мария О’Нил", "Анна-Мария О’Нил")]
+    public void FullNameUsesOnlyActualCompleteNameWords(string raw, string normalized) =>
+        Assert.Equal(new("available", normalized), StaffSessionResolver.ReadFullName([raw]));
+
+    [Theory]
+    [InlineData("Кассир")]
+    [InlineData("Главный Кассир")]
+    [InlineData("ADMIN USER")]
+    [InlineData("Иванов И.")]
+    [InlineData("Иванов И")]
+    [InlineData("Иванов Иван123")]
+    [InlineData("user_login Operator")]
+    [InlineData("Саб--иров Амир")]
+    [InlineData("Әкімші Қызметкер")]
+    public void GenericLoginAndInitialsNeverBecomeAComparableFullName(string raw) =>
+        Assert.Equal(new("invalid"), StaffSessionResolver.ReadFullName([raw]));
+
+    [Fact]
+    public void MissingNumericOversizedAndDuplicateNamesAreNotAvailable()
+    {
+        Assert.Equal(new("missing"), StaffSessionResolver.ReadFullName([]));
+        Assert.Equal(new("missing"), StaffSessionResolver.ReadFullName([DBNull.Value]));
+        Assert.Equal(new("missing"), StaffSessionResolver.ReadFullName([" "]));
+        Assert.Equal(new("invalid"), StaffSessionResolver.ReadFullName([1234]));
+        Assert.Equal(new("invalid"), StaffSessionResolver.ReadFullName([new string('я', 256)]));
+        Assert.Equal(new("ambiguous"), StaffSessionResolver.ReadFullName(["Иванов Иван", "Иванов Иван"]));
+    }
+
+    [Fact]
+    public void AChangedOrLostFullNameInvalidatesTheEarlierContextGrant()
+    {
+        var observation = Observe() with { Session = Observe().Session! with {
+            StandardNIinStatus = "missing", StandardNFullName = "Иванов Иван", StandardNFullNameStatus = "available",
+        } };
+        foreach (var changed in new[] {
+            observation.Session! with { StandardNFullName = "Петров Петр" },
+            observation.Session! with { StandardNFullName = null, StandardNFullNameStatus = "missing" },
+        }) {
+            var state = new StaffSessionState(); state.Observe(observation);
+            var generation = state.Generation; var key = state.Observation.Session!.Key;
+            Assert.True(state.Accept(generation, key, "grant", Now.AddMinutes(5), Now));
+            state.Observe(observation with { Session = changed });
+            Assert.False(state.IsAuthenticated(Now));
+            Assert.False(state.Accept(generation, key, "late-grant", Now.AddMinutes(5), Now));
+        }
+    }
+
+    [Theory]
     [InlineData("951212500015", "951212500015")]
     [InlineData(" 000101500011  ", "000101500011")]
     public void ExactTextIinIsTrimmedWithoutLosingLeadingZeroes(string raw, string expected)
@@ -120,6 +169,109 @@ public sealed class StaffSessionObservationTests
     public void TwoLocalSessionsAreAmbiguousRatherThanSortedByLastActivity()
     {
         Assert.Equal("ambiguous_session", StaffSessionResolver.Resolve([Row(), Row(session: 101)], "KASSA1", "10:1000").Status);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AnExpiredOrphanDoesNotHideTheSoleFreshLocalSession(bool reverse)
+    {
+        var fresh = Row();
+        var expired = Row(session: 101, user: "previous-cashier") with {
+            SessionStartedAt = Now.AddHours(-9).UtcDateTime,
+            HeartbeatAt = Now.AddHours(-8).UtcDateTime,
+        };
+        var result = StaffSessionResolver.Resolve(reverse ? [expired, fresh] : [fresh, expired], "KASSA1", "10:1000");
+        Assert.Equal("resolved", result.Status);
+        Assert.Equal("100", result.Session!.ExternalSessionId);
+        Assert.Equal("cashier-1", result.Session.ExternalUserId);
+    }
+
+    [Fact]
+    public void AllExpiredLocalCandidatesRemainStaleWithoutAnIdentity()
+    {
+        var stale = Row() with { SessionStartedAt = Now.AddHours(-2).UtcDateTime, HeartbeatAt = Now.AddSeconds(-301).UtcDateTime };
+        var result = StaffSessionResolver.Resolve([stale, stale with { SessionId = 101 }], "KASSA1", "10:1000");
+        Assert.Equal("stale_session", result.Status);
+        Assert.Null(result.Session);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CompleteHundredRowSnapshotCanResolveButAnExtraRowNeverDoes(bool reverse)
+    {
+        var complete = Enumerable.Range(1, 99).Select(id => Row(session: id) with {
+            SessionStartedAt = Now.AddHours(-2).UtcDateTime, HeartbeatAt = Now.AddHours(-1).UtcDateTime,
+        }).Append(Row()).ToArray();
+        var bounded = StaffSessionResolver.Resolve(reverse ? complete.Reverse() : complete, "KASSA1", "10:1000");
+        Assert.Equal("resolved", bounded.Status);
+        Assert.Equal("100", bounded.Session!.ExternalSessionId);
+
+        var overflow = complete.Append(Row(session: 101, user: "another-cashier")).ToArray();
+        var truncated = StaffSessionResolver.Resolve(reverse ? overflow.Reverse() : overflow, "KASSA1", "10:1000");
+        Assert.Equal("ambiguous_session", truncated.Status);
+        Assert.Null(truncated.Session);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SnapshotOverflowIsCheckedBeforeDiscardingPartiallyMatchingWorkstations(bool reverse)
+    {
+        var partial = Enumerable.Range(1, 100).Select(id => Row("KASSA10", session: id));
+        var complete = partial.Take(99).Append(Row(session: 101)).ToArray();
+        Assert.Equal("resolved", StaffSessionResolver.Resolve(complete, "KASSA1", "10:1000").Status);
+        var overflow = partial.Append(Row(session: 101)).ToArray();
+        var result = StaffSessionResolver.Resolve(reverse ? overflow.Reverse() : overflow, "KASSA1", "10:1000");
+        Assert.Equal("ambiguous_session", result.Status);
+        Assert.Null(result.Session);
+    }
+
+    [Fact]
+    public void UnknownFutureOrInvalidTimesCannotBeDiscardedToPickAnotherSession()
+    {
+        var expired = Row(session: 101) with { SessionStartedAt = Now.AddHours(-2).UtcDateTime, HeartbeatAt = Now.AddHours(-1).UtcDateTime };
+        foreach (var uncertain in new[] {
+            expired with { HeartbeatAt = null }, expired with { DatabaseNow = null },
+            expired with { SessionStartedAt = null }, expired with { HeartbeatAt = Now.AddSeconds(1).UtcDateTime },
+            expired with { SessionStartedAt = Now.AddHours(1).UtcDateTime },
+        }) {
+            var result = StaffSessionResolver.Resolve([Row(), uncertain], "KASSA1", "10:1000");
+            Assert.Equal("ambiguous_session", result.Status);
+            Assert.Null(result.Session);
+        }
+    }
+
+    [Theory]
+    [InlineData(0, 10)]
+    [InlineData(10, 10)]
+    [InlineData(300, 300)]
+    [InlineData(600, 600)]
+    [InlineData(3600, 3600)]
+    [InlineData(7200, 3600)]
+    public void OrphanExpiryUsesTheSameInclusiveBoundaryAndClampedPolicy(int configured, int effective)
+    {
+        var boundary = Row(session: 101) with { SessionStartedAt = Now.AddHours(-2).UtcDateTime, HeartbeatAt = Now.AddSeconds(-effective).UtcDateTime };
+        Assert.Equal("ambiguous_session", StaffSessionResolver.Resolve([Row(), boundary], "KASSA1", "10:1000", configured).Status);
+        Assert.Equal("resolved", StaffSessionResolver.Resolve([Row(), boundary with { HeartbeatAt = boundary.HeartbeatAt!.Value.AddSeconds(-1) }], "KASSA1", "10:1000", configured).Status);
+    }
+
+    [Fact]
+    public void IgnoringAnExpiredOrphanDoesNotRelaxTheCurrentProcessBoundaryOrGrantGeneration()
+    {
+        var orphan = Row(session: 101) with { SessionStartedAt = Now.AddHours(-2).UtcDateTime, HeartbeatAt = Now.AddHours(-1).UtcDateTime };
+        var restartedProcess = "10:" + Now.AddSeconds(-10).Ticks;
+        Assert.Equal("session_predates_process", StaffSessionResolver.Resolve([Row(), orphan], "KASSA1", restartedProcess, observerUtcNow: Now).Status);
+
+        var state = new StaffSessionState();
+        state.Observe(StaffSessionResolver.Resolve([Row(), orphan], "KASSA1", "10:1000"));
+        var generation = state.Generation;
+        var key = state.Observation.Session!.Key;
+        Assert.True(state.Accept(generation, key, "grant", Now.AddMinutes(5), Now));
+        state.Observe(StaffSessionResolver.Resolve([Row(user: "cashier-2"), orphan], "KASSA1", "10:1000"));
+        Assert.False(state.IsAuthenticated(Now));
+        Assert.False(state.Accept(generation, key, "late-grant", Now.AddMinutes(5), Now));
     }
 
     [Fact]

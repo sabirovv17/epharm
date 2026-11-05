@@ -146,10 +146,16 @@ The reviewed candidate reads `USERS.INN` only for the exact local `SESSIONS.USER
 in the same read-only Firebird snapshot. Missing/invalid/unreadable/ambiguous values
 remain unknown. The observed IIN/status are additive context fields; process, user,
 session, workstation or IIN changes invalidate the old in-memory grant and late responses.
+When IIN is missing/unavailable, the same snapshot may read the textual account label
+`USERS.USERNAME` by that exact user ID, only when its value contains a complete full name.
+The opaque binary `USERNAME_N` is not decoded or treated as text. Only a usable full name
+with at least two complete name words qualifies; arbitrary login names,
+role labels, initials, receipt history and cached user guesses are not substitutes. Name/status
+changes also invalidate the grant. Names are never used to select an ePharm account.
 The new `POST /api/posm/staff/session/check` carries this context in the body, never in
 the URL. Legacy four-field GET validation remains supported by the backend.
-Staff capability protocol 2 explicitly identifies this implementation. The new client
-does not enable its prompt on a protocol-1 backend, including after rollback. Legacy
+Staff capability protocol 2 plus `nameFallbackSupported=true` identifies this implementation.
+The new client disables its whole staff flow when either marker is missing, including after rollback. Legacy
 protocol-1 clients do not enable staff UI on this backend; their core POSM traffic and
 legacy staff API wire formats remain compatible. This prevents mixed mandatory flows.
 
@@ -161,18 +167,25 @@ blocked, pending and differently assigned profiles are not silently reassigned.
 
 The pharmacist registry exposes a permission-filtered diagnostic comparison:
 `MATCH`, `MISMATCH` or `UNKNOWN`, plus check time. Only mismatch gets a warning.
+IIN comparisons stay separate from the new general `IIN`/`NAME`/`NONE` method and comparison
+status. A real IIN mismatch is never rescued by an equal name. When IIN is missing/unavailable,
+the backend compares the complete normalized set of name words with the authenticated profile;
+a name mismatch is labelled separately. Source names are not exposed in administrative DTOs.
 This is a device-reported observation, never a trusted seller/bonus binding.
 
 The candidate mandatory presentation covers only the cashier monitor when a fresh
-exact session and its IIN are available. It is a fullscreen WPF prompt, not Windows
+exact session and either its IIN or usable fallback full name are available. It is a fullscreen WPF prompt, not Windows
 Assigned Access or an OS security boundary. No global keyboard hook, BlockInput,
 Standard-N window disable or process termination is used. Unknown identity, unavailable
 service or SMS failure permit work with a fixed bypass diagnostic and no staff grant;
 the bypass applies only to that observation generation. A new session prompts again.
 Source/server disable and shutdown always release the window; customer display and
-receipt/sale/recommendation loops remain independent. The release gate stays false.
+receipt/sale/recommendation loops remain independent. POSM 1.0.76 permits this reviewed
+implementation through its binary release gate. It still requires local
+`StaffAuthenticationEnabled=true` and an enabled server capability with protocol 2 and the name-fallback marker;
+the server flag defaults to false until pilot acceptance and explicit rollout.
 
-`App.Ui.Tests/` runs seven native WPF regressions against the actual App assembly,
+`App.Ui.Tests/` runs ten native WPF regressions against the actual App assembly,
 using an in-memory fake HTTP handler without real SMS, accounts or device configuration.
 The Windows CI job saves boolean proof and synthetic renders; an explicit noninteractive
 opt-in is recorded as such and does not prove physical cashier desktop integration.
@@ -241,7 +254,12 @@ cash-event marker is observed. The cache is `C:\Epharm\standardn-log-paths.txt`.
 When the reviewed staff module is explicitly enabled, staff identity is observed
 independently of an open receipt: one local cashier process
 (PID/start time), exact canonical workstation and one fresh session. It never borrows the
-receipt reader's sole-foreign-session or substring fallback. Unknown/stale/ambiguous observations
+receipt reader's sole-foreign-session or substring fallback. Unclosed rows with a
+provably expired heartbeat are excluded before checking ambiguity. Missing, future or
+inconsistent timestamps remain candidates; two potentially current sessions are never
+resolved by choosing the newest. The reader fetches up to 101 rows; more than 100
+refuses context before any filtering, so truncation cannot hide a second active session.
+Unknown/stale/ambiguous observations
 clear only the employee grant and show a nonblocking reason. Grants remain in memory and are
 revalidated every 30 seconds; context/generation guards reject a delayed login after a switch.
 This is ePharm identity, not attestation of ownership of the Standard-N account; receipt seller

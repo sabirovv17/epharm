@@ -28,14 +28,28 @@ public sealed class StaffPromptPolicy
     }
 
     public bool RequiresSignIn(StaffSessionObservation observation, long generation, bool authenticated) =>
-        !authenticated && BypassStatus(generation) == null && HasExactIin(observation);
+        !authenticated && BypassStatus(generation) == null && HasComparableIdentity(observation);
 
     public bool NeedsIdentityBypass(StaffSessionObservation observation, long generation, bool authenticated) =>
-        !authenticated && observation.Status == "resolved" && !HasExactIin(observation) && BypassStatus(generation) == null;
+        !authenticated && observation.Status == "resolved" && !HasComparableIdentity(observation) && BypassStatus(generation) == null;
 
     public static bool HasExactIin(StaffSessionObservation observation) =>
-        observation.Status == "resolved" && observation.Session?.StandardNIinStatus == "available" &&
-        observation.Session.StandardNIin is { Length: 12 } iin && iin.All(character => character is >= '0' and <= '9');
+        observation.Status == "resolved" && HasExactIin(observation.Session?.StandardNIinStatus, observation.Session?.StandardNIin);
+
+    private static bool HasExactIin(string? status, string? iin) => status == "available" &&
+        iin is { Length: 12 } && iin.All(character => character is >= '0' and <= '9');
+
+    private static bool HasNameFallback(string? iinStatus, string? nameStatus, string? name) =>
+        iinStatus is "missing" or "unavailable" && nameStatus == "available" &&
+        StaffSessionResolver.ReadFullName([name]).Status == "available";
+
+    public static bool HasComparableIdentity(StaffSessionObservation observation) =>
+        observation.Status == "resolved" && observation.Session is { } session &&
+        (HasExactIin(observation) || HasNameFallback(session.StandardNIinStatus, session.StandardNFullNameStatus, session.StandardNFullName));
+
+    public static bool HasComparableIdentity(StaffAuthContext? context) => context != null &&
+        (HasExactIin(context.StandardNIinStatus, context.StandardNIin) ||
+         HasNameFallback(context.StandardNIinStatus, context.StandardNFullNameStatus, context.StandardNFullName));
 
     public bool AcceptAuthentication(StaffSessionState session, long generation, string observedKey,
         StaffAuthContext context, StaffAuthResponse response, DateTimeOffset now)

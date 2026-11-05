@@ -6,8 +6,8 @@ internal object StaffIinObservation {
     private val digits=Regex("[0-9]{12}")
 
     fun valid(context: StaffContext): Boolean = context.standardNIinStatus in statuses &&
-        if(context.standardNIinStatus=="available") context.standardNIin?.let(digits::matches)==true
-        else context.standardNIin==null
+        (if(context.standardNIinStatus=="available") context.standardNIin?.let(digits::matches)==true
+        else context.standardNIin==null) && StaffIdentityObservation.validNameContext(context)
 
     fun match(iin: String, context: StaffContext): String = when {
         context.standardNIinStatus!="available" || !valid(context) -> "UNKNOWN"

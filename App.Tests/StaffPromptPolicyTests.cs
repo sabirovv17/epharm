@@ -16,12 +16,12 @@ public sealed class StaffPromptPolicyTests
         return state;
     }
     private static StaffAuthContext Context(StaffObservedSession session) => new(session.ExternalUserId,
-        session.ExternalSessionId, session.WorkstationId, session.ProcessIdentity, session.StandardNIin, session.StandardNIinStatus);
+        session.ExternalSessionId, session.WorkstationId, session.ProcessIdentity, session.StandardNIin, session.StandardNIinStatus, session.StandardNFullName, session.StandardNFullNameStatus);
     private static StaffAuthResponse Response(StaffAuthContext context) => new("authenticated", "opaque-grant",
         Now.AddHours(8), new("person-1", "Test Pharmacist"), context);
 
     [Fact]
-    public void OnlyAnExactUnauthenticatedCashierWithAvailableIinRequiresPresentation()
+    public void AnExactUnauthenticatedCashierWithAvailableIinRequiresPresentation()
     {
         var policy = new StaffPromptPolicy();
         var state = State();
@@ -40,11 +40,58 @@ public sealed class StaffPromptPolicyTests
     [InlineData("00010150001", "available")]
     [InlineData("０００１０１５０００１１", "available")]
     [InlineData("000101500011", "unavailable")]
-    public void UnknownOrMalformedSourceIdentityNeverRequiresPresentation(string? iin, string status)
+    public void UnknownOrMalformedIinWithoutAUsableNameNeverRequiresPresentation(string? iin, string status)
     {
         var policy = new StaffPromptPolicy();
         var state = State(Observation(iin, status));
         Assert.False(policy.RequiresSignIn(state.Observation, state.Generation, false));
+    }
+
+    [Theory]
+    [InlineData("missing", true)]
+    [InlineData("unavailable", true)]
+    [InlineData("invalid", false)]
+    [InlineData("ambiguous", false)]
+    [InlineData("available", false)]
+    public void OnlyMissingOrUnavailableIinAllowsTheFullNamePresentationFallback(string iinStatus, bool allowed)
+    {
+        var observation = Observation(null, iinStatus);
+        observation = observation with { Session = observation.Session! with { StandardNFullName = "Иванов Иван", StandardNFullNameStatus = "available" } };
+        var policy = new StaffPromptPolicy(); var state = State(observation);
+        Assert.Equal(allowed, policy.RequiresSignIn(observation, state.Generation, false));
+        Assert.Equal(allowed, StaffPromptPolicy.HasComparableIdentity(Context(observation.Session)));
+        Assert.Equal(!allowed, policy.NeedsIdentityBypass(observation, state.Generation, false));
+        if (allowed) {
+            var context = Context(observation.Session);
+            Assert.True(policy.AcceptAuthentication(state, state.Generation, observation.Session.Key, context, Response(context), Now));
+            Assert.False(policy.RequiresSignIn(observation, state.Generation, true));
+        }
+    }
+
+    [Theory]
+    [InlineData("available", "Кассир")]
+    [InlineData("missing", null)]
+    [InlineData("ambiguous", null)]
+    [InlineData("invalid", null)]
+    [InlineData("unavailable", null)]
+    public void AnUnusableFullNameWithNoIinKeepsWorkAvailable(string status, string? fullName)
+    {
+        var observation = Observation(null, "missing");
+        observation = observation with { Session = observation.Session! with { StandardNFullName = fullName, StandardNFullNameStatus = status } };
+        var policy = new StaffPromptPolicy(); var state = State(observation);
+        Assert.False(policy.RequiresSignIn(observation, state.Generation, false));
+        Assert.True(policy.NeedsIdentityBypass(observation, state.Generation, false));
+    }
+
+    [Fact]
+    public void ANameInTheWrongResponseCannotAuthorizeTheCurrentObservedAccount()
+    {
+        var observation = Observation(null, "missing");
+        observation = observation with { Session = observation.Session! with { StandardNFullName = "Иванов Иван", StandardNFullNameStatus = "available" } };
+        var state = State(observation); var policy = new StaffPromptPolicy(); var context = Context(observation.Session);
+        var response = Response(context with { StandardNFullName = "Петров Петр" });
+        Assert.False(policy.AcceptAuthentication(state, state.Generation, observation.Session.Key, context, response, Now));
+        Assert.False(state.IsAuthenticated(Now));
     }
 
     [Theory]

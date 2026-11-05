@@ -117,7 +117,7 @@ namespace CustomerDisplay.Services
                 using var cmd = conn.CreateCommand();
                 cmd.Transaction = transaction;
                 cmd.CommandTimeout = TimeoutSec();
-                cmd.CommandText = @"select first 100 s.ID as SESSION_ID, s.USER_ID, s.WS_ID, s.PROG, w.COMPNAME,
+                cmd.CommandText = $@"select first {StaffSessionResolver.MaximumObservationRows + 1} s.ID as SESSION_ID, s.USER_ID, s.WS_ID, s.PROG, w.COMPNAME,
                     s.STARTDT, s.HEARTBEATS,
                     cast(CURRENT_TIMESTAMP as timestamp) as DB_NOW
                     from SESSIONS s join WORKSTATIONS w on w.ID = s.WS_ID
@@ -135,7 +135,12 @@ namespace CustomerDisplay.Services
                 var observation = StaffSessionResolver.Resolve(rows, _machineName, processIdentity, _cfg.StaffSessionMaxAgeSec);
                 if (observation.Session is not { } session) return observation;
                 var identity = ReadStaffIin(conn, transaction, session.ExternalUserId);
-                return observation with { Session = session with { StandardNIin = identity.Iin, StandardNIinStatus = identity.Status } };
+                var name = identity.Status is "missing" or "unavailable"
+                    ? ReadStaffFullName(conn, transaction, session.ExternalUserId) : new StaffNameObservation("unavailable");
+                return observation with { Session = session with {
+                    StandardNIin = identity.Iin, StandardNIinStatus = identity.Status,
+                    StandardNFullName = name.FullName, StandardNFullNameStatus = name.Status,
+                } };
             }
             catch
             {
@@ -164,6 +169,24 @@ namespace CustomerDisplay.Services
                 // Older schemas may omit USERS.INN. An unreadable IIN is never a mismatch or proof of identity.
                 return new("unavailable");
             }
+        }
+
+        private StaffNameObservation ReadStaffFullName(FbConnection connection, FbTransaction transaction, string userId)
+        {
+            try
+            {
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandTimeout = TimeoutSec();
+                // The exact account label is comparable only when it contains a complete human name.
+                command.CommandText = "select first 2 u.USERNAME from USERS u where u.ID = @userId";
+                command.Parameters.AddWithValue("@userId", userId);
+                using var reader = command.ExecuteReader();
+                var values = new List<object?>(2);
+                while (reader.Read()) values.Add(reader.IsDBNull(0) ? null : reader.GetValue(0));
+                return StaffSessionResolver.ReadFullName(values);
+            }
+            catch { return new("unavailable"); }
         }
 
         /// <summary>

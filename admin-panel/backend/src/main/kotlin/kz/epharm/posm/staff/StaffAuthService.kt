@@ -55,15 +55,19 @@ class StaffAuthService(
     private fun grant(device: PosmDeviceIdentity, person: Person, c: StaffContext, iin: String): StaffSessionResponse {
         jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 718095))",device.deviceId)
         // This observation is not proof of the Standard-N account owner's identity.
-        jdbc.update("UPDATE pharmacists SET standard_n_iin_match_status=?,standard_n_iin_checked_at=now(),updated_at=now() WHERE id=?",
-            StaffIinObservation.match(iin,c),person.id)
+        val observation=StaffIdentityObservation.match(iin,person.name,c)
+        jdbc.update("""UPDATE pharmacists SET standard_n_iin_match_status=?,standard_n_iin_checked_at=now(),
+            standard_n_identity_match_method=?,standard_n_identity_match_status=?,standard_n_identity_checked_at=now(),updated_at=now() WHERE id=?""",
+            StaffIinObservation.match(iin,c),observation.method,observation.status,person.id)
         val token=randomToken()
         val expires=Instant.now().plusSeconds(8*3600)
         jdbc.update("UPDATE posm_staff_sessions SET revoked_at=now() WHERE device_id=? AND pharmacy_id=? AND revoked_at IS NULL",device.deviceId,device.pharmacyId)
         jdbc.update("""INSERT INTO posm_staff_sessions(token_hash,pharmacist_id,device_id,pharmacy_id,password_fingerprint,
-            standard_n_user_id,standard_n_session_id,workstation_id,process_instance_id,expires_at,standard_n_iin,standard_n_iin_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            standard_n_user_id,standard_n_session_id,workstation_id,process_instance_id,expires_at,standard_n_iin,standard_n_iin_status,
+            standard_n_full_name,standard_n_full_name_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             hash(token),person.id,device.deviceId,device.pharmacyId,hash(person.password!!),
-            c.standardNUserId,c.standardNSessionId,c.workstationId,c.processInstanceId,Timestamp.from(expires),c.standardNIin,c.standardNIinStatus)
+            c.standardNUserId,c.standardNSessionId,c.workstationId,c.processInstanceId,Timestamp.from(expires),c.standardNIin,c.standardNIinStatus,
+            c.standardNFullName,c.standardNFullNameStatus)
         return StaffSessionResponse("authenticated",token,expires,StaffPerson(person.id,person.name),c)
     }
 
@@ -165,11 +169,12 @@ class StaffAuthService(
             FROM posm_staff_sessions s JOIN pharmacists p ON p.id=s.pharmacist_id
             WHERE s.token_hash=? AND s.device_id=? AND s.pharmacy_id=? AND s.revoked_at IS NULL AND s.expires_at>now()""",
             {rs,_->
-                val storedContext=StaffContext(rs.getString("standard_n_user_id"),rs.getString("standard_n_session_id"),rs.getString("workstation_id"),rs.getString("process_instance_id"),rs.getString("standard_n_iin"),rs.getString("standard_n_iin_status"))
-                val expectedContext=if(legacy) storedContext.copy(standardNIin=null,standardNIinStatus="unavailable") else storedContext
+                val storedContext=StaffContext(rs.getString("standard_n_user_id"),rs.getString("standard_n_session_id"),rs.getString("workstation_id"),rs.getString("process_instance_id"),rs.getString("standard_n_iin"),rs.getString("standard_n_iin_status"),
+                    rs.getString("standard_n_full_name"),rs.getString("standard_n_full_name_status"))
+                val expectedContext=if(legacy) storedContext.copy(standardNIin=null,standardNIinStatus="unavailable",standardNFullName=null,standardNFullNameStatus="unavailable") else storedContext
                 if(rs.getString("status")!="active" || rs.getString("current_pharmacy")!=device.pharmacyId || expectedContext!=context ||
                     rs.getString("password_hash")?.let(::hash)!=rs.getString("password_fingerprint")) unauthorized()
-                StaffSessionResponse("authenticated",null,rs.getTimestamp("expires_at").toInstant(),StaffPerson(rs.getString("pharmacist_id"),rs.getString("name")),storedContext)
+                StaffSessionResponse("authenticated",null,rs.getTimestamp("expires_at").toInstant(),StaffPerson(rs.getString("pharmacist_id"),rs.getString("name")),expectedContext)
             },hash(token),device.deviceId,device.pharmacyId).singleOrNull() ?: unauthorized()
     }
 
