@@ -7,14 +7,14 @@ namespace CustomerDisplay.Core.Tests;
 public sealed class StaffAuthenticationReleaseGateTests
 {
     [Fact]
-    public void ProductionPauseCannotBeEnabledByLocalConfiguration()
+    public void ReviewedReleaseStillAllowsLocalOptOut()
     {
         var config = JsonSerializer.Deserialize<EpharmConfig>("""
-            {"StaffAuthenticationEnabled":true,"StaffAuthenticationReleaseEnabled":true}
+            {"StaffAuthenticationEnabled":false,"StaffAuthenticationReleaseEnabled":false}
             """)!;
 
-        Assert.True(config.StaffAuthenticationEnabled);
-        Assert.False(EpharmConfig.StaffAuthenticationReleaseEnabled);
+        Assert.False(config.StaffAuthenticationEnabled);
+        Assert.True(EpharmConfig.StaffAuthenticationReleaseEnabled);
         Assert.False(typeof(EpharmConfig).GetProperty(nameof(EpharmConfig.StaffAuthenticationReleaseEnabled))!.CanWrite);
     }
 }

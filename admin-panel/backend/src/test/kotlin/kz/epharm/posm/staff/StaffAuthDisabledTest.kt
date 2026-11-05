@@ -11,8 +11,9 @@ class StaffAuthDisabledTest {
     @Test fun `dark deployment exposes capabilities but never calls login service`() {
         val devices=mockk<PosmDeviceAuthenticationService>()
         val service=mockk<StaffAuthService>()
+        val limiter=mockk<kz.epharm.mobile.auth.service.PharmacistPasswordLoginLimiter>()
         every { devices.authenticate("device-key") } returns PosmDeviceIdentity("device","pharmacy",false)
-        val controller=StaffAuthController(devices,service,false)
+        val controller=StaffAuthController(devices,service,false,limiter)
         assertEquals(mapOf("enabled" to false,"protocolVersion" to 2),controller.capabilities("device-key").body)
         val error=assertThrows(AppException::class.java){controller.login("device-key",StaffLoginRequest("951212500015","Password123!",StaffContext("u","s","w","p")))}
         assertEquals(503,error.status.value())
@@ -23,5 +24,6 @@ class StaffAuthDisabledTest {
             controller.register("device-key",StaffPasswordRequest("challenge","1234","951212500015","+77002223344","Password123!","Test",StaffContext("u","s","w","p")))
         }.status.value())
         verify { service wasNot Called }
+        verify { limiter wasNot Called }
     }
 }

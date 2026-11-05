@@ -2,7 +2,15 @@
 // Используем простой React-провайдер вместо global Zustand store, потому что toast'ы
 // не нужны вне React-tree (CommandPalette, например, всегда внутри App).
 
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 
 type ToastKind = 'success' | 'error' | 'info'
 
@@ -36,13 +44,24 @@ const KIND_COLOR: Record<ToastKind, string> = {
 
 export function ToastHost({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([])
+  const timers = useRef(new Set<ReturnType<typeof setTimeout>>())
+
+  useEffect(
+    () => () => {
+      for (const timer of timers.current) clearTimeout(timer)
+      timers.current.clear()
+    },
+    [],
+  )
 
   const push = useCallback<ToastApi['push']>((msg, opts = {}) => {
     const id = Math.random().toString(36).slice(2)
     setItems((s) => [...s, { id, msg, kind: opts.kind ?? 'success', action: opts.action }])
-    setTimeout(() => {
+    const timer = setTimeout(() => {
+      timers.current.delete(timer)
       setItems((s) => s.filter((x) => x.id !== id))
     }, opts.duration ?? 3200)
+    timers.current.add(timer)
   }, [])
 
   return (

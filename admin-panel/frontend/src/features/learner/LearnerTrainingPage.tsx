@@ -1604,7 +1604,7 @@ export default function LearnerTrainingPage() {
                   />
                   <button
                     className="btn btn-primary h-12 w-full text-base"
-                    disabled={busy || password.length < 8}
+                    disabled={busy || password.length < 4}
                   >
                     {busy ? t('Входим…') : t('Войти')}
                   </button>
@@ -2060,7 +2060,7 @@ function PasswordInput({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={t('Введите пароль')}
-          minLength={8}
+          minLength={autoComplete === 'current-password' ? 4 : 8}
           maxLength={128}
           required
         />
@@ -3655,9 +3655,7 @@ export function PromotionShowcase({ promotions }: { promotions: Promotion[] }) {
           <h2 className="flex items-center gap-2 text-lg font-extrabold text-ink-900">
             <PackageSearch size={21} /> {t('Препараты и бонусы')}
           </h2>
-          <p className="mt-1 text-sm text-ink-500">
-            {t('Актуальные предложения и бонусы ePharm')}
-          </p>
+          <p className="mt-1 text-sm text-ink-500">{t('Актуальные предложения и бонусы ePharm')}</p>
         </div>
         <span className="chip chip-green shrink-0">
           {t('{count} предложений', { count: promotions.length })}

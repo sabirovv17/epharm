@@ -7,10 +7,19 @@ public sealed class StaffPasswordValidationTests
 {
     [Theory]
     [InlineData("")]
-    [InlineData("short")]
-    [InlineData("1234567")]
+    [InlineData("1")]
+    [InlineData("123")]
+    [InlineData("    ")]
     public void TooShortNewPasswordHasSpecificError(string password) =>
         Assert.Equal("PASSWORD_LENGTH", StaffPasswordValidation.Error(password, password));
+
+    [Theory]
+    [InlineData("1234")]
+    [InlineData("пароль")]
+    [InlineData("1234567")]
+    [InlineData("longer-password")]
+    public void FourOrMoreCharactersAreAccepted(string password) =>
+        Assert.Null(StaffPasswordValidation.Error(password, password));
 
     [Fact]
     public void OverCharacterLimitIsRejected() =>

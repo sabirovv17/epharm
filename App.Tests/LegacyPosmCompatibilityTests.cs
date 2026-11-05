@@ -286,11 +286,11 @@ public sealed class LegacyPosmCompatibilityTests
     }
 
     [Fact]
-    public void PublicOriginAndNoMandatoryRpsRemainExplicitBoundaries()
+    public void PublicOriginAndLegacyWireRemainUnchangedByReviewedStaffRelease()
     {
         var config = new CustomerDisplay.Config.EpharmConfig { BackendBaseUrl = Origin };
         Assert.Equal(new Uri(Origin), Assert.Single(config.GetBackendBaseUris()));
-        Assert.False(CustomerDisplay.Config.EpharmConfig.StaffAuthenticationReleaseEnabled);
+        Assert.True(CustomerDisplay.Config.EpharmConfig.StaffAuthenticationReleaseEnabled);
         Assert.Equal(Origin, Fixture("1.0.57")["canonicalPublicOrigin"]!.GetValue<string>());
         Assert.Equal(Origin, Fixture("1.0.66")["canonicalPublicOrigin"]!.GetValue<string>());
     }

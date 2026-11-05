@@ -17,6 +17,7 @@ class StaffAuthController(
     private val devices: PosmDeviceAuthenticationService,
     private val service: StaffAuthService,
     @Value("\${app.posm.staff-auth-enabled:false}") private val enabled: Boolean,
+    private val passwordLoginLimiter: kz.epharm.mobile.auth.service.PharmacistPasswordLoginLimiter,
 ) {
     @GetMapping("/capabilities")
     fun capabilities(@RequestHeader("X-Posm-Key",required=false) key:String?):ResponseEntity<*> {
@@ -24,7 +25,11 @@ class StaffAuthController(
         return response(mapOf("enabled" to enabled,"protocolVersion" to 2))
     }
     @PostMapping("/login")
-    fun login(@RequestHeader("X-Posm-Key",required=false) key:String?,@Valid @RequestBody request:StaffLoginRequest)=response(service.login(device(key),request))
+    fun login(@RequestHeader("X-Posm-Key",required=false) key:String?,@Valid @RequestBody request:StaffLoginRequest):ResponseEntity<StaffSessionResponse> {
+        val identity=device(key)
+        passwordLoginLimiter.check(request.iin)
+        return response(service.login(identity,request))
+    }
     @PostMapping("/otp/request")
     fun otp(@RequestHeader("X-Posm-Key",required=false) key:String?,@Valid @RequestBody request:StaffOtpRequest)=response(service.requestOtp(device(key),request))
     @PostMapping("/register")

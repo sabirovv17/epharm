@@ -111,6 +111,84 @@ class StaffAuthIntegrationTest {
             .andExpect(status().`is`(expected))
     }
 
+    private fun mobileLogin(personIin:String=iin,password:String="Password123!",expected:Int=200) {
+        mvc.perform(post("/api/mobile/auth/login").contentType("application/json")
+            .content(json.writeValueAsBytes(mapOf("iin" to personIin,"password" to password))))
+            .andExpect(status().`is`(expected))
+    }
+
+    @Test fun `four character registration authenticates in POSM and learn while three is rejected`() {
+        val newIin="000101500011";val number="+77000000012"
+        val observed=context.copy(standardNIin=newIin,standardNIinStatus="available")
+        val id=challenge("register",newIin,number)
+        val request=StaffPasswordRequest(id,"1234",newIin,number,"A1!b","DEMO Новый",observed)
+        post("/register",request.copy(password="123"),expected=400)
+        post("/register",request.copy(password="    "),expected=400)
+        val result=post("/register",request)
+        assertEquals("authenticated",result["status"].asText())
+        checkedSession(result["sessionToken"].asText(),observed)
+        post("/login",StaffLoginRequest(newIin,"123",observed),expected=400)
+        post("/login",StaffLoginRequest(newIin,"A1!b",observed))
+        mobileLogin(newIin,"123",400)
+        mobileLogin(newIin,"A1!b")
+        val row=jdbc.queryForMap("SELECT status,pharmacy_id,password_hash,standard_n_iin_match_status FROM pharmacists WHERE iin=?",newIin)
+        assertEquals("active",row["status"])
+        assertEquals("staff-pharmacy",row["pharmacy_id"])
+        assertEquals("MATCH",row["standard_n_iin_match_status"])
+        assertTrue(encoder.matches("A1!b",row["password_hash"].toString()))
+    }
+
+    @Test fun `reset and activation accept four characters without accepting three or oversized UTF8`() {
+        for(purpose in listOf("reset","activate")) {
+            jdbc.update("DELETE FROM posm_staff_rate_limits")
+            if(purpose=="activate") jdbc.update("UPDATE pharmacists SET password_hash=NULL WHERE id='staff-person'")
+            val id=challenge(purpose)
+            val request=StaffPasswordRequest(id,"1234",iin,phone,"A1!b")
+            post("/password/$purpose",request.copy(password="123"),expected=400)
+            post("/password/$purpose",request.copy(password="я".repeat(37)),expected=400)
+            post("/password/$purpose",request)
+            login(password="A1!b")
+            mobileLogin(password="A1!b")
+        }
+        jdbc.update("DELETE FROM posm_staff_rate_limits")
+        val id=challenge()
+        val boundary="я".repeat(36)
+        post("/password/reset",StaffPasswordRequest(id,"1234",iin,phone,boundary))
+        login(password=boundary)
+    }
+
+    @Test fun `password login budget is shared across learn and POSM and survives caller rollback`() {
+        TransactionTemplate(transactions).executeWithoutResult { tx ->
+            repeat(5) { mobileLogin(password="wrong",expected=401) }
+            tx.setRollbackOnly()
+        }
+        repeat(5) { login(password="wrong",expected=401) }
+        mobileLogin(expected=429)
+        login(expected=429)
+        assertEquals(12,jdbc.queryForObject("SELECT attempts FROM posm_staff_rate_limits WHERE scope_hash=?",Int::class.java,hash("login-account:$iin")))
+        jdbc.update("UPDATE posm_staff_rate_limits SET window_start=now()-interval '301 seconds' WHERE scope_hash=?",hash("login-account:$iin"))
+        mobileLogin()
+        assertEquals(1,jdbc.queryForObject("SELECT attempts FROM posm_staff_rate_limits WHERE scope_hash=?",Int::class.java,hash("login-account:$iin")))
+    }
+
+    @Test fun `concurrent password attempts across channels cannot exceed the account budget`() {
+        repeat(9) { login(password="wrong",expected=401) }
+        val executor=Executors.newFixedThreadPool(2)
+        val ready=CountDownLatch(2);val start=CountDownLatch(1)
+        try {
+            val statuses=listOf("/api/mobile/auth/login","/api/posm/staff/login").map { path -> executor.submit<Int> {
+                ready.countDown();assertTrue(start.await(5,TimeUnit.SECONDS))
+                val body=if(path.contains("posm")) json.writeValueAsBytes(StaffLoginRequest(iin,"wrong",context))
+                    else json.writeValueAsBytes(mapOf("iin" to iin,"password" to "wrong"))
+                mvc.perform(post(path).header("X-Posm-Key",key).contentType("application/json").content(body))
+                    .andReturn().response.status
+            } }
+            assertTrue(ready.await(5,TimeUnit.SECONDS));start.countDown()
+            assertEquals(listOf(401,429),statuses.map { it.get(15,TimeUnit.SECONDS) }.sorted())
+            assertEquals(11,jdbc.queryForObject("SELECT attempts FROM posm_staff_rate_limits WHERE scope_hash=?",Int::class.java,hash("login-account:$iin")))
+        } finally {start.countDown();executor.shutdownNow()}
+    }
+
     @Test fun `new registration creates active scoped profile authenticates once and preserves financial mappings`() {
         val newIin="000101500011";val number="+77000000012"
         val observed=context.copy(standardNIin=newIin,standardNIinStatus="available")
