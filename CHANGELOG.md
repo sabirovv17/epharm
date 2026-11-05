@@ -19,6 +19,8 @@ All notable production changes to Epharm are recorded here. The format follows
 
 - Clear notification timers when the toast host unmounts, preventing stale callbacks after
   navigation or application teardown.
+- Ignore provably expired orphan Standard-N session rows before checking session ambiguity;
+  retain conservative handling of unknown timestamps, simultaneous fresh sessions and user switches.
 
 ### Deployment
 

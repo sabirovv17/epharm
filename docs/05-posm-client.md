@@ -170,9 +170,12 @@ Standard-N window disable or process termination is used. Unknown identity, unav
 service or SMS failure permit work with a fixed bypass diagnostic and no staff grant;
 the bypass applies only to that observation generation. A new session prompts again.
 Source/server disable and shutdown always release the window; customer display and
-receipt/sale/recommendation loops remain independent. The release gate stays false.
+receipt/sale/recommendation loops remain independent. POSM 1.0.76 permits this reviewed
+implementation through its binary release gate. It still requires local
+`StaffAuthenticationEnabled=true` and an enabled server capability with protocol 2;
+the server flag defaults to false until pilot acceptance and explicit rollout.
 
-`App.Ui.Tests/` runs seven native WPF regressions against the actual App assembly,
+`App.Ui.Tests/` runs eight native WPF regressions against the actual App assembly,
 using an in-memory fake HTTP handler without real SMS, accounts or device configuration.
 The Windows CI job saves boolean proof and synthetic renders; an explicit noninteractive
 opt-in is recorded as such and does not prove physical cashier desktop integration.
@@ -241,7 +244,10 @@ cash-event marker is observed. The cache is `C:\Epharm\standardn-log-paths.txt`.
 When the reviewed staff module is explicitly enabled, staff identity is observed
 independently of an open receipt: one local cashier process
 (PID/start time), exact canonical workstation and one fresh session. It never borrows the
-receipt reader's sole-foreign-session or substring fallback. Unknown/stale/ambiguous observations
+receipt reader's sole-foreign-session or substring fallback. Unclosed rows with a
+provably expired heartbeat are excluded before checking ambiguity. Missing, future or
+inconsistent timestamps remain candidates; two potentially current sessions are never
+resolved by choosing the newest. Unknown/stale/ambiguous observations
 clear only the employee grant and show a nonblocking reason. Grants remain in memory and are
 revalidated every 30 seconds; context/generation guards reject a delayed login after a switch.
 This is ePharm identity, not attestation of ownership of the Standard-N account; receipt seller

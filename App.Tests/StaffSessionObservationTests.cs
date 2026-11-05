@@ -122,6 +122,77 @@ public sealed class StaffSessionObservationTests
         Assert.Equal("ambiguous_session", StaffSessionResolver.Resolve([Row(), Row(session: 101)], "KASSA1", "10:1000").Status);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AnExpiredOrphanDoesNotHideTheSoleFreshLocalSession(bool reverse)
+    {
+        var fresh = Row();
+        var expired = Row(session: 101, user: "previous-cashier") with {
+            SessionStartedAt = Now.AddHours(-9).UtcDateTime,
+            HeartbeatAt = Now.AddHours(-8).UtcDateTime,
+        };
+        var result = StaffSessionResolver.Resolve(reverse ? [expired, fresh] : [fresh, expired], "KASSA1", "10:1000");
+        Assert.Equal("resolved", result.Status);
+        Assert.Equal("100", result.Session!.ExternalSessionId);
+        Assert.Equal("cashier-1", result.Session.ExternalUserId);
+    }
+
+    [Fact]
+    public void AllExpiredLocalCandidatesRemainStaleWithoutAnIdentity()
+    {
+        var stale = Row() with { SessionStartedAt = Now.AddHours(-2).UtcDateTime, HeartbeatAt = Now.AddSeconds(-301).UtcDateTime };
+        var result = StaffSessionResolver.Resolve([stale, stale with { SessionId = 101 }], "KASSA1", "10:1000");
+        Assert.Equal("stale_session", result.Status);
+        Assert.Null(result.Session);
+    }
+
+    [Fact]
+    public void UnknownFutureOrInvalidTimesCannotBeDiscardedToPickAnotherSession()
+    {
+        var expired = Row(session: 101) with { SessionStartedAt = Now.AddHours(-2).UtcDateTime, HeartbeatAt = Now.AddHours(-1).UtcDateTime };
+        foreach (var uncertain in new[] {
+            expired with { HeartbeatAt = null }, expired with { DatabaseNow = null },
+            expired with { SessionStartedAt = null }, expired with { HeartbeatAt = Now.AddSeconds(1).UtcDateTime },
+            expired with { SessionStartedAt = Now.AddHours(1).UtcDateTime },
+        }) {
+            var result = StaffSessionResolver.Resolve([Row(), uncertain], "KASSA1", "10:1000");
+            Assert.Equal("ambiguous_session", result.Status);
+            Assert.Null(result.Session);
+        }
+    }
+
+    [Theory]
+    [InlineData(0, 10)]
+    [InlineData(10, 10)]
+    [InlineData(300, 300)]
+    [InlineData(600, 600)]
+    [InlineData(3600, 3600)]
+    [InlineData(7200, 3600)]
+    public void OrphanExpiryUsesTheSameInclusiveBoundaryAndClampedPolicy(int configured, int effective)
+    {
+        var boundary = Row(session: 101) with { SessionStartedAt = Now.AddHours(-2).UtcDateTime, HeartbeatAt = Now.AddSeconds(-effective).UtcDateTime };
+        Assert.Equal("ambiguous_session", StaffSessionResolver.Resolve([Row(), boundary], "KASSA1", "10:1000", configured).Status);
+        Assert.Equal("resolved", StaffSessionResolver.Resolve([Row(), boundary with { HeartbeatAt = boundary.HeartbeatAt!.Value.AddSeconds(-1) }], "KASSA1", "10:1000", configured).Status);
+    }
+
+    [Fact]
+    public void IgnoringAnExpiredOrphanDoesNotRelaxTheCurrentProcessBoundaryOrGrantGeneration()
+    {
+        var orphan = Row(session: 101) with { SessionStartedAt = Now.AddHours(-2).UtcDateTime, HeartbeatAt = Now.AddHours(-1).UtcDateTime };
+        var restartedProcess = "10:" + Now.AddSeconds(-10).Ticks;
+        Assert.Equal("session_predates_process", StaffSessionResolver.Resolve([Row(), orphan], "KASSA1", restartedProcess, observerUtcNow: Now).Status);
+
+        var state = new StaffSessionState();
+        state.Observe(StaffSessionResolver.Resolve([Row(), orphan], "KASSA1", "10:1000"));
+        var generation = state.Generation;
+        var key = state.Observation.Session!.Key;
+        Assert.True(state.Accept(generation, key, "grant", Now.AddMinutes(5), Now));
+        state.Observe(StaffSessionResolver.Resolve([Row(user: "cashier-2"), orphan], "KASSA1", "10:1000"));
+        Assert.False(state.IsAuthenticated(Now));
+        Assert.False(state.Accept(generation, key, "late-grant", Now.AddMinutes(5), Now));
+    }
+
     [Fact]
     public void MissingProcessOrMissingWorkstationCannotAuthenticate()
     {

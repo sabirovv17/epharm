@@ -61,13 +61,19 @@ public static class StaffSessionResolver
              string.Equals(row.Program?.Trim(), "zkassa.exe", StringComparison.OrdinalIgnoreCase) ||
              string.Equals(row.Program?.Trim(), "kassir.exe", StringComparison.OrdinalIgnoreCase))).ToArray();
         if (candidates.Length == 0) return new("no_session");
+        var maxAge = TimeSpan.FromSeconds(Math.Clamp(maxAgeSec, 10, 3600));
+        // A crashed cashier can leave an unclosed row; discard only provably expired observations.
+        candidates = candidates.Where(row => row.SessionStartedAt == null || row.HeartbeatAt == null ||
+            row.DatabaseNow == null || row.SessionStartedAt > row.HeartbeatAt ||
+            row.DatabaseNow.Value - row.HeartbeatAt.Value <= maxAge).ToArray();
+        if (candidates.Length == 0) return new("stale_session");
         if (candidates.Length != 1) return new("ambiguous_session");
         var item = candidates[0];
         if (item.HeartbeatAt == null || item.DatabaseNow == null || item.SessionStartedAt == null)
             return new("unsupported_session_time");
         var age = item.DatabaseNow.Value - item.HeartbeatAt.Value;
         if (age < TimeSpan.Zero) return new("future_session_time");
-        if (age > TimeSpan.FromSeconds(Math.Clamp(maxAgeSec, 10, 3600))) return new("stale_session");
+        if (age > maxAge) return new("stale_session");
         if (item.SessionStartedAt > item.HeartbeatAt) return new("invalid_session_time");
         var colon = processIdentity.LastIndexOf(':');
         if (colon < 0 || !long.TryParse(processIdentity[(colon + 1)..], out var ticks) || ticks < 0 || ticks > DateTime.MaxValue.Ticks)
