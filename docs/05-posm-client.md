@@ -247,7 +247,9 @@ independently of an open receipt: one local cashier process
 receipt reader's sole-foreign-session or substring fallback. Unclosed rows with a
 provably expired heartbeat are excluded before checking ambiguity. Missing, future or
 inconsistent timestamps remain candidates; two potentially current sessions are never
-resolved by choosing the newest. Unknown/stale/ambiguous observations
+resolved by choosing the newest. The reader fetches up to 101 rows; more than 100
+refuses context before any filtering, so truncation cannot hide a second active session.
+Unknown/stale/ambiguous observations
 clear only the employee grant and show a nonblocking reason. Grants remain in memory and are
 revalidated every 30 seconds; context/generation guards reject a delayed login after a switch.
 This is ePharm identity, not attestation of ownership of the Standard-N account; receipt seller

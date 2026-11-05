@@ -117,7 +117,7 @@ namespace CustomerDisplay.Services
                 using var cmd = conn.CreateCommand();
                 cmd.Transaction = transaction;
                 cmd.CommandTimeout = TimeoutSec();
-                cmd.CommandText = @"select first 100 s.ID as SESSION_ID, s.USER_ID, s.WS_ID, s.PROG, w.COMPNAME,
+                cmd.CommandText = $@"select first {StaffSessionResolver.MaximumObservationRows + 1} s.ID as SESSION_ID, s.USER_ID, s.WS_ID, s.PROG, w.COMPNAME,
                     s.STARTDT, s.HEARTBEATS,
                     cast(CURRENT_TIMESTAMP as timestamp) as DB_NOW
                     from SESSIONS s join WORKSTATIONS w on w.ID = s.WS_ID

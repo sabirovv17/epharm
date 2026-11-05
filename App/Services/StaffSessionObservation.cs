@@ -20,6 +20,8 @@ public sealed record StaffIinObservation(string Status, string? Iin = null);
 /// <summary>Authoritative staff observations never inherit the receipt-reader's heuristic fallbacks.</summary>
 public static class StaffSessionResolver
 {
+    public const int MaximumObservationRows = 100;
+
     // The vendor's USERS.INN is text. Never invent leading zeroes or infer IIN from a name/login.
     public static StaffIinObservation ReadIin(IEnumerable<object?> values)
     {
@@ -54,7 +56,9 @@ public static class StaffSessionResolver
         if (string.IsNullOrWhiteSpace(processIdentity)) return new("no_process");
         var machine = CanonicalComputer(machineName);
         if (machine.Length == 0) return new("unknown_workstation");
-        var candidates = rows.Where(row => CanonicalComputer(row.ComputerName) == machine &&
+        var snapshot = rows.Take(MaximumObservationRows + 1).ToArray();
+        if (snapshot.Length > MaximumObservationRows) return new("ambiguous_session");
+        var candidates = snapshot.Where(row => CanonicalComputer(row.ComputerName) == machine &&
             row.SessionId > 0 && row.WorkstationId > 0 && !string.IsNullOrWhiteSpace(row.UserId) &&
             (string.Equals(row.Program?.Trim(), "zkassa", StringComparison.OrdinalIgnoreCase) ||
              string.Equals(row.Program?.Trim(), "kassir", StringComparison.OrdinalIgnoreCase) ||

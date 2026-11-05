@@ -147,6 +147,38 @@ public sealed class StaffSessionObservationTests
         Assert.Null(result.Session);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CompleteHundredRowSnapshotCanResolveButAnExtraRowNeverDoes(bool reverse)
+    {
+        var complete = Enumerable.Range(1, 99).Select(id => Row(session: id) with {
+            SessionStartedAt = Now.AddHours(-2).UtcDateTime, HeartbeatAt = Now.AddHours(-1).UtcDateTime,
+        }).Append(Row()).ToArray();
+        var bounded = StaffSessionResolver.Resolve(reverse ? complete.Reverse() : complete, "KASSA1", "10:1000");
+        Assert.Equal("resolved", bounded.Status);
+        Assert.Equal("100", bounded.Session!.ExternalSessionId);
+
+        var overflow = complete.Append(Row(session: 101, user: "another-cashier")).ToArray();
+        var truncated = StaffSessionResolver.Resolve(reverse ? overflow.Reverse() : overflow, "KASSA1", "10:1000");
+        Assert.Equal("ambiguous_session", truncated.Status);
+        Assert.Null(truncated.Session);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SnapshotOverflowIsCheckedBeforeDiscardingPartiallyMatchingWorkstations(bool reverse)
+    {
+        var partial = Enumerable.Range(1, 100).Select(id => Row("KASSA10", session: id));
+        var complete = partial.Take(99).Append(Row(session: 101)).ToArray();
+        Assert.Equal("resolved", StaffSessionResolver.Resolve(complete, "KASSA1", "10:1000").Status);
+        var overflow = partial.Append(Row(session: 101)).ToArray();
+        var result = StaffSessionResolver.Resolve(reverse ? overflow.Reverse() : overflow, "KASSA1", "10:1000");
+        Assert.Equal("ambiguous_session", result.Status);
+        Assert.Null(result.Session);
+    }
+
     [Fact]
     public void UnknownFutureOrInvalidTimesCannotBeDiscardedToPickAnotherSession()
     {

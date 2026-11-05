@@ -21,6 +21,7 @@ All notable production changes to Epharm are recorded here. The format follows
   navigation or application teardown.
 - Ignore provably expired orphan Standard-N session rows before checking session ambiguity;
   retain conservative handling of unknown timestamps, simultaneous fresh sessions and user switches.
+  Detect truncated session snapshots before resolving a person.
 
 ### Deployment
 
