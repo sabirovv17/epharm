@@ -170,6 +170,14 @@ an earlier process, source-user generation or dismissed window cannot authorize 
 **An account switch inside the same process cannot be reliably detected while its source DB
 is unreadable**; process detection is not an account-switch event interface.
 
+The ordinary employee handover is to finish or cancel the current receipt, fully close
+Standard-N's cashier application with its close button, then launch it again and sign in
+to ePharm with the next employee's own IIN/password. No tray logout is required. A confirmed
+process exit clears the local grant; a new PID/start-time fingerprint prompts even after a
+fast restart or PID reuse. Minimizing the window or closing only a receipt is not an exit.
+The observation loop needs time to detect the change; a temporary process-read failure
+does not itself sign the employee out. Existing receipt/sale attribution stays unchanged.
+
 The source observer reads `USERS.INN` only for the exact local `SESSIONS.USER_ID` in the
 same read-only Firebird snapshot. Missing/invalid/unreadable/ambiguous values remain unknown.
 When IIN is missing/unavailable, that snapshot may read the textual account label
