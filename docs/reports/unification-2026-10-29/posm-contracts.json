@@ -36,8 +36,8 @@
   },
   "currentSourceUpdate": {
     "date": "2026-11-06",
-    "revision": "1882f367af8152dcb8ff4eda0a20926529863d86",
-    "scope": "PR150 process-bound own employee authentication and source-independent authenticated-device pharmacy assignment",
+    "revision": "5f1fe6466debfb754812f88ae0eba59beda3ca09",
+    "scope": "PR150 process-bound employee authentication, source-independent pharmacy assignment and independent terminals sharing a pharmacy package",
     "evidenceType": "source contract update only; original sourceSnapshot/sourceManifest/checkExecution/feature baseline values remain historical; no runtime acceptance inferred",
     "newEndpoints": [
       "POST /api/posm/staff/device/login",
@@ -227,7 +227,7 @@
       },
       {
         "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
-        "sha256": "3eeda0ee73a9a8f5fd96e5edec262e604996642dd471a65b82ed80c114fa3258"
+        "sha256": "58106b429f44f740731653d98a7b75ea164160455ed805b81eb049c634d86f1d"
       },
       {
         "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffDtos.kt",
@@ -248,6 +248,14 @@
       {
         "path": "App/Services/StaffAuthDiagnostics.cs",
         "sha256": "57441211aea431055dc5d4b1a4bdf59c240f22818c0bd1c98fd5163277d50811"
+      },
+      {
+        "path": "App/StaffAuthWindow.cs",
+        "sha256": "209edabb1fad4fa1766e67c59a92cc11ea83cfc4c7f60a8cdf3656a15bb0bf40"
+      },
+      {
+        "path": "App.Ui.Tests/Program.cs",
+        "sha256": "aff57f12ace14fd2b794843075da90179af546529f1304369bbb85a29c97ad0e"
       }
     ],
     "currentSourceContractCount": 53,
@@ -2726,7 +2734,7 @@
       ],
       "sideEffects": [
         "Verifies password under person lock, shared account/device budgets and existing vault capture.",
-        "Creates hashed8h token in separate V097 table, bound to device/pharmacy/process/password fingerprint; replaces prior strict/process grants on that device atomically.",
+        "Creates hashed8h token in separate V097 table, bound to device/pharmacy/process/password fingerprint; replaces prior strict/process grants for the same device/pharmacy/process atomically, without logging out another terminal.",
         "Source observation updates only separate IIN/NAME diagnostics; historical unassigned/pending/blocked/other-pharmacy profile is not silently activated/moved."
       ],
       "requiredInvariant": [
@@ -2769,7 +2777,7 @@
       ],
       "positiveChecks": [
         "Without any source DB context, valid own credentials authenticate on real process; /learn and registry use same pharmacist.",
-        "Concurrent strict/device logins leave one current employee grant on device."
+        "Concurrent strict/device logins leave one current employee grant per device/pharmacy/process; different processes remain independent, while account/device-key revocation still covers all corresponding grants."
       ],
       "negativeChecks": [
         "Wrong password/account/pharmacy/blocked gives401; existing pending has no grant.",
@@ -2778,7 +2786,7 @@
       ],
       "state": "source_confirmed",
       "origin": "https://epharm.inkar.kz",
-      "sourceRevision": "1882f367af8152dcb8ff4eda0a20926529863d86"
+      "sourceRevision": "5f1fe6466debfb754812f88ae0eba59beda3ca09"
     },
     {
       "id": "STAFF_DEVICE_REGISTER",
@@ -2896,7 +2904,7 @@
       ],
       "state": "source_confirmed",
       "origin": "https://epharm.inkar.kz",
-      "sourceRevision": "1882f367af8152dcb8ff4eda0a20926529863d86"
+      "sourceRevision": "5f1fe6466debfb754812f88ae0eba59beda3ca09"
     },
     {
       "id": "STAFF_DEVICE_SESSION_CHECK",
@@ -3002,7 +3010,7 @@
       ],
       "state": "source_confirmed",
       "origin": "https://epharm.inkar.kz",
-      "sourceRevision": "1882f367af8152dcb8ff4eda0a20926529863d86"
+      "sourceRevision": "5f1fe6466debfb754812f88ae0eba59beda3ca09"
     },
     {
       "id": "STAFF_DEVICE_LOGOUT",
@@ -3088,7 +3096,7 @@
       ],
       "state": "source_confirmed",
       "origin": "https://epharm.inkar.kz",
-      "sourceRevision": "1882f367af8152dcb8ff4eda0a20926529863d86"
+      "sourceRevision": "5f1fe6466debfb754812f88ae0eba59beda3ca09"
     },
     {
       "id": "LEARN_SPA_BOUNDARY",

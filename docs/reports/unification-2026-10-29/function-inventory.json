@@ -3660,6 +3660,12 @@
         "revision": "1882f367af8152dcb8ff4eda0a20926529863d86",
         "scope": "PR150 process-bound employee API and authenticated-device pharmacy registration; earlier source.revision is retained as historical provenance",
         "runtimeVerifiedByThisInventory": false
+      },
+      {
+        "date": "2026-11-06",
+        "revision": "5f1fe6466debfb754812f88ae0eba59beda3ca09",
+        "scope": "Independent process grants for terminals sharing pharmacy credentials; pending/SMS fail-open form preserved; historical inventory evidence unchanged",
+        "runtimeVerifiedByThisInventory": false
       }
     ]
   },
