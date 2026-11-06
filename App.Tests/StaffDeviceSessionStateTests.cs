@@ -73,6 +73,38 @@ public sealed class StaffDeviceSessionStateTests
         Assert.True(state.Generation > generation); Assert.True(state.NeedsPrompt(Now));
     }
 
+    [Theory]
+    [InlineData(true, "43:639295055776695956")]
+    [InlineData(false, "43:639295055776695956")]
+    [InlineData(false, "42:639295055776695956")]
+    public void FullCashierRestartRequiresAnotherLoginWithoutReusingThePreviousEmployee(bool observedExit, string nextProcess)
+    {
+        var state = State(Source()); Login(state);
+        var previousContext = state.Context!; var previousGeneration = state.Generation;
+        if (observedExit) {
+            var stability = new StaffProcessStability();
+            Assert.Null(stability.Confirm(new("no_process"), Now));
+            Assert.True(state.IsAuthenticated(Now));
+            var confirmedExit = stability.Confirm(new("no_process"), Now.AddSeconds(2));
+            Assert.NotNull(confirmedExit);
+            Assert.True(state.Observe(confirmedExit, new("no_process")));
+            Assert.Null(state.Grant); Assert.Null(state.Context); Assert.False(state.NeedsPrompt(Now));
+        }
+
+        // A fast restart need not produce an empty observation; a reused PID still has a new start time.
+        Assert.True(state.Observe(new("resolved", nextProcess), new("database_unavailable")));
+        Assert.Null(state.Grant); Assert.Null(state.LastKnownSource);
+        Assert.True(state.NeedsPrompt(Now));
+        Assert.False(state.Accept(previousGeneration, previousContext, Response(previousContext), Now));
+        state.MarkPrompted(); Assert.False(state.NeedsPrompt(Now));
+        var currentContext = state.Context!;
+        Assert.True(state.Accept(state.Generation, currentContext, Response(currentContext) with {
+            SessionToken = "new-employee-grant", Pharmacist = new("p-2", "Other Synthetic Employee"),
+        }, Now));
+        Assert.Equal("new-employee-grant", state.Grant); Assert.True(state.IsAuthenticated(Now));
+        Assert.False(state.NeedsPrompt(Now));
+    }
+
     [Fact]
     public void MultiProcessPresenceUsesAStableBoundedFingerprintAndNeverInventsASourceSession()
     {

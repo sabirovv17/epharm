@@ -194,7 +194,7 @@ public partial class MainWindow
         if (!_staffEnabled || _staffClient == null || _staffStop.IsCancellationRequested) return;
         if (_staffSession.IsAuthenticated(DateTimeOffset.UtcNow))
         {
-            ShowStaffStatus("Вход сотрудника ePharm подтверждён. Для смены сотрудника используйте выход в меню этого значка.");
+            ShowStaffStatus("Вы уже вошли в ePharm. Для смены сотрудника завершите или отмените текущий чек, полностью закройте АРМ Кассир Стандарт-Н крестиком и запустите его снова. После запуска появится окно входа ePharm — войдите под своим ИИН.");
             return;
         }
         var context = _staffSession.Context;
