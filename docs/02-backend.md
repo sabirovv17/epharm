@@ -20,7 +20,10 @@ unassigned records require a verified, individually audited HQ activation.
 V097 adds `posm_device_staff_sessions` separately from strict legacy sessions, plus
 expiry/revocation indexes and pharmacist/device change revocation triggers. Password,
 phone proof, active pharmacy/device, cross-pharmacy access and shared rate limits
-remain enforced. Late first reliable Standard-N evidence binds the existing grant;
+remain enforced. A pharmacy package can be installed on multiple terminals: login
+replaces strict/device grants only for the same device/pharmacy/process. Password,
+account and device-key revocation still cover all corresponding processes. The
+process identifier is a client observation, not hardware or financial proof. Late first reliable Standard-N evidence binds the existing grant;
 a different known cashier/session/workstation or process revokes it. Unknown evidence
 does not erase known evidence. Without readable source data, a user switch inside
 the same process cannot be reliably detected. No recommendation-sale attribution or

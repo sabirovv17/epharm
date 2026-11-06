@@ -16,6 +16,8 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ### Fixed
 
+- Keep simultaneous terminals using one pharmacy package from revoking each other's
+  employee grants; replace grants within the device/pharmacy/process scope.
 - Assign the registered POSM device pharmacy on both registration routes even when
   Standard-N session data is unavailable; preserve existing account assignment policy.
 - Retain the employee form and entered fields on SMS/service failures while releasing

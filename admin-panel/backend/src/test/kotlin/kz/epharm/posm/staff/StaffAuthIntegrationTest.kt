@@ -271,6 +271,37 @@ class StaffAuthIntegrationTest {
         } finally {go.countDown();executor.shutdownNow()}
     }
 
+    @Test fun `pharmacy package shared by two processes preserves both employee grants and same process replacement stays scoped`() {
+        val before=financialCounts();val first=deviceLogin()["sessionToken"].asText()
+        val otherContext=StaffDeviceContext("second-terminal-pid:start")
+        val second=deviceLogin(ctx=otherContext)["sessionToken"].asText()
+        deviceSession(first);deviceSession(second,otherContext)
+        assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM posm_device_staff_sessions WHERE revoked_at IS NULL",Int::class.java))
+        val strict=post("/login",StaffLoginRequest(iin,"Password123!",context))["sessionToken"].asText()
+        deviceSession(first,expected=401);checkedSession(strict,context);deviceSession(second,otherContext)
+        val replaced=deviceLogin()["sessionToken"].asText()
+        checkedSession(strict,context,401);deviceSession(replaced);deviceSession(second,otherContext)
+        assertEquals(before,financialCounts())
+        jdbc.update("UPDATE fulfillment_devices SET secret_sha256=? WHERE device_id='staff-device'",hash("rotated-shared-device-secret-000000001"))
+        jdbc.update("UPDATE fulfillment_devices SET secret_sha256=? WHERE device_id='staff-device'",hash(key))
+        deviceSession(replaced,expected=401);deviceSession(second,otherContext,expected=401)
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_device_staff_sessions WHERE revoked_at IS NULL",Int::class.java))
+    }
+
+    @Test fun `concurrent own logins from distinct processes sharing pharmacy credential both remain valid`() {
+        val executor=Executors.newFixedThreadPool(2);val ready=CountDownLatch(2);val go=CountDownLatch(1)
+        val contexts=listOf(deviceContext,StaffDeviceContext("second-terminal-pid:start"))
+        try {
+            val work=contexts.map { process -> executor.submit<String> {
+                ready.countDown();assertTrue(go.await(5,TimeUnit.SECONDS))
+                deviceLogin(ctx=process)["sessionToken"].asText()
+            } }
+            assertTrue(ready.await(5,TimeUnit.SECONDS));go.countDown()
+            work.zip(contexts).forEach { (token,process) -> deviceSession(token.get(15,TimeUnit.SECONDS),process) }
+            assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM posm_device_staff_sessions WHERE revoked_at IS NULL",Int::class.java))
+        } finally {go.countDown();executor.shutdownNow()}
+    }
+
     @Test fun `device account limits are shared with learn and strict login and failed attempts commit`() {
         TransactionTemplate(transactions).executeWithoutResult { tx ->
             repeat(4) { deviceLogin(password="wrong",expected=401) };tx.setRollbackOnly()

@@ -54,7 +54,7 @@ class StaffAuthService(
         recordObservation(person,iin,c)
         val token=randomToken()
         val expires=Instant.now().plusSeconds(8*3600)
-        revokeDeviceGrants(device)
+        revokeDeviceGrants(device,c.processInstanceId)
         jdbc.update("""INSERT INTO posm_staff_sessions(token_hash,pharmacist_id,device_id,pharmacy_id,password_fingerprint,
             standard_n_user_id,standard_n_session_id,workstation_id,process_instance_id,expires_at,standard_n_iin,standard_n_iin_status,
             standard_n_full_name,standard_n_full_name_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
@@ -204,7 +204,7 @@ class StaffAuthService(
     private fun deviceGrant(device:PosmDeviceIdentity,person:Person,c:StaffDeviceContext):StaffDeviceSessionResponse {
         jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 718095))",device.deviceId)
         recordObservation(person,person.iin ?: unauthorized(),c.standardNContext)
-        revokeDeviceGrants(device)
+        revokeDeviceGrants(device,c.processInstanceId)
         val token=randomToken();val expires=Instant.now().plusSeconds(8*3600)
         val source=c.standardNContext
         jdbc.update("""INSERT INTO posm_device_staff_sessions(token_hash,pharmacist_id,device_id,pharmacy_id,password_fingerprint,
@@ -265,9 +265,10 @@ class StaffAuthService(
         if(!matches || person==null || person.password.isNullOrBlank() || person.status=="blocked") unauthorized()
         return person
     }
-    private fun revokeDeviceGrants(device:PosmDeviceIdentity) {
-        jdbc.update("UPDATE posm_staff_sessions SET revoked_at=now() WHERE device_id=? AND pharmacy_id=? AND revoked_at IS NULL",device.deviceId,device.pharmacyId)
-        jdbc.update("UPDATE posm_device_staff_sessions SET revoked_at=now() WHERE device_id=? AND pharmacy_id=? AND revoked_at IS NULL",device.deviceId,device.pharmacyId)
+    private fun revokeDeviceGrants(device:PosmDeviceIdentity,process:String) {
+        // Pharmacy ZIP credentials can be shared by several terminals; replacing one process must not log out another.
+        jdbc.update("UPDATE posm_staff_sessions SET revoked_at=now() WHERE device_id=? AND pharmacy_id=? AND process_instance_id=? AND revoked_at IS NULL",device.deviceId,device.pharmacyId,process)
+        jdbc.update("UPDATE posm_device_staff_sessions SET revoked_at=now() WHERE device_id=? AND pharmacy_id=? AND process_instance_id=? AND revoked_at IS NULL",device.deviceId,device.pharmacyId,process)
     }
     private fun recordObservation(person:Person,iin:String,context:StaffContext?) {
         val observation=context?.let { StaffIdentityObservation.match(iin,person.name,it) } ?: StaffIdentityMatch("NONE","UNKNOWN")
