@@ -1,5 +1,27 @@
 # Backend
 
+## Temporary SMS-free RPS registration (v0.2.10)
+
+`POSM_STAFF_REGISTRATION_SMS_REQUIRED` defaults to `true`. An explicitly approved
+`false` advertises `registrationSmsRequired=false` in the existing individual-device
+capability response. POSM 1.0.78 then sends IIN, full name, phone, password and
+`deviceContext` to `POST /api/posm/staff/device/register-without-sms`. It sends no
+code/challenge and makes no SMS-provider request. The active profile belongs to the
+authenticated device's pharmacy and receives the usual process-bound employee grant.
+
+V098 adds only nullable `pharmacists.phone_verification_status`: old rows stay
+unclassified (`NULL`); this route records `self_declared`, not verified ownership.
+Successful normal RPS SMS registration records `sms_verified`. Existing accounts,
+IIN/phone uniqueness, password/vault checks, durable registration limits and individual
+device authentication remain enforced. Declaring a number grants no password-reset,
+mobile-login, merchandising-payment or Standard-N identity proof.
+
+In this mode new RPS register-OTP issuance returns 503 without sending SMS; already
+issued genuine registration codes may still complete. Login, activation, reset,
+`/learn`, mobile and producer OTP contracts remain unchanged. Re-enable the flag
+to restore the SMS registration form on compatible clients. Missing capability on
+an older server also defaults to SMS; no request is automatically replayed.
+
 ## POSM employee login independent of Standard-N (v0.2.9 candidate)
 
 `GET /api/posm/staff/capabilities` retains protocol 2 and advertises

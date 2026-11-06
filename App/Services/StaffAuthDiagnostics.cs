@@ -4,7 +4,7 @@ using CustomerDisplay.Models.Posm;
 
 namespace CustomerDisplay.Services;
 
-public sealed record StaffCapabilityCheck(bool Enabled, string Status);
+public sealed record StaffCapabilityCheck(bool Enabled, string Status, bool RegistrationSmsRequired = true);
 
 /// <summary>Only fixed operational codes may leave the employee-auth channel; never identifiers or responses.</summary>
 public static class StaffAuthDiagnostics
@@ -31,7 +31,7 @@ public static class StaffAuthDiagnostics
     // A rollback must disable the whole process-login flow, never replay it through legacy source-bound routes.
     public static StaffCapabilityCheck Capability(StaffCapabilities? capabilities) => capabilities?.ProtocolVersion != 2 || !capabilities.NameFallbackSupported || capabilities.DeviceEmployeeAuthVersion != 1
         ? new(false, "unsupported_protocol")
-        : capabilities.Enabled ? new(true, "enabled") : new(false, "server_disabled");
+        : capabilities.Enabled ? new(true, "enabled", capabilities.RegistrationSmsRequired) : new(false, "server_disabled");
 
     public static string Observation(string status, bool authenticated, bool loginVisible = false) => status == "resolved"
         ? authenticated ? "authenticated" : loginVisible ? "login_visible" : "login_required"

@@ -147,7 +147,9 @@ The client detects real `zkassa`/`kassir` processes in its Windows session and o
 employee window per PID/start-time fingerprint, independently of a readable Firebird DB or
 source IIN/name. Multiple known processes use a deterministic process-set fingerprint and
 an unverified source; no Standard-N user, session or workstation ID is invented.
-Own authentication still requires the employee's IIN/password, or SMS registration/recovery.
+Own authentication requires the employee's IIN/password. Registration normally requires
+SMS; the explicit temporary policy below changes only new RPS registration. Recovery
+continues to require its existing genuine proof.
 No process means no automatic window. The candidate requires the binary release gate,
 local `StaffAuthenticationEnabled=true` and an enabled server capability with protocol 2,
 `nameFallbackSupported=true` and `deviceEmployeeAuthVersion=1`. An old-server rollback
@@ -187,6 +189,21 @@ supported login is still required. Existing historical pending/unassigned, block
 assigned profiles are not blanket-activated or silently moved. Individual remediation needs
 its own verified evidence; merely requesting an OTP is not completed-registration provenance.
 A copied/misassigned device key cannot establish the physical location from sales/address text.
+
+### Temporary registration without SMS (POSM 1.0.78)
+
+Only an explicit `registrationSmsRequired=false` capability hides the registration
+SMS-send button and code field. The form keeps full name, IIN, declared phone,
+password and password confirmation, then calls `/api/posm/staff/device/register-without-sms`.
+No placeholder/test code is sent; the phone is labelled unconfirmed. Successful
+acceptance of the normal current process grant closes the window and preserves
+automatic pharmacy assignment independently of the Standard-N database.
+
+Absent/old/failed capability defaults to the existing SMS policy. A policy change
+invalidates a pending registration response without logging out an unrelated existing
+employee or automatically replaying an account creation. Login, reset and activation
+keep their previous endpoints and proofs. Fail-open, recommendations, customer display,
+receipt/outbox and task QR paths stay independent.
 
 The pharmacist registry exposes permission-filtered `MATCH`, `MISMATCH` or `UNKNOWN` and
 check time. Source IIN comparison stays separate from general `IIN`/`NAME`/`NONE` method and

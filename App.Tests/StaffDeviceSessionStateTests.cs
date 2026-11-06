@@ -24,6 +24,19 @@ public sealed class StaffDeviceSessionStateTests
     }
 
     [Fact]
+    public void RegistrationPolicyDefaultsToSmsAndOnlyExplicitChangesInvalidateAttempts()
+    {
+        var policy = new StaffRegistrationPolicy();
+        Assert.True(policy.SmsRequired); var original = policy.Generation;
+        Assert.False(policy.SetSmsRequired(true)); Assert.True(policy.IsCurrent(original));
+        Assert.True(policy.SetSmsRequired(false)); Assert.False(policy.SmsRequired); Assert.False(policy.IsCurrent(original));
+        var directAttempt = policy.Generation;
+        Assert.True(policy.SetSmsRequired(true)); Assert.True(policy.SmsRequired); Assert.False(policy.IsCurrent(directAttempt));
+        policy.SetSmsRequired(false);
+        Assert.False(policy.IsCurrent(directAttempt)); // Same boolean after rollback is not the same request generation.
+    }
+
+    [Fact]
     public void TemporaryProcessErrorsAndOneEmptyEnumerationCannotConfirmAnExit()
     {
         var stability = new StaffProcessStability();

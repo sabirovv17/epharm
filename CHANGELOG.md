@@ -5,6 +5,26 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-11-06
+
+### Added
+
+- Add an explicitly controlled, temporary SMS-free registration flow for POSM 1.0.78:
+  IIN, full name, declared phone and password create an active employee at the
+  authenticated cash device's pharmacy and issue its normal process-bound grant.
+- Record phone provenance as `self_declared` in an additive nullable column; existing
+  profiles are not backfilled or reclassified.
+
+### Changed
+
+- When the server explicitly disables registration SMS, the RPS form hides SMS sending
+  and code entry. Registration does not contact the SMS provider or accept a fake code.
+- Keep passwords, duplicate-account protection, device authentication, Standard-N
+  observations, password recovery, `/learn` and all unrelated OTP flows intact.
+- Default to SMS-required registration; enable the temporary production policy with
+  `POSM_STAFF_REGISTRATION_SMS_REQUIRED=false`. Missing capability on rollback restores
+  the compatible SMS flow without replaying registration requests.
+
 ## [0.2.9] - 2026-11-06
 
 ### Added

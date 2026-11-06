@@ -21,6 +21,7 @@ public partial class MainWindow
     private StaffAuthWindow? _staffWindow;
     private Window? _staffStatusWindow;
     private volatile bool _staffEnabled;
+    private bool _staffRegistrationSmsRequired = true;
     private DateTimeOffset _staffLastValidation;
     private volatile string _staffAuthenticationStatus = "initializing";
     public string StaffAuthenticationStatus => _staffAuthenticationStatus;
@@ -55,6 +56,8 @@ public partial class MainWindow
                     catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
                     catch { }
                     await Dispatcher.InvokeAsync(() => {
+                        _staffRegistrationSmsRequired = capability.RegistrationSmsRequired;
+                        _staffWindow?.SetRegistrationSmsRequired(_staffRegistrationSmsRequired);
                         if (_staffEnabled && (capability.Status is "network_unavailable" or "endpoint_unavailable"))
                         {
                             BypassStaffPrompt(StaffPromptBypassReason.ServiceUnavailable);
@@ -203,7 +206,7 @@ public partial class MainWindow
             var window = new StaffAuthWindow(_staffClient, context.StandardNContext, PharmacistScreen(),
                 "Вход ePharm доступен. Сверка с пользователем Standard-N выполняется отдельно, когда кассовая сессия определена.",
                 requireSignIn: _staffSession.BypassStatus == null && StaffPromptPolicy.HasComparableIdentity(context.StandardNContext),
-                deviceContext: context);
+                deviceContext: context, registrationSmsRequired: _staffRegistrationSmsRequired);
             window.AuthenticationStarted += () => generation = _staffWindow == window && _staffSession.ProcessInstanceId == context.ProcessInstanceId
                 ? _staffSession.Generation : -1;
             window.Authenticated += response =>

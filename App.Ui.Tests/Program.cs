@@ -53,12 +53,12 @@ internal static class Program
             return 2;
         }
         var application = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-        var watchdog = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        var watchdog = new DispatcherTimer { Interval = TimeSpan.FromSeconds(90) };
         watchdog.Tick += (_, _) => {
             watchdog.Stop();
             Results.Add(new("watchdog", false, new(), "TimeoutException"));
             foreach (var window in Windows) if (window.IsVisible) window.Dismiss();
-            WriteProof(false, "Thirty-second UI watchdog expired.");
+            WriteProof(false, "Ninety-second UI watchdog expired.");
             application.Shutdown(3);
         };
         application.Startup += async (_, _) => {
@@ -86,6 +86,9 @@ internal static class Program
                 await Run("sms-request-source-flap-keeps-filled-form-and-challenge", SmsSourceFlap);
                 await Run("sms-request-failure-retains-form-and-can-retry-to-register", SmsRetry);
                 await Run("device-pending-with-known-source-releases-work-without-grant", DevicePending);
+                await Run("explicit-no-sms-registration-uses-direct-route-and-closes", DirectRegistration);
+                await Run("registration-policy-rollback-rejects-stale-direct-grant", RegistrationPolicyRollback);
+                await Run("sms-free-registration-does-not-bypass-password-recovery", DirectRegistrationRecovery);
             }
             catch (Exception error)
             {
@@ -95,7 +98,7 @@ internal static class Program
             {
                 watchdog.Stop();
                 foreach (var window in Windows) if (window.IsVisible) window.Dismiss();
-                var success = Results.Count == 20 && Results.All(result => result.Passed);
+                var success = Results.Count == 23 && Results.All(result => result.Passed);
                 WriteProof(success, null);
                 application.Shutdown(success ? 0 : 1);
             }
@@ -364,10 +367,10 @@ internal static class Program
         state.Observe(StaffProcessPresence.FromInstances(["443:639295055776695955"]), new("database_unavailable"));
         return state;
     }
-    private static StaffAuthWindow DeviceWindow(StaffAuthClient client, StaffDeviceSessionState state)
+    private static StaffAuthWindow DeviceWindow(StaffAuthClient client, StaffDeviceSessionState state, bool registrationSmsRequired = true)
     {
         var context = state.Context!;
-        var window = new StaffAuthWindow(client, context.StandardNContext, _screen, requireSignIn: true, deviceContext: context);
+        var window = new StaffAuthWindow(client, context.StandardNContext, _screen, requireSignIn: true, deviceContext: context, registrationSmsRequired: registrationSmsRequired);
         state.MarkPrompted(); Windows.Add(window); window.Show(); return window;
     }
     private static void FillLogin(StaffAuthWindow window)
@@ -514,6 +517,62 @@ internal static class Program
         Check(proof, "pending-profile-can-close-without-forging-login", !window.IsVisible && !state.IsAuthenticated(DateTimeOffset.UtcNow) && !state.NeedsPrompt(DateTimeOffset.UtcNow));
     }
 
+    private static async Task DirectRegistration(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); var context = state.Context!; var generation = state.Generation;
+        using var handler = new FakeHandler { DeviceContext = context, DirectFailuresBeforeSuccess = 1 }; using var client = new StaffAuthClient(Config(), handler);
+        var window = DeviceWindow(client, state, registrationSmsRequired: false); RegistrationFields(window); await Idle();
+        Check(proof, "direct-registration-hides-sms-controls", Field<Button>(window, "_request").Visibility == Visibility.Collapsed &&
+            !Field<Button>(window, "_request").IsEnabled && Field<StackPanel>(window, "_codeRow").Visibility == Visibility.Collapsed);
+        Check(proof, "phone-is-explicitly-unverified", Field<TextBlock>(window, "_intro").Text.Contains("номер телефона пока не подтверждён", StringComparison.Ordinal));
+        var accepted = false;
+        window.AuthenticationStarted += () => generation = state.Generation;
+        window.Authenticated += response => { accepted = state.Accept(generation, context, response, DateTimeOffset.UtcNow); if (accepted) window.Dismiss(); };
+        SaveOwnWindow(window, "06-registration-without-sms");
+        Click(Field<Button>(window, "_submit")); await Until(() => handler.WithoutSmsCalls == 1 && !Busy(window));
+        var error = Field<TextBlock>(window, "_status").Text;
+        Check(proof, "direct-generic400-keeps-form-without-asking-for-sms-or-code", window.IsVisible && !accepted && state.Grant == null &&
+            error.Contains("Проверьте ИИН", StringComparison.Ordinal) && !error.Contains("SMS", StringComparison.OrdinalIgnoreCase) && !error.Contains("код", StringComparison.OrdinalIgnoreCase));
+        Check(proof, "direct-generic400-keeps-identity-and-zero-otp", Field<TextBox>(window, "_iin").Text == FixtureIin &&
+            Field<TextBox>(window, "_phone").Text == FixturePhone && handler.OtpCalls == 0 && handler.DeviceRegisterCalls == 0);
+        Field<PasswordBox>(window, "_password").Password = FixturePassword; Field<PasswordBox>(window, "_passwordConfirmation").Password = FixturePassword;
+        Click(Field<Button>(window, "_submit")); await Until(() => !window.IsVisible || !Busy(window));
+        Check(proof, "direct-route-has-no-code-challenge-or-sms-request", handler.WithoutSmsCalls == 2 && handler.OtpCalls == 0 && handler.DeviceRegisterCalls == 0 && handler.DirectBodyMatched);
+        Check(proof, "direct-registration-closes-only-after-current-grant", accepted && state.IsAuthenticated(DateTimeOffset.UtcNow) && !window.IsVisible);
+        Check(proof, "direct-registration-clears-password-controls", Field<PasswordBox>(window, "_password").Password.Length == 0 && Field<PasswordBox>(window, "_passwordConfirmation").Password.Length == 0);
+    }
+    private static async Task RegistrationPolicyRollback(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); var context = state.Context!;
+        StaffAuthWindow? window = null;
+        using var handler = new FakeHandler { DeviceContext = context, BeforeDeviceReply = () => window!.SetRegistrationSmsRequired(true) };
+        using var client = new StaffAuthClient(Config(), handler); window = DeviceWindow(client, state, registrationSmsRequired: false);
+        var eventSeen = false; window.Authenticated += _ => eventSeen = true;
+        RegistrationFields(window); Click(Field<Button>(window, "_submit")); await Until(() => handler.WithoutSmsCalls == 1 && !Busy(window));
+        Check(proof, "changed-registration-policy-does-not-authenticate-old-grant", !eventSeen && state.Grant == null && handler.DeviceLogoutCalls == 1);
+        Check(proof, "rollback-restores-sms-form-without-sending-or-replaying", window.IsVisible && Field<Button>(window, "_request").Visibility == Visibility.Visible &&
+            Field<StackPanel>(window, "_codeRow").Visibility == Visibility.Visible && handler.OtpCalls == 0 && handler.WithoutSmsCalls == 1 && handler.DeviceRegisterCalls == 0);
+        Check(proof, "rollback-keeps-identity-and-explains-no-duplicate-registration", Field<TextBox>(window, "_iin").Text == FixtureIin &&
+            Field<TextBox>(window, "_phone").Text == FixturePhone && Field<TextBlock>(window, "_status").Text.Contains("не регистрируйтесь повторно", StringComparison.Ordinal));
+    }
+    private static async Task DirectRegistrationRecovery(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); var context = state.Context!;
+        using var handler = new FakeHandler { DeviceContext = context }; using var client = new StaffAuthClient(Config(), handler);
+        var window = DeviceWindow(client, state, registrationSmsRequired: false); var eventSeen = false; window.Authenticated += _ => eventSeen = true;
+        Field<ComboBox>(window, "_mode").SelectedIndex = 2;
+        Field<TextBox>(window, "_iin").Text = FixtureIin; Field<TextBox>(window, "_phone").Text = FixturePhone;
+        Field<PasswordBox>(window, "_password").Password = FixturePassword; Field<PasswordBox>(window, "_passwordConfirmation").Password = FixturePassword;
+        Check(proof, "recovery-keeps-real-sms-controls", Field<Button>(window, "_request").Visibility == Visibility.Visible && Field<StackPanel>(window, "_codeRow").Visibility == Visibility.Visible);
+        await RequestOtp(window, handler);
+        var challenge = typeof(StaffAuthWindow).GetField("_challenge", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window);
+        window.SetRegistrationSmsRequired(true); window.SetRegistrationSmsRequired(false);
+        Check(proof, "registration-policy-does-not-clear-recovery-challenge", Equals(challenge, typeof(StaffAuthWindow).GetField("_challenge", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)));
+        Field<TextBox>(window, "_code").Text = "5445"; Click(Field<Button>(window, "_submit")); await Until(() => handler.PasswordChangeCalls == 1 && !Busy(window));
+        Check(proof, "recovery-uses-existing-otp-reset-contract-only", handler.LastOtpPurpose == "reset" && handler.OtpCalls == 1 && handler.WithoutSmsCalls == 0 && handler.PasswordChangeBodyMatched);
+        Check(proof, "password-reset-does-not-fake-an-authenticated-grant", !eventSeen && state.Grant == null && window.IsVisible);
+    }
+
     private static void WriteProof(bool passed, string? note)
     {
         using var process = Process.GetCurrentProcess();
@@ -533,6 +592,13 @@ internal static class Program
         public bool DeviceBodyMatched { get; private set; }
         public int DeviceLoginCalls { get; private set; }
         public int DeviceRegisterCalls { get; private set; }
+        public int WithoutSmsCalls { get; private set; }
+        public int DirectFailuresBeforeSuccess { get; init; }
+        public int DeviceLogoutCalls { get; private set; }
+        public int PasswordChangeCalls { get; private set; }
+        public bool DirectBodyMatched { get; private set; }
+        public bool PasswordChangeBodyMatched { get; private set; }
+        public string? LastOtpPurpose { get; private set; }
         public bool LoginContextMatched { get; private set; }
         public bool WrongRegistrationContext { get; init; }
         public bool UnavailableLogin { get; init; }
@@ -550,26 +616,43 @@ internal static class Program
             ct.ThrowIfCancellationRequested(); TotalCalls++;
             if (request.Method != HttpMethod.Post || request.RequestUri?.Host != "dev.invalid" || request.RequestUri.Query.Length != 0)
             { UnexpectedCalls++; throw new InvalidOperationException("Unexpected fake request."); }
+            if (request.RequestUri.AbsolutePath == "/api/posm/staff/device/logout") {
+                DeviceLogoutCalls++;
+                if (!request.Headers.Contains("X-Staff-Session")) throw new InvalidOperationException("Missing fake grant header.");
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
             var payload = await request.Content!.ReadAsStringAsync(ct); using var body = JsonDocument.Parse(payload);
             switch (request.RequestUri.AbsolutePath)
             {
                 case "/api/posm/staff/device/login":
                 case "/api/posm/staff/device/register":
-                    var registering = request.RequestUri.AbsolutePath.EndsWith("/register", StringComparison.Ordinal);
-                    if (registering) DeviceRegisterCalls++; else DeviceLoginCalls++;
+                case "/api/posm/staff/device/register-without-sms":
+                    var direct = request.RequestUri.AbsolutePath.EndsWith("/register-without-sms", StringComparison.Ordinal);
+                    var registering = direct || request.RequestUri.AbsolutePath.EndsWith("/register", StringComparison.Ordinal);
+                    if (direct) WithoutSmsCalls++; else if (registering) DeviceRegisterCalls++; else DeviceLoginCalls++;
                     var device = JsonSerializer.Deserialize<StaffDeviceContext>(body.RootElement.GetProperty("deviceContext").GetRawText(), Json);
                     DeviceBodyMatched = device == DeviceContext &&
                         body.RootElement.GetProperty("iin").GetString() == FixtureIin &&
                         body.RootElement.GetProperty("password").GetString() == FixturePassword &&
                         (!registering || body.RootElement.GetProperty("phone").GetString() == FixturePhone);
+                    if (direct) DirectBodyMatched = DeviceBodyMatched && body.RootElement.EnumerateObject().Select(x => x.Name).Order().SequenceEqual(
+                        new[] { "deviceContext", "iin", "name", "password", "phone" });
+                    if (direct && WithoutSmsCalls <= DirectFailuresBeforeSuccess) return Reply(new { code = "VALIDATION_FAILED" }, HttpStatusCode.BadRequest);
                     if (!registering && UnavailableLogin) return Reply(new { code = "UPSTREAM_UNAVAILABLE" }, HttpStatusCode.ServiceUnavailable);
                     if (!registering && PendingDeviceLogin) return Reply(new StaffAuthResponse("pending", null, null,
                         new StaffIdentity("DEV-PENDING-PERSON", "DEV pending employee"), DeviceContext: device));
                     BeforeDeviceReply?.Invoke();
                     return Reply(new StaffAuthResponse("authenticated", "DEV-SYNTHETIC-PROCESS-GRANT", DateTimeOffset.UtcNow.AddHours(1),
                         new StaffIdentity("DEV-PERSON", "DEV synthetic employee"), DeviceContext: device));
+                case "/api/posm/staff/password/reset":
+                case "/api/posm/staff/password/activate":
+                    PasswordChangeCalls++;
+                    PasswordChangeBodyMatched = body.RootElement.GetProperty("iin").GetString() == FixtureIin &&
+                        body.RootElement.GetProperty("phone").GetString() == FixturePhone && body.RootElement.GetProperty("password").GetString() == FixturePassword &&
+                        body.RootElement.GetProperty("challengeId").GetString() == "DEV-FAKE-CHALLENGE" && body.RootElement.GetProperty("code").GetString() == "5445";
+                    return Reply(new StaffPasswordChanged(true));
                 case "/api/posm/staff/otp/request":
-                    OtpCalls++;
+                    OtpCalls++; LastOtpPurpose = body.RootElement.GetProperty("purpose").GetString();
                     if (UnavailableOtp || OtpCalls <= OtpFailuresBeforeSuccess) return Reply(new { code = "UPSTREAM_UNAVAILABLE" }, HttpStatusCode.ServiceUnavailable);
                     BeforeOtpReply?.Invoke();
                     return Reply(new StaffOtpResponse("DEV-FAKE-CHALLENGE", 300, "+7***0012"));
