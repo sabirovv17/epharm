@@ -34,6 +34,19 @@ public sealed class StaffProcessStability
     }
 }
 
+/// <summary>Only an explicit server policy enables direct registration; changes invalidate in-flight registration attempts.</summary>
+public sealed class StaffRegistrationPolicy
+{
+    public bool SmsRequired { get; private set; } = true;
+    public long Generation { get; private set; }
+    public bool SetSmsRequired(bool required)
+    {
+        if (SmsRequired == required) return false;
+        SmsRequired = required; Generation++; return true;
+    }
+    public bool IsCurrent(long generation) => generation == Generation;
+}
+
 /// <summary>Own employee login survives unreadable source data; only a real process or known cashier switch clears it.</summary>
 public sealed class StaffDeviceSessionState
 {

@@ -2,7 +2,7 @@ using System;
 
 namespace CustomerDisplay.Models.Posm;
 
-public sealed record StaffCapabilities(bool Enabled, int ProtocolVersion, bool NameFallbackSupported = false, int DeviceEmployeeAuthVersion = 0);
+public sealed record StaffCapabilities(bool Enabled, int ProtocolVersion, bool NameFallbackSupported = false, int DeviceEmployeeAuthVersion = 0, bool RegistrationSmsRequired = true);
 public sealed record StaffAuthContext(string StandardNUserId, string StandardNSessionId,
     string WorkstationId, string ProcessInstanceId, string? StandardNIin = null,
     string StandardNIinStatus = "unavailable", string? StandardNFullName = null,

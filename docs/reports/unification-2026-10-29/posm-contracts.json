@@ -134,6 +134,37 @@
           }
         }
       },
+      "StaffDeviceRegistrationWithoutSmsRequest": {
+        "type": "object",
+        "required": ["iin", "phone", "password", "name", "deviceContext"],
+        "properties": {
+          "iin": {
+            "type": "string",
+            "pattern": "^[0-9]{12}$",
+            "constraint": "valid Kazakhstan IIN checksum; no government identity-validation claim"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 128,
+            "constraint": "nonblank; at most72 UTF-8 bytes; exact whitespace preserved when nonblank"
+          },
+          "deviceContext": {
+            "schemaRef": "StaffDeviceContext"
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 32,
+            "constraint": "allowed phone input normalized to +7 and10 digits"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 255,
+            "constraint": "nonblank; trimmed length3..255"
+          }
+        }
+      },
       "StaffDeviceRegistrationRequest": {
         "type": "object",
         "required": ["challengeId", "code", "iin", "phone", "password", "name", "deviceContext"],
@@ -2787,6 +2818,114 @@
       "state": "source_confirmed",
       "origin": "https://epharm.inkar.kz",
       "sourceRevision": "5f1fe6466debfb754812f88ae0eba59beda3ca09"
+    },
+    {
+      "id": "STAFF_DEVICE_REGISTER_WITHOUT_SMS",
+      "method": "POST",
+      "path": "/api/posm/staff/device/register-without-sms",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "Authenticated nonlegacy individual device joined to active pharmacy; POSM_STAFF_AUTH_ENABLED required. Body/header claims never choose trusted device/pharmacy.",
+        "valuesIncluded": false
+      },
+      "identity": "Explicit temporary policy permits a declared phone, not verified phone ownership, for a new own active profile in the authenticated device pharmacy.",
+      "request": {
+        "server": "StaffDeviceRegistrationWithoutSmsRequest",
+        "client": "DeviceRegisterWithoutSmsAsync",
+        "keyFields": [
+          "iin",
+          "phone",
+          "name",
+          "password",
+          "deviceContext{processInstanceId,standardNContext?}"
+        ],
+        "schemaRef": "currentSourceUpdate.schemas.StaffDeviceRegistrationWithoutSmsRequest"
+      },
+      "response": {
+        "server": "StaffDeviceSessionResponse",
+        "client": "StaffRegistrationResponse.DeviceContext",
+        "keyFields": [
+          "status:authenticated",
+          "sessionToken",
+          "expiresAt",
+          "pharmacist{id,name}",
+          "deviceContext"
+        ],
+        "schemaRef": "currentSourceUpdate.schemas.StaffDeviceSessionResponse"
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "INVALID_CREDENTIALS",
+          "when": "Missing/legacy/invalid/revoked individual key or inactive pharmacy."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid fields/process/source or either existing IIN/phone, including races; no profile overwrite."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Staff auth disabled or registrationSmsRequired=true (default)."
+        },
+        {
+          "status": 429,
+          "code": "OTP_TOO_MANY_ATTEMPTS",
+          "when": "Durable registration device/IIN budget exhausted; no provider call."
+        }
+      ],
+      "sideEffects": [
+        "Creates one active pharmacy-assigned profile with password hash/vault and self_declared phone provenance, then the normal process grant.",
+        "No OTP issuance/verification or fake code; invalidates stale phone OTP proofs only after successful insert. Existing accounts and finance rows unchanged."
+      ],
+      "requiredInvariant": [
+        "Device/pharmacy come only from authenticated individual X-Posm-Key; no source DB, address, name or body-supplied pharmacy substitutes for that assignment.",
+        "This proves own ePharm credentials only. Missing source stays NONE/UNKNOWN; available source IIN wins over name, and diagnostics never create seller mappings/wallet authority.",
+        "No password/OTP/token in logs, generic outbox, URLs or silent mutation retries/redirects; Cache-Control:no-store.",
+        "Recommendation/cart/video/QR/watchdog and Standard-N remain independent; service/SMS/source uncertainty has an explicit fail-open diagnostic, never a fabricated authenticated grant.",
+        "Requires explicit false temporary flag on server; missing capability restores SMS on client. Login/recovery/mobile/producer proofs are unchanged.",
+        "Window-local policy generation rejects stale in-flight registration grants without automatic retry or replay."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+          "line": 64,
+          "anchor": "fun deviceRegisterWithoutSms("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+          "line": 213,
+          "anchor": "fun deviceRegisterWithoutSms("
+        },
+        {
+          "path": "App/Services/StaffAuthClient.cs",
+          "line": 54,
+          "anchor": "public Task<StaffRegistrationResponse> DeviceRegisterWithoutSmsAsync("
+        },
+        {
+          "path": "admin-panel/backend/src/main/resources/db/migration/V098__pharmacist_phone_verification.sql",
+          "line": 2,
+          "anchor": "ALTER TABLE pharmacists ADD COLUMN"
+        },
+        {
+          "path": "admin-panel/backend/src/test/kotlin/kz/epharm/posm/staff/StaffRegistrationWithoutSmsIntegrationTest.kt",
+          "line": 39,
+          "anchor": "class StaffRegistrationWithoutSmsIntegrationTest"
+        }
+      ],
+      "positiveChecks": [
+        "Explicit false registers with four-character password and zero provider calls; profile/phone provenance/pharmacy/grant verified.",
+        "True/missing policy retains the genuine SMS form; reset keeps its real OTP even while no-SMS registration is active."
+      ],
+      "negativeChecks": [
+        "Default closed; legacy/revoked/cross-scope keys, invalid IIN/password/source, existing IIN or phone and concurrent duplicate claims fail.",
+        "A declared phone cannot recover or activate an existing account without genuine purpose-bound proof.",
+        "No fake code/identity, financial writes or silent duplicate registration after a policy change."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz",
+      "sourceRevision": "codex/rps-registration-no-sms"
     },
     {
       "id": "STAFF_DEVICE_REGISTER",

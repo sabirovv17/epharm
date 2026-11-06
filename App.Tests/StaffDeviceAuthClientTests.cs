@@ -67,6 +67,61 @@ public sealed class StaffDeviceAuthClientTests
     }
 
     [Fact]
+    public async Task DirectRegistrationUsesOnlyTheExplicitRouteAndNoOtpOrVerificationClaim()
+    {
+        var calls = 0;
+        using var client = Client(new Handler(async (request, ct) => {
+            calls++; DeviceHeaders(request); Assert.Equal("/api/posm/staff/device/register-without-sms", request.RequestUri!.AbsolutePath);
+            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct));
+            Assert.Equal(new[] { "deviceContext", "iin", "name", "password", "phone" }, body.RootElement.EnumerateObject().Select(x => x.Name).Order().ToArray());
+            Assert.Equal("A4x!", body.RootElement.GetProperty("password").GetString());
+            Assert.Equal("+77000000000", body.RootElement.GetProperty("phone").GetString());
+            Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("deviceContext").GetProperty("standardNContext").ValueKind);
+            return Reply(Auth(Device));
+        }));
+        var response = await client.DeviceRegisterWithoutSmsAsync("000101500011", "+77000000000", "Synthetic Person", "A4x!", Device, TestContext.Current.CancellationToken);
+        Assert.Equal(1, calls); Assert.Equal("authenticated", response.Status); Assert.Equal(Device, response.DeviceContext);
+    }
+
+    [Theory]
+    [InlineData(403, "FORBIDDEN")]
+    [InlineData(404, "UNAVAILABLE")]
+    [InlineData(503, "UNAVAILABLE")]
+    public async Task DirectRegistrationIsNeverReplayedAsSmsRegistrationOrRecovery(int status, string code)
+    {
+        var calls = 0;
+        using var client = Client(new Handler((request, _) => {
+            calls++; Assert.Equal("/api/posm/staff/device/register-without-sms", request.RequestUri!.AbsolutePath);
+            return Task.FromResult(Reply(new { }, (HttpStatusCode)status));
+        }));
+        var error = await Assert.ThrowsAsync<StaffApiException>(() => client.DeviceRegisterWithoutSmsAsync("000101500011", "+77000000000", "Synthetic Person", "A4x!", Device, TestContext.Current.CancellationToken));
+        Assert.Equal(code, error.Code); Assert.Equal(1, calls);
+    }
+
+    [Theory]
+    [InlineData("", true, true)]
+    [InlineData(",\"registrationSmsRequired\":true", true, true)]
+    [InlineData(",\"registrationSmsRequired\":false", false, true)]
+    [InlineData(",\"registrationSmsRequired\":null", true, false)]
+    [InlineData(",\"registrationSmsRequired\":\"false\"", true, false)]
+    public async Task OnlyExplicitValidFalseCapabilityCanDisableRegistrationSms(string suffix, bool required, bool enabled)
+    {
+        using var client = Client(new Handler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) {
+            Content = new StringContent("{\"enabled\":true,\"protocolVersion\":2,\"nameFallbackSupported\":true,\"deviceEmployeeAuthVersion\":1" + suffix + "}"),
+        })));
+        var capability = await client.CheckCapabilitiesAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(required, capability.RegistrationSmsRequired); Assert.Equal(enabled, capability.Enabled);
+    }
+
+    [Fact]
+    public async Task FailedCapabilityNeverAuthorizesDirectRegistration()
+    {
+        using var client = Client(new Handler((_, _) => Task.FromResult(Reply(new { }, HttpStatusCode.ServiceUnavailable))));
+        var capability = await client.CheckCapabilitiesAsync(TestContext.Current.CancellationToken);
+        Assert.False(capability.Enabled); Assert.True(capability.RegistrationSmsRequired);
+    }
+
+    [Fact]
     public async Task DeviceValidationPostsTheOptionalActualSourceAndCarriesGrantOnlyInHeader()
     {
         var context = Device with { StandardNContext = new("user-1", "session-1", "ws-1", Device.ProcessInstanceId,

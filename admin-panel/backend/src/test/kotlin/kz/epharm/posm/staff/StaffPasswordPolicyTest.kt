@@ -17,6 +17,7 @@ class StaffPasswordPolicyTest {
                     StaffLoginRequest("951212500015",password,context),
                     StaffDeviceLoginRequest("951212500015",password,StaffDeviceContext("process")),
                     StaffDeviceRegistrationRequest("challenge","1234","951212500015","+77002223344",password,"Test Person",StaffDeviceContext("process")),
+                    StaffDeviceRegistrationWithoutSmsRequest("951212500015","+77002223344",password,"Test Person",StaffDeviceContext("process")),
                     StaffPasswordRequest("challenge","1234","951212500015","+77002223344",password),
                     IinPasswordLoginRequest("951212500015",password),
                 )

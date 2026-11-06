@@ -65,6 +65,13 @@ data class StaffDeviceRegistrationRequest(
     @field:NotBlank @field:Size(min=3,max=255) val name: String,
     @field:Valid val deviceContext: StaffDeviceContext,
 )
+data class StaffDeviceRegistrationWithoutSmsRequest(
+    @field:Iin @field:NotBlank @field:Size(min=12,max=12) val iin: String,
+    @field:Size(max=32) @field:Pattern(regexp="[+0-9 ()\\-]{6,32}") val phone: String,
+    @field:NotBlank @field:Size(min=4,max=128) val password: String,
+    @field:NotBlank @field:Size(min=3,max=255) val name: String,
+    @field:Valid val deviceContext: StaffDeviceContext,
+)
 data class StaffDeviceSessionResponse(
     val status: String,
     val sessionToken: String?,

@@ -143,6 +143,7 @@ class StaffAuthIntegrationTest {
         val person=pharmacists.findById(result["pharmacist"]["id"].asText()).orElseThrow()
         assertEquals("active",person.status.name.lowercase());assertEquals("staff-pharmacy",person.pharmacyId)
         assertEquals(newIin,person.iin);assertEquals("Сабиров Амир",person.name)
+        assertEquals("sms_verified",jdbc.queryForObject("SELECT phone_verification_status FROM pharmacists WHERE id=?",String::class.java,person.id))
         assertEquals("UNKNOWN",person.standardNIinMatchStatus)
         assertEquals("NONE",person.standardNIdentityMatchMethod);assertEquals("UNKNOWN",person.standardNIdentityMatchStatus)
         deviceSession(result["sessionToken"].asText())
@@ -151,6 +152,18 @@ class StaffAuthIntegrationTest {
         assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM pharmacists WHERE iin=?",Int::class.java,newIin))
         assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_staff_sessions",Int::class.java))
         assertEquals(before,financialCounts())
+    }
+
+    @Test fun `registration without SMS is rejected by default without consuming any proof or provider call`() {
+        val request=StaffDeviceRegistrationWithoutSmsRequest("000101500011","+77000000012","A1!b","Сабиров Амир",deviceContext)
+        post("/device/register-without-sms",request,expected=503)
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM pharmacists",Int::class.java))
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_staff_challenges",Int::class.java))
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_staff_rate_limits",Int::class.java))
+        verify(exactly=0){provider.requestOtp(any(),any())}
+        verify(exactly=0){provider.verifyOtp(any(),any())}
+        val cap=mvc.perform(get("/api/posm/staff/capabilities").header("X-Posm-Key",key)).andExpect(status().isOk).andReturn()
+        assertTrue(json.readTree(cap.response.contentAsByteArray)["registrationSmsRequired"].asBoolean())
     }
 
     @Test fun `device own credentials remain independent and late source binding persists across unavailable intervals`() {

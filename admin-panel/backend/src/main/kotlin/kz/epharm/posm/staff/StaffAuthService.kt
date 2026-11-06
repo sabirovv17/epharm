@@ -30,6 +30,7 @@ class StaffAuthService(
     private val credentialVault: kz.epharm.learnercredentials.LearnerPasswordVault,
     @Value("\${app.otp.dev-mode:true}") private val devMode: Boolean,
     @Value("\${app.otp.dev-fixed:5445}") private val devCode: String,
+    @Value("\${app.posm.staff-registration-sms-required:true}") private val registrationSmsRequired: Boolean = true,
 ) {
     private val random=SecureRandom()
     private val dummyHash=encoder.encode("unused-${UUID.randomUUID()}")
@@ -66,6 +67,7 @@ class StaffAuthService(
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
     fun requestOtp(device: PosmDeviceIdentity, request: StaffOtpRequest): StaffOtpResponse {
+        if(request.purpose=="register" && !registrationSmsRequired) throw AppException(ErrorCode.UPSTREAM_UNAVAILABLE,"Обновите POSM: регистрация сотрудника временно выполняется без SMS",HttpStatus.SERVICE_UNAVAILABLE)
         val phone=phone(request.phone)
         phoneLock.lock(phone)
         phoneLock.limitSharedSms(phone)
@@ -129,25 +131,14 @@ class StaffAuthService(
             }
         }
         if(verification!=OtpVerificationResult.VERIFIED) invalidOtp()
-        val updatedHash=encoder.encode(request.password)
         var registration: Person? = null
         if(purpose=="register") {
-            val name=request.name?.trim()?.takeIf { it.length in 3..255 } ?: invalid()
-            // Shared phone lock prevents competing application registrations by this number.
-            if(person(request.iin)!=null || jdbc.queryForObject("SELECT count(*) FROM pharmacists WHERE phone=?",Long::class.java,phone)!=0L) invalidOtp()
-            val pharmacy=jdbc.query("SELECT name,city FROM pharmacies WHERE id=? AND active=true",{rs,_->rs.getString(1) to rs.getString(2)},device.pharmacyId).singleOrNull() ?: unauthorized()
-            val pharmacistId="ph_${UUID.randomUUID()}"
-            val inserted=jdbc.update("""INSERT INTO pharmacists(id,name,iin,phone,password_hash,tier,status,pharmacy_id,pharmacy_name,city)
-                VALUES (?,?,?,?,?,'Silver',?,?,?,?) ON CONFLICT DO NOTHING""",
-                pharmacistId,name,request.iin,phone,updatedHash,"active",device.pharmacyId,pharmacy.first,pharmacy.second)
-            // Do not propagate PostgreSQL duplicate-key detail (IIN/phone) into the shared logger.
-            if(inserted!=1) invalidOtp()
-            credentialVault.capture(pharmacistId,updatedHash,request.password)
-            registration=Person(pharmacistId,name,phone,"active",device.pharmacyId,updatedHash,request.iin)
+            registration=registerAccount(device,request.iin,phone,request.password,request.name,"sms_verified")
         } else {
             val person=person(request.iin,true) ?: invalidOtp()
             if(person.id!=challenge.person || person.status=="blocked" || PhoneUtil.normalize(person.phone)!=phone ||
                 (purpose=="activate" && !person.password.isNullOrBlank()) || (purpose=="reset" && person.password.isNullOrBlank())) invalidOtp()
+            val updatedHash=encoder.encode(request.password)
             jdbc.update("UPDATE pharmacists SET password_hash=?,updated_at=now() WHERE id=?",updatedHash,person.id)
             credentialVault.capture(person.id,updatedHash,request.password)
             jdbc.update("UPDATE posm_staff_sessions SET revoked_at=now() WHERE pharmacist_id=? AND revoked_at IS NULL",person.id)
@@ -157,6 +148,23 @@ class StaffAuthService(
         jdbc.update("DELETE FROM mobile_otps WHERE phone=?",phone)
         return registration
     }
+
+    private fun registerAccount(device:PosmDeviceIdentity,iin:String,phone:String,value:String,rawName:String?,phoneVerification:String):Person {
+        val name=rawName?.trim()?.takeIf { it.length in 3..255 } ?: invalid()
+        // The caller holds the shared phone lock; unique indexes also arbitrate concurrent IIN claims.
+        if(person(iin)!=null || jdbc.queryForObject("SELECT count(*) FROM pharmacists WHERE phone=?",Long::class.java,phone)!=0L) registrationConflict(phoneVerification)
+        val pharmacy=jdbc.query("SELECT name,city FROM pharmacies WHERE id=? AND active=true",{rs,_->rs.getString(1) to rs.getString(2)},device.pharmacyId).singleOrNull() ?: unauthorized()
+        val id="ph_${UUID.randomUUID()}";val encoded=encoder.encode(value)
+        val inserted=jdbc.update("""INSERT INTO pharmacists(id,name,iin,phone,password_hash,tier,status,pharmacy_id,pharmacy_name,city,phone_verification_status)
+            VALUES (?,?,?,?,?,'Silver','active',?,?,?,?) ON CONFLICT DO NOTHING""",
+            id,name,iin,phone,encoded,device.pharmacyId,pharmacy.first,pharmacy.second,phoneVerification)
+        // Do not propagate PostgreSQL duplicate-key detail (IIN/phone) into the shared logger.
+        if(inserted!=1) registrationConflict(phoneVerification)
+        credentialVault.capture(id,encoded,value)
+        return Person(id,name,phone,"active",device.pharmacyId,encoded,iin)
+    }
+
+    private fun registrationConflict(phoneVerification:String):Nothing = if(phoneVerification=="sms_verified") invalidOtp() else invalid()
 
     @Transactional(readOnly=true)
     fun session(device: PosmDeviceIdentity, token: String?, context: StaffContext, legacy: Boolean = false): StaffSessionResponse {
@@ -198,6 +206,21 @@ class StaffAuthService(
         validateDeviceContext(request.deviceContext)
         val credentials=StaffPasswordRequest(request.challengeId,request.code,request.iin,request.phone,request.password,request.name)
         val person=completeAccount(device,credentials,"register") ?: unauthorized()
+        return deviceGrant(device,person,request.deviceContext)
+    }
+
+    @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
+    fun deviceRegisterWithoutSms(device:PosmDeviceIdentity,request:StaffDeviceRegistrationWithoutSmsRequest):StaffDeviceSessionResponse {
+        if(registrationSmsRequired) throw AppException(ErrorCode.UPSTREAM_UNAVAILABLE,"Регистрация требует подтверждения по SMS",HttpStatus.SERVICE_UNAVAILABLE)
+        validateDeviceContext(request.deviceContext)
+        password(request.password,4)
+        val phone=phone(request.phone)
+        phoneLock.lock(phone)
+        limit("register-device:${device.deviceId}",10,3600)
+        limit("register-account:${request.iin}",5,3600)
+        val person=registerAccount(device,request.iin,phone,request.password,request.name,"self_declared")
+        phoneLock.invalidateStaff(phone)
+        jdbc.update("DELETE FROM mobile_otps WHERE phone=?",phone)
         return deviceGrant(device,person,request.deviceContext)
     }
 

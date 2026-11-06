@@ -51,6 +51,9 @@ public sealed class StaffAuthClient : IDisposable
     public Task<StaffRegistrationResponse> DeviceRegisterAsync(string challengeId, string code, string iin, string phone, string name, string password, StaffDeviceContext context, CancellationToken ct) =>
         PostAsync<StaffRegistrationResponse>("device/register", new { challengeId, code, iin, phone, name, password, deviceContext = context }, ct);
 
+    public Task<StaffRegistrationResponse> DeviceRegisterWithoutSmsAsync(string iin, string phone, string name, string password, StaffDeviceContext context, CancellationToken ct) =>
+        PostAsync<StaffRegistrationResponse>("device/register-without-sms", new { iin, phone, name, password, deviceContext = context }, ct);
+
     public async Task<StaffAuthResponse> ValidateDeviceAsync(string token, StaffDeviceContext context, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/posm/staff/device/session/check") {

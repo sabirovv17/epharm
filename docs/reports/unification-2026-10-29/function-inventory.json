@@ -3587,7 +3587,7 @@
     "name": "Сохранить staff-auth API и независимый вход фармацевта на зарегистрированной кассе",
     "source": {
       "repo": "sabirovv17/epharm",
-      "revision": "d925ff0ae4ed5822acce2f45f326221560ad79a3",
+      "revision": "codex/rps-registration-no-sms",
       "ui": [],
       "api": [
         "GET /api/posm/staff/capabilities",
@@ -3601,7 +3601,8 @@
         "POST /api/posm/staff/device/login",
         "POST /api/posm/staff/device/logout",
         "POST /api/posm/staff/device/register",
-        "POST /api/posm/staff/device/session/check"
+        "POST /api/posm/staff/device/session/check",
+        "POST /api/posm/staff/device/register-without-sms"
       ],
       "jobs": [],
       "data": [
@@ -3624,7 +3625,9 @@
         "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffDtos.kt",
         "admin-panel/backend/src/main/resources/db/migration/V097__posm_device_employee_sessions.sql",
         "App/Services/StaffAuthClient.cs",
-        "App/Services/StaffDeviceSessionState.cs"
+        "App/Services/StaffDeviceSessionState.cs",
+        "admin-panel/backend/src/main/resources/db/migration/V098__pharmacist_phone_verification.sql",
+        "admin-panel/backend/src/test/kotlin/kz/epharm/posm/staff/StaffRegistrationWithoutSmsIntegrationTest.kt"
       ]
     },
     "target": {
@@ -3646,12 +3649,15 @@
       "Первый поздний достоверный Standard-N контекст добавляется без повторного входа; недоступный интервал не стирает сохранённую привязку, смена известных user/session/workstation/process отзывает грант",
       "Собственный вход не означает совпадение ИИН Стандарт-Н: UNKNOWN/NONE, IIN/NAME MATCH/MISMATCH и финансовая привязка продавца остаются отдельными фактами",
       "Пароли 4–128 символов, до 72 UTF-8 байт, общий устойчивый лимит ИИН между learn/strict/device login; пароли и OTP не логируются и не повторяются автоматически",
-      "Сбой или неопределённый источник допускает работу с диагностикой без подтверждённого гранта; рекомендации, чеки, видео, QR и watchdog не зависят от входа"
+      "Сбой или неопределённый источник допускает работу с диагностикой без подтверждённого гранта; рекомендации, чеки, видео, QR и watchdog не зависят от входа",
+      "Явный registrationSmsRequired=false открывает отдельную регистрацию РПС без отправки SMS/ввода кода; индивидуальная касса назначает аптеку и новый профиль помечается phone_verification_status=self_declared",
+      "Default/missing capability сохраняет SMS; новый путь не перезаписывает существующих сотрудников и не обходит login/reset/activate/mobile OTP; смена политики не переигрывает запрос"
     ],
     "risks": [
       "Существование API не разрешает включение функции на кассах; отдельные runtime/VM/SMS доказательства не подменяются source inventory",
       "Без читаемой Standard-N сессии нельзя гарантированно распознать смену пользователя внутри того же работающего процесса",
-      "Индивидуальный device/process грант не создаёт posm_pharmacist_mappings, начислений или доверенной финансовой идентификации"
+      "Индивидуальный device/process грант не создаёт posm_pharmacist_mappings, начислений или доверенной финансовой идентификации",
+      "Заявленный телефон не является доказательством владения номером, совпадения ИИН Стандарт-Н или финансовой идентичности; temporary policy требует отдельного runtime включения"
     ],
     "owner": "ePharm unification integration owner",
     "sourceUpdates": [
