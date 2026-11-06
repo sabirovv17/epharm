@@ -15,6 +15,8 @@ class StaffPasswordPolicyTest {
                 val expected=if(password=="A1!b") emptySet<String>() else setOf("password")
                 val requests=listOf(
                     StaffLoginRequest("951212500015",password,context),
+                    StaffDeviceLoginRequest("951212500015",password,StaffDeviceContext("process")),
+                    StaffDeviceRegistrationRequest("challenge","1234","951212500015","+77002223344",password,"Test Person",StaffDeviceContext("process")),
                     StaffPasswordRequest("challenge","1234","951212500015","+77002223344",password),
                     IinPasswordLoginRequest("951212500015",password),
                 )

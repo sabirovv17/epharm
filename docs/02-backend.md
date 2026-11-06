@@ -1,5 +1,36 @@
 # Backend
 
+## POSM employee login independent of Standard-N (v0.2.9 candidate)
+
+`GET /api/posm/staff/capabilities` retains protocol 2 and advertises
+`deviceEmployeeAuthVersion: 1`. POSM 1.0.77 uses `/device/login`,
+`/device/register`, `/device/session/check` and `/device/logout`: the device
+context contains the actual Standard-N process instance and an optional independently
+observed Standard-N employee context. Missing or ambiguous database evidence does
+not prevent ePharm password login. It does not prove a Standard-N identity match.
+
+Both registration routes assign the active pharmacy authenticated by the individual
+POSM device key, including legacy `/register` without a database session. This is
+the same authoritative pharmacy boundary used for POSM sales. A contextless legacy
+registration returns `registered` without inventing a strict session; device
+registration returns its own authenticated grant. Existing pending/blocked or
+already assigned accounts are not automatically activated or transferred. Historical
+unassigned records require a verified, individually audited HQ activation.
+
+V097 adds `posm_device_staff_sessions` separately from strict legacy sessions, plus
+expiry/revocation indexes and pharmacist/device change revocation triggers. Password,
+phone proof, active pharmacy/device, cross-pharmacy access and shared rate limits
+remain enforced. Late first reliable Standard-N evidence binds the existing grant;
+a different known cashier/session/workstation or process revokes it. Unknown evidence
+does not erase known evidence. Without readable source data, a user switch inside
+the same process cannot be reliably detected. No recommendation-sale attribution or
+bonus crediting is enabled by this login.
+
+When the server/SMS is unavailable, the client releases mandatory presentation and
+permits work. POSM receipt, recommendation, display and `/learn` contracts remain
+independent. Roll back the application without deleting the additive session table;
+1.0.77 disables its new flow when an older server lacks the capability.
+
 ## Local candidate: internal self-password change
 
 `POST /api/admin/auth/password` accepts only `currentPassword` and `newPassword`

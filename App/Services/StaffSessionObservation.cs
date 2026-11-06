@@ -78,6 +78,7 @@ public static class StaffSessionResolver
         if (string.IsNullOrWhiteSpace(processIdentity)) return new("no_process");
         var machine = CanonicalComputer(machineName);
         if (machine.Length == 0) return new("unknown_workstation");
+        // SQL narrows exact, possibly current candidates before this limit; overflow still never proves one identity.
         var snapshot = rows.Take(MaximumObservationRows + 1).ToArray();
         if (snapshot.Length > MaximumObservationRows) return new("ambiguous_session");
         var candidates = snapshot.Where(row => CanonicalComputer(row.ComputerName) == machine &&
@@ -114,6 +115,41 @@ public static class StaffSessionResolver
         return new("resolved", new(processIdentity, item.UserId.Trim(),
             item.SessionId.ToString(System.Globalization.CultureInfo.InvariantCulture),
             item.WorkstationId!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+    }
+}
+
+internal static class StaffSessionQuery
+{
+    public static string Build(bool startedAtTimestamp, bool heartbeatTimestamp)
+    {
+        var startedAt = startedAtTimestamp ? "s.STARTDT" : "cast(null as timestamp)";
+        var heartbeat = heartbeatTimestamp ? "s.HEARTBEATS" : "cast(null as timestamp)";
+        // These predicates run before FIRST: unrelated and provably expired rows cannot exhaust its sentinel.
+        var expiry = startedAtTimestamp && heartbeatTimestamp ? @"
+            and (s.STARTDT is null or s.HEARTBEATS is null or s.STARTDT > s.HEARTBEATS
+                or s.HEARTBEATS >= dateadd(second, -cast(@maxAge as integer), cast(CURRENT_TIMESTAMP as timestamp)))" : "";
+        return $@"select first {StaffSessionResolver.MaximumObservationRows + 1}
+            s.ID as SESSION_ID, s.USER_ID, s.WS_ID, s.PROG, w.COMPNAME,
+            {startedAt} as STARTDT, {heartbeat} as HEARTBEATS,
+            cast(CURRENT_TIMESTAMP as timestamp) as DB_NOW
+            from SESSIONS s join (
+                select ws_host.ID, ws_host.COMPNAME,
+                    case when position('.', ws_host.LOCAL_NAME) > 1
+                        then substring(ws_host.LOCAL_NAME from 1 for position('.', ws_host.LOCAL_NAME) - 1)
+                        else ws_host.LOCAL_NAME end as CANONICAL_NAME
+                from (
+                    select ws.ID, ws.COMPNAME,
+                        case when position('\', reverse(trim(ws.COMPNAME))) > 0
+                            then substring(trim(ws.COMPNAME) from char_length(trim(ws.COMPNAME))
+                                - position('\', reverse(trim(ws.COMPNAME))) + 2)
+                            else trim(ws.COMPNAME) end as LOCAL_NAME
+                    from WORKSTATIONS ws
+                ) ws_host
+            ) w on w.ID = s.WS_ID
+            where s.ENDDT is null and upper(w.CANONICAL_NAME) = @machine
+                and upper(trim(s.PROG)) in ('ZKASSA', 'KASSIR', 'ZKASSA.EXE', 'KASSIR.EXE')
+                and s.ID > 0 and s.WS_ID > 0 and s.USER_ID is not null
+                and trim(cast(s.USER_ID as varchar(128))) <> ''{expiry}";
     }
 }
 

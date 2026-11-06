@@ -30,9 +30,9 @@ The POSM client runs on a Windows cash-desk machine:
 11. Stores outgoing non-real-time events in a local SQLite outbox and retries safely.
 12. Sends any cashier id/name found in Standard-N as an audit signal; the backend decides the trusted
     internal pharmacist used for bonuses.
-13. Supports employee sign-in/registration/phone-reset in POSM 1.0.76 when both local configuration
-    and the server protocol-2 capability enable it. Unavailable identity/service/SMS releases the
-    cashier prompt with a diagnostic; ordinary POSM loops remain independent.
+13. POSM 1.0.77 offers employee sign-in/registration/phone-reset when a real local Standard-N
+    process is detected and local/server gates allow it. Own employee login does not require a
+    readable Standard-N DB; source identity is checked separately. Fail-open preserves cash work.
 14. Shows and processes only non-demo pickup orders with cash payment. Missing delivery or payment
     fields fail closed. Cached orders are rechecked on startup; server-removed cards close after
     the next successful poll. Recommendations remain on a separate path.
@@ -72,30 +72,31 @@ for a new poll. Such a task cannot reopen through snooze or produce a new displa
 
 ## Important Files
 
-| Path                                            | Role                                                            |
-| ----------------------------------------------- | --------------------------------------------------------------- |
-| `App/MainWindow.xaml[.cs]`                      | WPF customer display and main integration shell.                |
-| `App/MainWindow.StandardNReceipt.cs`            | Live Standard-N receipt reconciliation loop.                    |
-| `App/MainWindow.Recommendations.cs`             | Recommendation popup wiring.                                    |
-| `App/MainWindow.Screen.cs`                      | Customer screen/video playlist logic.                           |
-| `App/MainWindow.Update.cs`                      | App auto-update logic.                                          |
-| `App/MainWindow.Staff.cs`, `StaffAuthWindow.cs` | Optional human sign-in, tray reopening and lifecycle.           |
-| `App/Services/StaffSessionObservation.cs`       | Exact-workstation session observation and stale-response guard. |
-| `App/Services/StaffAuthClient.cs`               | Separate HTTPS employee credentials/grants channel.             |
-| `App/RecommendationWindow.xaml[.cs]`            | Pharmacist recommendation popup.                                |
-| `App/CdpForm.xaml[.cs]`                         | POSM customer-phone/CDP form.                                   |
-| `App/Config/EpharmConfig.cs`                    | Config/env parsing.                                             |
-| `App/Services/EpharmApiClient.cs`               | HTTP client with `X-Posm-Key`.                                  |
-| `App/Services/CheckoutSession.cs`               | Current receipt/cart lifecycle.                                 |
-| `App/Services/StandardNLogLocator.cs`           | Bounded production cash-log discovery/cache.                    |
-| `App/Services/StandardNDbLookup.cs`             | Workstation-bound Firebird receipt/cashier reader.              |
-| `App/Services/SaleReporter.cs`                  | Printed sale reporting.                                         |
-| `App/Services/ReceiptArtifactStore.cs`          | Atomic receipt draft/pending/recovery lifecycle.                |
-| `App/Services/FiscalReceiptInboxSource.cs`      | Exact KKM/OFD artifact validation boundary.                     |
-| `App/Services/ReceiptSaleId.cs`                 | Stable pharmacy/document sale id.                               |
-| `App/Services/OfflineOutbox.cs`                 | SQLite outbox.                                                  |
-| `App/Services/OutboxFlusher.cs`                 | Retry loop.                                                     |
-| `Models/Posm/*`                                 | DTOs shared by POSM requests/responses.                         |
+| Path                                            | Role                                                               |
+| ----------------------------------------------- | ------------------------------------------------------------------ |
+| `App/MainWindow.xaml[.cs]`                      | WPF customer display and main integration shell.                   |
+| `App/MainWindow.StandardNReceipt.cs`            | Live Standard-N receipt reconciliation loop.                       |
+| `App/MainWindow.Recommendations.cs`             | Recommendation popup wiring.                                       |
+| `App/MainWindow.Screen.cs`                      | Customer screen/video playlist logic.                              |
+| `App/MainWindow.Update.cs`                      | App auto-update logic.                                             |
+| `App/MainWindow.Staff.cs`, `StaffAuthWindow.cs` | Optional human sign-in, tray reopening and lifecycle.              |
+| `App/Services/StaffSessionObservation.cs`       | Exact-workstation source observation; strict legacy session guard. |
+| `App/Services/StaffDeviceSessionState.cs`       | Process-scoped own login, source binding and late-response guard.  |
+| `App/Services/StaffAuthClient.cs`               | Separate HTTPS employee credentials/grants channel.                |
+| `App/RecommendationWindow.xaml[.cs]`            | Pharmacist recommendation popup.                                   |
+| `App/CdpForm.xaml[.cs]`                         | POSM customer-phone/CDP form.                                      |
+| `App/Config/EpharmConfig.cs`                    | Config/env parsing.                                                |
+| `App/Services/EpharmApiClient.cs`               | HTTP client with `X-Posm-Key`.                                     |
+| `App/Services/CheckoutSession.cs`               | Current receipt/cart lifecycle.                                    |
+| `App/Services/StandardNLogLocator.cs`           | Bounded production cash-log discovery/cache.                       |
+| `App/Services/StandardNDbLookup.cs`             | Workstation-bound Firebird receipt/cashier reader.                 |
+| `App/Services/SaleReporter.cs`                  | Printed sale reporting.                                            |
+| `App/Services/ReceiptArtifactStore.cs`          | Atomic receipt draft/pending/recovery lifecycle.                   |
+| `App/Services/FiscalReceiptInboxSource.cs`      | Exact KKM/OFD artifact validation boundary.                        |
+| `App/Services/ReceiptSaleId.cs`                 | Stable pharmacy/document sale id.                                  |
+| `App/Services/OfflineOutbox.cs`                 | SQLite outbox.                                                     |
+| `App/Services/OutboxFlusher.cs`                 | Retry loop.                                                        |
+| `Models/Posm/*`                                 | DTOs shared by POSM requests/responses.                            |
 
 ## Matching Contract
 
@@ -140,106 +141,116 @@ catalog product ids.
 
 ## Config
 
-### Staff identity release (POSM 1.0.76)
+### Staff identity release (POSM 1.0.77 candidate)
 
-The reviewed candidate reads `USERS.INN` only for the exact local `SESSIONS.USER_ID`
-in the same read-only Firebird snapshot. Missing/invalid/unreadable/ambiguous values
-remain unknown. The observed IIN/status are additive context fields; process, user,
-session, workstation or IIN changes invalidate the old in-memory grant and late responses.
-When IIN is missing/unavailable, the same snapshot may read the textual account label
-`USERS.USERNAME` by that exact user ID, only when its value contains a complete full name.
-The opaque binary `USERNAME_N` is not decoded or treated as text. Only a usable full name
-with at least two complete name words qualifies; arbitrary login names,
-role labels, initials, receipt history and cached user guesses are not substitutes. Name/status
-changes also invalidate the grant. Names are never used to select an ePharm account.
-The new `POST /api/posm/staff/session/check` carries this context in the body, never in
-the URL. Legacy four-field GET validation remains supported by the backend.
-Staff capability protocol 2 plus `nameFallbackSupported=true` identifies this implementation.
-The new client disables its whole staff flow when either marker is missing, including after rollback. Legacy
-protocol-1 clients do not enable staff UI on this backend; their core POSM traffic and
-legacy staff API wire formats remain compatible. This prevents mixed mandatory flows.
+The client detects real `zkassa`/`kassir` processes in its Windows session and opens one
+employee window per PID/start-time fingerprint, independently of a readable Firebird DB or
+source IIN/name. Multiple known processes use a deterministic process-set fingerprint and
+an unverified source; no Standard-N user, session or workstation ID is invented.
+Own authentication still requires the employee's IIN/password, or SMS registration/recovery.
+No process means no automatic window. The candidate requires the binary release gate,
+local `StaffAuthenticationEnabled=true` and an enabled server capability with protocol 2,
+`nameFallbackSupported=true` and `deviceEmployeeAuthVersion=1`. An old-server rollback
+missing the device marker disables the whole new flow; credentials are never replayed via
+legacy routes. Server enablement defaults to false and actual rollout is a separate ops action.
 
-Contextual SMS registration from an individually authenticated pharmacy device creates
-an active profile assigned to that pharmacy and returns a context-bound staff grant.
-The client closes the window only after its current generation accepts the grant.
-Legacy registration without context keeps the pending/unassigned behavior. Existing
-blocked, pending and differently assigned profiles are not silently reassigned.
+New `POST /api/posm/staff/device/login` and `/device/register` send
+`deviceContext={processInstanceId,standardNContext?}`. `/device/session/check` sends that
+context in the body and the grant in `X-Staff-Session`; `/device/logout` revokes it.
+The backend's independently scoped device grant authenticates the ePharm employee, not the
+owner of a Standard-N account. The current process/generation must accept a successful
+login/registration response before the window closes. Process changes and a known source
+user/session/workstation change revoke the old client grant and prompt again. Unreadable,
+stale or ambiguous source intervals preserve the own employee login and last reliable source
+binding. The first late reliable observation binds/checks the existing grant without a second
+popup; IIN/name diagnostic updates do not transfer employee identity. A delayed response from
+an earlier process, source-user generation or dismissed window cannot authorize the new one.
+**An account switch inside the same process cannot be reliably detected while its source DB
+is unreadable**; process detection is not an account-switch event interface.
 
-The pharmacist registry exposes a permission-filtered diagnostic comparison:
-`MATCH`, `MISMATCH` or `UNKNOWN`, plus check time. Only mismatch gets a warning.
-IIN comparisons stay separate from the new general `IIN`/`NAME`/`NONE` method and comparison
-status. A real IIN mismatch is never rescued by an equal name. When IIN is missing/unavailable,
-the backend compares the complete normalized set of name words with the authenticated profile;
-a name mismatch is labelled separately. Source names are not exposed in administrative DTOs.
-This is a device-reported observation, never a trusted seller/bonus binding.
+The source observer reads `USERS.INN` only for the exact local `SESSIONS.USER_ID` in the
+same read-only Firebird snapshot. Missing/invalid/unreadable/ambiguous values remain unknown.
+When IIN is missing/unavailable, that snapshot may read the textual account label
+`USERS.USERNAME` by the exact user ID, only when it contains a complete full name with at
+least two full name words. Opaque binary `USERNAME_N`, arbitrary logins, roles, initials,
+receipt history and cached guesses are not substitutes. Names never select an ePharm account.
+The strict source-bound `POST /api/posm/staff/session/check`, legacy four-field GET validation
+and existing protocol-2/name-fallback clients retain their prior wire/context contracts; their
+core POSM traffic is unaffected by the additive device-auth routes.
 
-The candidate mandatory presentation covers only the cashier monitor when a fresh
-exact session and either its IIN or usable fallback full name are available. It is a fullscreen WPF prompt, not Windows
-Assigned Access or an OS security boundary. No global keyboard hook, BlockInput,
-Standard-N window disable or process termination is used. Unknown identity, unavailable
-service or SMS failure permit work with a fixed bypass diagnostic and no staff grant;
-the bypass applies only to that observation generation. A new session prompts again.
-Source/server disable and shutdown always release the window; customer display and
-receipt/sale/recommendation loops remain independent. POSM 1.0.76 permits this reviewed
-implementation through its binary release gate. It still requires local
-`StaffAuthenticationEnabled=true` and an enabled server capability with protocol 2 and the name-fallback marker;
-the server flag defaults to false until pilot acceptance and explicit rollout.
+Both contextual and contextless SMS registration on an individually authenticated, active
+pharmacy device now create an **active profile assigned to that device's server-recorded
+active pharmacy**, independently of the Standard-N DB. The new device route returns a real
+process-bound grant and the current client closes after accepting it. The legacy contextless
+route returns `status=registered` without a fabricated source context or staff grant; a later
+supported login is still required. Existing historical pending/unassigned, blocked or differently
+assigned profiles are not blanket-activated or silently moved. Individual remediation needs
+its own verified evidence; merely requesting an OTP is not completed-registration provenance.
+A copied/misassigned device key cannot establish the physical location from sales/address text.
 
-`App.Ui.Tests/` runs ten native WPF regressions against the actual App assembly,
-using an in-memory fake HTTP handler without real SMS, accounts or device configuration.
-The Windows CI job saves boolean proof and synthetic renders; an explicit noninteractive
-opt-in is recorded as such and does not prove physical cashier desktop integration.
-The interactive Windows/Standard-N pilot remains required before enabling staff gates.
+The pharmacist registry exposes permission-filtered `MATCH`, `MISMATCH` or `UNKNOWN` and
+check time. Source IIN comparison stays separate from general `IIN`/`NAME`/`NONE` method and
+status. A known IIN mismatch is never rescued by a matching name. When IIN is missing or
+unavailable, all normalized full name words must match the authenticated profile; a name
+mismatch is labelled separately. Source names are not exposed in administrative DTOs.
+Unknown source is not a mismatch or a fake match. These are device-reported diagnostics,
+**not trusted seller/bonus binding, automatic POSM sale attribution or wallet credit**.
 
-The historical POSM 1.0.72–1.0.75 production pause disabled the staff module with the read-only
-`EpharmConfig.StaffAuthenticationReleaseEnabled=false` release gate. No HTTP client, staff DB
-observer, tray or staff window starts; JSON, environment or server capabilities cannot override it.
-Production also keeps `POSM_STAFF_AUTH_ENABLED=false` so older responsive clients close their
-staff windows. An already blocked old process still needs the signed client update/restart.
-Existing staff profiles, hashes and all other POSM loops are preserved. Re-enabling requires a
-reviewed new binary, explicit server opt-in and the isolated Windows/SMS pilot below.
+With a fresh exact source and comparable IIN/name, the existing cashier-monitor fullscreen
+presentation can be used. Otherwise the automatic window is ordinary and closable, with
+“Continue work without sign-in”; closing/continuing records a per-process-generation bypass
+without an auth grant and without reopening on each source-status poll. Service/SMS failure
+also releases work with a fixed bypass diagnostic. Manual tray reopening remains available.
+No global keyboard hook, BlockInput, Standard-N window disable or process termination is used:
+this is WPF presentation, not Windows Assigned Access or an OS security boundary.
+Server disable/shutdown releases the window. Customer display, receipt/sale/recommendation,
+QR and updater loops remain independent; the separate `/learn` and its domain are preserved.
 
-The retained POSM 1.0.71 implementation includes a guided registration/recovery choice after a failed IIN/password login.
-The typed IIN is retained while passwords, OTP and the previous challenge are cleared. Unknown
-IIN and wrong password have the same response/guidance: there is no account-existence endpoint.
-Registration still requires SMS and creates a pending profile requiring pharmacy assignment.
-An unresolved Standard-N session no longer hides registration/recovery behind a status-only window.
-The full form remains available; only login is disabled until a real context is resolved. No synthetic
-context is sent. Session timestamps are read as native values without forced SQL casts; unsupported
-counters/strings are rejected explicitly, never guessed into a trusted timestamp.
-The optional staff channel reports only allowlisted `staffAuthStatus` codes through the existing
-heartbeat, including local/server-disabled, device credential, network, process/database/session,
-`login_visible`, `login_required` and `authenticated`. No IIN, name, phone, password, OTP or token
-is included. A visible WPF window is not proof of human attention; client state is not financial trust.
-Staff-channel failures must not stop receipt polling, updates, QR, recommendation or customer display.
+`App.Ui.Tests/` defines 17 native WPF regressions against the real App assembly: the previous
+ten plus seven process/device login, registration, bypass, source-flap and stale-reply cases.
+They use fake HTTP without real SMS, accounts or device configuration. The candidate harness
+has Windows-target compilation evidence; **17-case native execution and real-SMS/live-cashier
+acceptance are separate evidence, not implied by compilation**. CI records boolean proof and
+synthetic renders; its explicit noninteractive opt-in does not prove a physical cashier desktop.
+This document does not assert publication or completed fleet delivery of the candidate.
+
+Historically POSM 1.0.72–1.0.75 paused staff UI through the read-only binary release gate and
+production server opt-out. JSON/env/server changes alone cannot override those old binaries;
+they need the signed reviewed client update/restart. The 1.0.71-era form also disabled login
+without source context; the new device flow removes that dependency, retaining guided
+registration/recovery and identical guidance for unknown IIN versus wrong password. Passwords,
+OTP and challenges clear on navigation; no account-existence endpoint is added.
+Only allowlisted `staffAuthStatus` codes enter heartbeat; no IIN/name/phone/password/OTP/token
+is included. `authenticated` means accepted own ePharm login, not Standard-N ownership or
+financial trust. Human attention and source matching require separate evidence.
 
 `posm.json` keys can be overridden by environment variables:
 
-| Key                                    | Env                                        | Meaning                                                                            |
-| -------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------- |
-| `Enabled`                              | `EPHARM_POSM_ENABLED`                      | Enables backend integration.                                                       |
-| `BackendBaseUrl`                       | `EPHARM_BACKEND_URL`                       | Preferred backend origin, e.g. `https://epharm.inkar.kz`.                          |
-| `BackendFallbackBaseUrls`              | `EPHARM_BACKEND_FALLBACK_URLS`             | Ordered backup origins; environment values use `;` or `,` separators.              |
-| `DeviceKey`                            | `EPHARM_POSM_KEY`                          | POSM device key for `X-Posm-Key`.                                                  |
-| `PharmacyId`                           | `EPHARM_PHARMACY_ID`                       | Pharmacy/screen id.                                                                |
-| `PharmacistId`                         | `EPHARM_PHARMACIST_ID`                     | Diagnostic fallback only; do not use a fixed person in production.                 |
-| `ScreenMode`                           | `EPHARM_SCREEN_MODE`                       | `dev` windowed or `prod` monitor behavior.                                         |
-| `VideoEnabled`                         | `EPHARM_NO_VIDEO=true` disables            | Customer video playback.                                                           |
-| `PlaylistPollSec`                      | `EPHARM_PLAYLIST_POLL_SEC`                 | Playlist poll period.                                                              |
-| `AppLogPath`                           | `EPHARM_APP_LOG`                           | POSM app log path.                                                                 |
-| `StandardNLogPaths`                    | `EPHARM_STANDARDN_LOG_PATHS`               | Optional explicit paths (`;`-separated in env).                                    |
-| `StandardNReceiptPollMs`               | `EPHARM_STANDARDN_RECEIPT_POLL_MS`         | Active receipt poll interval; default 400ms.                                       |
-| `StaffAuthenticationEnabled`           | `EPHARM_STAFF_AUTH_ENABLED`                | Local opt-out; server protocol-2 capability must also allow sign-in.               |
-| `StaffSessionMaxAgeSec`                | `EPHARM_STAFF_SESSION_MAX_AGE_SEC`         | Staff DB-heartbeat freshness policy, default 300s; verify actual cadence in pilot. |
-| `ReceiptCaptureEnabled`                | `EPHARM_RECEIPT_CAPTURE_ENABLED`           | Enables exact-only local capture; default true.                                    |
-| `ReceiptCaptureDir`                    | `EPHARM_RECEIPT_CAPTURE_DIR`               | Root for active/pending/quarantine receipt artifacts.                              |
-| `FiscalReceiptInboxDir`                | `EPHARM_FISCAL_RECEIPT_INBOX_DIR`          | Handoff directory written by an approved KKM/OFD adapter.                          |
-| `FiscalReceiptTrustedSources`          | `EPHARM_FISCAL_RECEIPT_TRUSTED_SOURCES`    | Allowed adapter identities.                                                        |
-| `FiscalReceiptPollSec`                 | `EPHARM_FISCAL_RECEIPT_POLL_SEC`           | Background inbox poll period; 1-60 seconds.                                        |
-| `FiscalReceiptMaxClockSkewSec`         | `EPHARM_FISCAL_RECEIPT_MAX_CLOCK_SKEW_SEC` | Maximum sale/document correlation skew.                                            |
-| `FiscalReceiptMaxArtifactMb`           | `EPHARM_FISCAL_RECEIPT_MAX_ARTIFACT_MB`    | Maximum accepted PDF/PNG size; 1-50 MB.                                            |
-| `ReceiptCaptureActiveRetentionDays`    | `EPHARM_RECEIPT_ACTIVE_RETENTION_DAYS`     | Retention for abandoned active drafts; 1-30 days.                                  |
-| `FiscalReceiptCompletedRetentionHours` | `EPHARM_FISCAL_RECEIPT_RETENTION_HOURS`    | Exact-copy retention after capture; 1-168 hours.                                   |
+| Key                                    | Env                                        | Meaning                                                                                  |
+| -------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `Enabled`                              | `EPHARM_POSM_ENABLED`                      | Enables backend integration.                                                             |
+| `BackendBaseUrl`                       | `EPHARM_BACKEND_URL`                       | Preferred backend origin, e.g. `https://epharm.inkar.kz`.                                |
+| `BackendFallbackBaseUrls`              | `EPHARM_BACKEND_FALLBACK_URLS`             | Ordered backup origins; environment values use `;` or `,` separators.                    |
+| `DeviceKey`                            | `EPHARM_POSM_KEY`                          | POSM device key for `X-Posm-Key`.                                                        |
+| `PharmacyId`                           | `EPHARM_PHARMACY_ID`                       | Pharmacy/screen id.                                                                      |
+| `PharmacistId`                         | `EPHARM_PHARMACIST_ID`                     | Diagnostic fallback only; do not use a fixed person in production.                       |
+| `ScreenMode`                           | `EPHARM_SCREEN_MODE`                       | `dev` windowed or `prod` monitor behavior.                                               |
+| `VideoEnabled`                         | `EPHARM_NO_VIDEO=true` disables            | Customer video playback.                                                                 |
+| `PlaylistPollSec`                      | `EPHARM_PLAYLIST_POLL_SEC`                 | Playlist poll period.                                                                    |
+| `AppLogPath`                           | `EPHARM_APP_LOG`                           | POSM app log path.                                                                       |
+| `StandardNLogPaths`                    | `EPHARM_STANDARDN_LOG_PATHS`               | Optional explicit paths (`;`-separated in env).                                          |
+| `StandardNReceiptPollMs`               | `EPHARM_STANDARDN_RECEIPT_POLL_MS`         | Active receipt poll interval; default 400ms.                                             |
+| `StaffAuthenticationEnabled`           | `EPHARM_STAFF_AUTH_ENABLED`                | Local opt-out; server protocol-2/name/device-auth-v1 capability must also allow sign-in. |
+| `StaffSessionMaxAgeSec`                | `EPHARM_STAFF_SESSION_MAX_AGE_SEC`         | Staff DB-heartbeat freshness policy, default 300s; verify actual cadence in pilot.       |
+| `ReceiptCaptureEnabled`                | `EPHARM_RECEIPT_CAPTURE_ENABLED`           | Enables exact-only local capture; default true.                                          |
+| `ReceiptCaptureDir`                    | `EPHARM_RECEIPT_CAPTURE_DIR`               | Root for active/pending/quarantine receipt artifacts.                                    |
+| `FiscalReceiptInboxDir`                | `EPHARM_FISCAL_RECEIPT_INBOX_DIR`          | Handoff directory written by an approved KKM/OFD adapter.                                |
+| `FiscalReceiptTrustedSources`          | `EPHARM_FISCAL_RECEIPT_TRUSTED_SOURCES`    | Allowed adapter identities.                                                              |
+| `FiscalReceiptPollSec`                 | `EPHARM_FISCAL_RECEIPT_POLL_SEC`           | Background inbox poll period; 1-60 seconds.                                              |
+| `FiscalReceiptMaxClockSkewSec`         | `EPHARM_FISCAL_RECEIPT_MAX_CLOCK_SKEW_SEC` | Maximum sale/document correlation skew.                                                  |
+| `FiscalReceiptMaxArtifactMb`           | `EPHARM_FISCAL_RECEIPT_MAX_ARTIFACT_MB`    | Maximum accepted PDF/PNG size; 1-50 MB.                                                  |
+| `ReceiptCaptureActiveRetentionDays`    | `EPHARM_RECEIPT_ACTIVE_RETENTION_DAYS`     | Retention for abandoned active drafts; 1-30 days.                                        |
+| `FiscalReceiptCompletedRetentionHours` | `EPHARM_FISCAL_RECEIPT_RETENTION_HOURS`    | Exact-copy retention after capture; 1-168 hours.                                         |
 
 POSM v1.0.43 uses the workstation-bound active Firebird receipt as the primary live-cart source. It
 still watches explicit and previously confirmed paths first, then the two legacy v1.0.23 paths:
@@ -251,20 +262,19 @@ cash-event marker is observed. The cache is `C:\Epharm\standardn-log-paths.txt`.
 
 `Enabled` is effective only when key identity fields are present.
 
-When the reviewed staff module is explicitly enabled, staff identity is observed
-independently of an open receipt: one local cashier process
-(PID/start time), exact canonical workstation and one fresh session. It never borrows the
-receipt reader's sole-foreign-session or substring fallback. Unclosed rows with a
-provably expired heartbeat are excluded before checking ambiguity. Missing, future or
-inconsistent timestamps remain candidates; two potentially current sessions are never
-resolved by choosing the newest. The reader fetches up to 101 rows; more than 100
-refuses context before any filtering, so truncation cannot hide a second active session.
-Unknown/stale/ambiguous observations
-clear only the employee grant and show a nonblocking reason. Grants remain in memory and are
-revalidated every 30 seconds; context/generation guards reject a delayed login after a switch.
-This is ePharm identity, not attestation of ownership of the Standard-N account; receipt seller
-attribution is unchanged. Follow the [Windows/SMS pilot checklist](rollout/rps-auth-test.md)
-before enabling fleet auto-update.
+When staff source comparison is enabled, the read-only observer uses one local cashier
+process, the exact canonical workstation and a fresh source session. It does not borrow the
+receipt reader's sole-foreign-session or substring fallbacks. The query filters exact workstation,
+cashier program and valid identity rows before its 101-row sentinel; it excludes only provably
+expired native timestamps. Unsupported timestamp types stay explicitly unresolved, never cast
+from counters/strings. Missing/future/inconsistent timestamps remain possible candidates; two
+potentially current sessions are not resolved by choosing the newest. More than 100 eligible
+rows refuses source context rather than hiding another session through truncation.
+Own device authentication survives unknown/stale/ambiguous source data; grants stay in memory
+and are revalidated every 30 seconds. The backend remembers its first reliable user/session/
+workstation through missing-source intervals; a changed known binding revokes the grant.
+Receipt seller attribution remains unchanged. Use the [Windows/SMS pilot checklist](rollout/rps-auth-test.md)
+for separate native, actual Standard-N and real-SMS evidence.
 
 ## Exact Fiscal Receipt Contract
 
@@ -554,9 +564,9 @@ Reinserting the same mutated reference could leave WPF quantity/line amount stal
 while the separately calculated total was already current. Identity merge, row order,
 absolute quantity, zero/removal and recommendation triggers retain their contracts.
 The core lifecycle suite compiles this real method instead of a fake upsert.
-The staff module remains disabled; this candidate does not publish a fleet update.
+That receipt-rendering change itself does not enable staff UI or publish a fleet update.
 
-### Password and presentation contract in 1.0.76
+### Password and presentation contract in 1.0.77
 
 The reviewed release gate is enabled in the new binary; old paused binaries remain unchanged.
 Both `StaffAuthenticationEnabled` and `POSM_STAFF_AUTH_ENABLED` are still required. The latter
@@ -572,5 +582,5 @@ budget of ten attempts per five minutes; the device limit and SMS limits remain 
 The preserved teal/terracotta design uses the current ePharm logo, Manrope, responsive panels,
 scrolling and input templates with an unclipped content host. Presentation does not replace
 current context checks, fresh-generation acceptance, automatic closure or fail-open behavior.
-Eight synthetic native WPF cases include four-character registration and all six input geometries.
-Their fake HTTP evidence is separate from an interactive Standard-N/real-SMS pilot.
+The 17-case candidate WPF harness retains four-character registration and all six input geometries.
+Native execution and fake HTTP proof remain separate from an actual Standard-N/real-SMS pilot.

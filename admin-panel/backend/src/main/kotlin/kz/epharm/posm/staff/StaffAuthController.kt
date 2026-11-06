@@ -22,7 +22,7 @@ class StaffAuthController(
     @GetMapping("/capabilities")
     fun capabilities(@RequestHeader("X-Posm-Key",required=false) key:String?):ResponseEntity<*> {
         device(key,false)
-        return response(mapOf("enabled" to enabled,"protocolVersion" to 2,"nameFallbackSupported" to true))
+        return response(mapOf("enabled" to enabled,"protocolVersion" to 2,"nameFallbackSupported" to true,"deviceEmployeeAuthVersion" to 1))
     }
     @PostMapping("/login")
     fun login(@RequestHeader("X-Posm-Key",required=false) key:String?,@Valid @RequestBody request:StaffLoginRequest):ResponseEntity<StaffSessionResponse> {
@@ -35,7 +35,7 @@ class StaffAuthController(
     @PostMapping("/register")
     fun register(@RequestHeader("X-Posm-Key",required=false) key:String?,@Valid @RequestBody request:StaffPasswordRequest):ResponseEntity<*> {
         val session=service.complete(device(key),request,"register")
-        return if(session!=null) response(session) else response(mapOf("status" to "pending"))
+        return if(session!=null) response(session) else response(mapOf("status" to "registered"))
     }
     @PostMapping("/password/{purpose:reset|activate}")
     fun reset(@RequestHeader("X-Posm-Key",required=false) key:String?,@PathVariable purpose:String,@Valid @RequestBody request:StaffPasswordRequest):ResponseEntity<*> {
@@ -49,6 +49,21 @@ class StaffAuthController(
     @PostMapping("/logout")
     fun logout(@RequestHeader("X-Posm-Key",required=false) key:String?,@RequestHeader("X-Staff-Session",required=false) token:String?):ResponseEntity<Void> {
         service.logout(device(key),token)
+        return ResponseEntity.noContent().header("Cache-Control","no-store").build()
+    }
+    @PostMapping("/device/login")
+    fun deviceLogin(@RequestHeader("X-Posm-Key",required=false) key:String?,@Valid @RequestBody request:StaffDeviceLoginRequest):ResponseEntity<StaffDeviceSessionResponse> {
+        val identity=device(key)
+        passwordLoginLimiter.check(request.iin)
+        return response(service.deviceLogin(identity,request))
+    }
+    @PostMapping("/device/register")
+    fun deviceRegister(@RequestHeader("X-Posm-Key",required=false) key:String?,@Valid @RequestBody request:StaffDeviceRegistrationRequest)=response(service.deviceRegister(device(key),request))
+    @PostMapping("/device/session/check")
+    fun checkDeviceSession(@RequestHeader("X-Posm-Key",required=false) key:String?,@RequestHeader("X-Staff-Session",required=false) token:String?,@Valid @RequestBody context:StaffDeviceContext)=response(service.deviceSession(device(key),token,context))
+    @PostMapping("/device/logout")
+    fun deviceLogout(@RequestHeader("X-Posm-Key",required=false) key:String?,@RequestHeader("X-Staff-Session",required=false) token:String?):ResponseEntity<Void> {
+        service.deviceLogout(device(key),token)
         return ResponseEntity.noContent().header("Cache-Control","no-store").build()
     }
     private fun device(key:String?,requireEnabled:Boolean=true)=devices.authenticate(key).also {

@@ -114,15 +114,14 @@ namespace CustomerDisplay.Services
                 using var conn = OpenConnection();
                 using var transaction = conn.BeginTransaction(new FbTransactionOptions
                 { TransactionBehavior = FbTransactionBehavior.Read | FbTransactionBehavior.Concurrency | FbTransactionBehavior.Wait });
+                var times = ReadStaffSessionTimestampShape(conn, transaction);
                 using var cmd = conn.CreateCommand();
                 cmd.Transaction = transaction;
                 cmd.CommandTimeout = TimeoutSec();
-                cmd.CommandText = $@"select first {StaffSessionResolver.MaximumObservationRows + 1} s.ID as SESSION_ID, s.USER_ID, s.WS_ID, s.PROG, w.COMPNAME,
-                    s.STARTDT, s.HEARTBEATS,
-                    cast(CURRENT_TIMESTAMP as timestamp) as DB_NOW
-                    from SESSIONS s join WORKSTATIONS w on w.ID = s.WS_ID
-                    where s.ENDDT is null and upper(w.COMPNAME) containing @machine";
+                cmd.CommandText = StaffSessionQuery.Build(times.StartedAt, times.Heartbeat);
                 cmd.Parameters.AddWithValue("@machine", StaffSessionResolver.CanonicalComputer(_machineName));
+                if (times.StartedAt && times.Heartbeat)
+                    cmd.Parameters.Add("@maxAge", FbDbType.Integer).Value = Math.Clamp(_cfg.StaffSessionMaxAgeSec, 10, 3600);
                 using var reader = cmd.ExecuteReader();
                 var rows = new List<StaffCashSessionRow>();
                 while (reader.Read()) rows.Add(new(ReadInt64(reader, "SESSION_ID") ?? 0,
@@ -147,6 +146,27 @@ namespace CustomerDisplay.Services
                 // This observer must not log database credentials or alter the existing cash path.
                 return new("database_unavailable");
             }
+        }
+
+        private (bool StartedAt, bool Heartbeat) ReadStaffSessionTimestampShape(FbConnection connection, FbTransaction transaction)
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandTimeout = TimeoutSec();
+            command.CommandText = @"select trim(rf.rdb$field_name), f.rdb$field_type
+                from rdb$relation_fields rf join rdb$fields f on f.rdb$field_name = rf.rdb$field_source
+                where rf.rdb$relation_name = 'SESSIONS' and rf.rdb$field_name in ('STARTDT', 'HEARTBEATS')";
+            using var reader = command.ExecuteReader();
+            var startedAt = false;
+            var heartbeat = false;
+            while (reader.Read())
+            {
+                // Only native TIMESTAMP is wall-clock evidence; counters, strings and DATE are not.
+                var timestamp = !reader.IsDBNull(1) && Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture) == 35;
+                if (reader.GetString(0).Trim() == "STARTDT") startedAt = timestamp;
+                if (reader.GetString(0).Trim() == "HEARTBEATS") heartbeat = timestamp;
+            }
+            return (startedAt, heartbeat);
         }
 
         private StaffIinObservation ReadStaffIin(FbConnection connection, FbTransaction transaction, string userId)

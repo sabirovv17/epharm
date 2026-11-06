@@ -38,11 +38,7 @@ class StaffAuthService(
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
     fun login(device: PosmDeviceIdentity, request: StaffLoginRequest): StaffSessionResponse {
         validateContext(request.context)
-        limit("login-device:${device.deviceId}",30,300)
-        password(request.password,4)
-        val person=person(request.iin,true)
-        val matches=encoder.matches(request.password,person?.password ?: dummyHash)
-        if (!matches || person==null || person.status=="blocked") unauthorized()
+        val person=verifyPassword(device,request.iin,request.password)
         if (person.status=="pending") {
             credentialVault.capture(person.id,person.password!!,request.password)
             return StaffSessionResponse("pending",null,null,StaffPerson(person.id,person.name),request.context)
@@ -55,13 +51,10 @@ class StaffAuthService(
     private fun grant(device: PosmDeviceIdentity, person: Person, c: StaffContext, iin: String): StaffSessionResponse {
         jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 718095))",device.deviceId)
         // This observation is not proof of the Standard-N account owner's identity.
-        val observation=StaffIdentityObservation.match(iin,person.name,c)
-        jdbc.update("""UPDATE pharmacists SET standard_n_iin_match_status=?,standard_n_iin_checked_at=now(),
-            standard_n_identity_match_method=?,standard_n_identity_match_status=?,standard_n_identity_checked_at=now(),updated_at=now() WHERE id=?""",
-            StaffIinObservation.match(iin,c),observation.method,observation.status,person.id)
+        recordObservation(person,iin,c)
         val token=randomToken()
         val expires=Instant.now().plusSeconds(8*3600)
-        jdbc.update("UPDATE posm_staff_sessions SET revoked_at=now() WHERE device_id=? AND pharmacy_id=? AND revoked_at IS NULL",device.deviceId,device.pharmacyId)
+        revokeDeviceGrants(device)
         jdbc.update("""INSERT INTO posm_staff_sessions(token_hash,pharmacist_id,device_id,pharmacy_id,password_fingerprint,
             standard_n_user_id,standard_n_session_id,workstation_id,process_instance_id,expires_at,standard_n_iin,standard_n_iin_status,
             standard_n_full_name,standard_n_full_name_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
@@ -108,6 +101,11 @@ class StaffAuthService(
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
     fun complete(device: PosmDeviceIdentity, request: StaffPasswordRequest, purpose: String): StaffSessionResponse? {
         request.context?.let(::validateContext)
+        val registration=completeAccount(device,request,purpose)
+        return registration?.let { person -> request.context?.let { grant(device,person,it,request.iin) } }
+    }
+
+    private fun completeAccount(device:PosmDeviceIdentity,request:StaffPasswordRequest,purpose:String):Person? {
         password(request.password,4)
         val phone=phone(request.phone)
         phoneLock.lock(phone)
@@ -137,16 +135,15 @@ class StaffAuthService(
             val name=request.name?.trim()?.takeIf { it.length in 3..255 } ?: invalid()
             // Shared phone lock prevents competing application registrations by this number.
             if(person(request.iin)!=null || jdbc.queryForObject("SELECT count(*) FROM pharmacists WHERE phone=?",Long::class.java,phone)!=0L) invalidOtp()
-            val pharmacy=if(request.context!=null) jdbc.query("SELECT name,city FROM pharmacies WHERE id=? AND active=true",{rs,_->rs.getString(1) to rs.getString(2)},device.pharmacyId).singleOrNull() ?: unauthorized() else null
+            val pharmacy=jdbc.query("SELECT name,city FROM pharmacies WHERE id=? AND active=true",{rs,_->rs.getString(1) to rs.getString(2)},device.pharmacyId).singleOrNull() ?: unauthorized()
             val pharmacistId="ph_${UUID.randomUUID()}"
             val inserted=jdbc.update("""INSERT INTO pharmacists(id,name,iin,phone,password_hash,tier,status,pharmacy_id,pharmacy_name,city)
                 VALUES (?,?,?,?,?,'Silver',?,?,?,?) ON CONFLICT DO NOTHING""",
-                pharmacistId,name,request.iin,phone,updatedHash,if(pharmacy!=null) "active" else "pending",
-                if(pharmacy!=null) device.pharmacyId else null,pharmacy?.first,pharmacy?.second ?: "")
+                pharmacistId,name,request.iin,phone,updatedHash,"active",device.pharmacyId,pharmacy.first,pharmacy.second)
             // Do not propagate PostgreSQL duplicate-key detail (IIN/phone) into the shared logger.
             if(inserted!=1) invalidOtp()
             credentialVault.capture(pharmacistId,updatedHash,request.password)
-            if(pharmacy!=null) registration=Person(pharmacistId,name,phone,"active",device.pharmacyId,updatedHash)
+            registration=Person(pharmacistId,name,phone,"active",device.pharmacyId,updatedHash,request.iin)
         } else {
             val person=person(request.iin,true) ?: invalidOtp()
             if(person.id!=challenge.person || person.status=="blocked" || PhoneUtil.normalize(person.phone)!=phone ||
@@ -158,7 +155,7 @@ class StaffAuthService(
         }
         phoneLock.invalidateStaff(phone)
         jdbc.update("DELETE FROM mobile_otps WHERE phone=?",phone)
-        return registration?.let { person -> request.context?.let { grant(device,person,it,request.iin) } }
+        return registration
     }
 
     @Transactional(readOnly=true)
@@ -183,10 +180,116 @@ class StaffAuthService(
         if(!token.isNullOrBlank() && token.length in 32..128) jdbc.update("UPDATE posm_staff_sessions SET revoked_at=now() WHERE token_hash=? AND device_id=? AND pharmacy_id=?",hash(token),device.deviceId,device.pharmacyId)
     }
 
-    private fun person(iin: String, lock: Boolean=false): Person?=jdbc.query(
-        "SELECT id,name,phone,status,pharmacy_id,password_hash FROM pharmacists WHERE iin=?"+if(lock) " FOR UPDATE" else "",
-        {rs,_->Person(rs.getString(1),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5),rs.getString(6))},iin).singleOrNull()
-    private data class Person(val id:String,val name:String,val phone:String,val status:String,val pharmacy:String?,val password:String?)
+    @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
+    fun deviceLogin(device:PosmDeviceIdentity,request:StaffDeviceLoginRequest):StaffDeviceSessionResponse {
+        validateDeviceContext(request.deviceContext)
+        val person=verifyPassword(device,request.iin,request.password)
+        if(person.status=="pending") {
+            credentialVault.capture(person.id,person.password!!,request.password)
+            return StaffDeviceSessionResponse("pending",null,null,StaffPerson(person.id,person.name),request.deviceContext)
+        }
+        if(person.status!="active" || person.pharmacy!=device.pharmacyId) unauthorized()
+        credentialVault.capture(person.id,person.password!!,request.password)
+        return deviceGrant(device,person,request.deviceContext)
+    }
+
+    @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
+    fun deviceRegister(device:PosmDeviceIdentity,request:StaffDeviceRegistrationRequest):StaffDeviceSessionResponse {
+        validateDeviceContext(request.deviceContext)
+        val credentials=StaffPasswordRequest(request.challengeId,request.code,request.iin,request.phone,request.password,request.name)
+        val person=completeAccount(device,credentials,"register") ?: unauthorized()
+        return deviceGrant(device,person,request.deviceContext)
+    }
+
+    private fun deviceGrant(device:PosmDeviceIdentity,person:Person,c:StaffDeviceContext):StaffDeviceSessionResponse {
+        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 718095))",device.deviceId)
+        recordObservation(person,person.iin ?: unauthorized(),c.standardNContext)
+        revokeDeviceGrants(device)
+        val token=randomToken();val expires=Instant.now().plusSeconds(8*3600)
+        val source=c.standardNContext
+        jdbc.update("""INSERT INTO posm_device_staff_sessions(token_hash,pharmacist_id,device_id,pharmacy_id,password_fingerprint,
+            process_instance_id,standard_n_user_id,standard_n_session_id,workstation_id,standard_n_iin,standard_n_iin_status,
+            standard_n_full_name,standard_n_full_name_status,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            hash(token),person.id,device.deviceId,device.pharmacyId,hash(person.password!!),c.processInstanceId,
+            source?.standardNUserId,source?.standardNSessionId,source?.workstationId,source?.standardNIin,source?.standardNIinStatus ?: "unavailable",
+            source?.standardNFullName,source?.standardNFullNameStatus ?: "unavailable",Timestamp.from(expires))
+        return StaffDeviceSessionResponse("authenticated",token,expires,StaffPerson(person.id,person.name),c)
+    }
+
+    // A rejected context must durably revoke the grant even though the HTTP response is 401.
+    @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
+    fun deviceSession(device:PosmDeviceIdentity,token:String?,context:StaffDeviceContext):StaffDeviceSessionResponse {
+        validateDeviceContext(context)
+        if(token.isNullOrBlank() || token.length !in 32..128) unauthorized()
+        val tokenHash=hash(token)
+        val personId=jdbc.query("""SELECT pharmacist_id FROM posm_device_staff_sessions WHERE token_hash=? AND device_id=?
+            AND pharmacy_id=? AND revoked_at IS NULL AND expires_at>now()""",{rs,_->rs.getString(1)},tokenHash,device.deviceId,device.pharmacyId).singleOrNull() ?: unauthorized()
+        // Match password/reset writers' person-before-session lock order.
+        val person=personById(personId,true) ?: unauthorized()
+        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 718095))",device.deviceId)
+        val stored=jdbc.query("""SELECT * FROM posm_device_staff_sessions WHERE token_hash=? AND device_id=? AND pharmacy_id=?
+            AND revoked_at IS NULL AND expires_at>now() FOR UPDATE""",{rs,_-> DeviceGrant(
+                rs.getString("process_instance_id"),rs.getString("password_fingerprint"),rs.getString("standard_n_user_id"),
+                rs.getString("standard_n_session_id"),rs.getString("workstation_id"),rs.getTimestamp("expires_at").toInstant())},
+            tokenHash,device.deviceId,device.pharmacyId).singleOrNull() ?: unauthorized()
+        val source=context.standardNContext
+        if(person.status!="active" || person.pharmacy!=device.pharmacyId ||
+            person.password?.let(::hash)!=stored.passwordFingerprint || stored.process!=context.processInstanceId ||
+            (source!=null && stored.user!=null && (stored.user!=source.standardNUserId ||
+                stored.session!=source.standardNSessionId || stored.workstation!=source.workstationId))) {
+            jdbc.update("UPDATE posm_device_staff_sessions SET revoked_at=now() WHERE token_hash=?",tokenHash)
+            unauthorized()
+        }
+        if(source!=null) {
+            // Null intervals preserve the first reliable binding; only observations may be refreshed.
+            jdbc.update("""UPDATE posm_device_staff_sessions SET standard_n_user_id=?,standard_n_session_id=?,workstation_id=?,
+                standard_n_iin=?,standard_n_iin_status=?,standard_n_full_name=?,standard_n_full_name_status=? WHERE token_hash=?""",
+                source.standardNUserId,source.standardNSessionId,source.workstationId,source.standardNIin,source.standardNIinStatus,
+                source.standardNFullName,source.standardNFullNameStatus,tokenHash)
+        }
+        recordObservation(person,person.iin ?: unauthorized(),source)
+        return StaffDeviceSessionResponse("authenticated",null,stored.expires,StaffPerson(person.id,person.name),context)
+    }
+
+    @Transactional
+    fun deviceLogout(device:PosmDeviceIdentity,token:String?) {
+        if(!token.isNullOrBlank() && token.length in 32..128) jdbc.update("""UPDATE posm_device_staff_sessions SET revoked_at=now()
+            WHERE token_hash=? AND device_id=? AND pharmacy_id=?""",hash(token),device.deviceId,device.pharmacyId)
+    }
+
+    private fun verifyPassword(device:PosmDeviceIdentity,iin:String,value:String):Person {
+        limit("login-device:${device.deviceId}",30,300)
+        password(value,4)
+        val person=person(iin,true)
+        val matches=encoder.matches(value,person?.password ?: dummyHash)
+        if(!matches || person==null || person.password.isNullOrBlank() || person.status=="blocked") unauthorized()
+        return person
+    }
+    private fun revokeDeviceGrants(device:PosmDeviceIdentity) {
+        jdbc.update("UPDATE posm_staff_sessions SET revoked_at=now() WHERE device_id=? AND pharmacy_id=? AND revoked_at IS NULL",device.deviceId,device.pharmacyId)
+        jdbc.update("UPDATE posm_device_staff_sessions SET revoked_at=now() WHERE device_id=? AND pharmacy_id=? AND revoked_at IS NULL",device.deviceId,device.pharmacyId)
+    }
+    private fun recordObservation(person:Person,iin:String,context:StaffContext?) {
+        val observation=context?.let { StaffIdentityObservation.match(iin,person.name,it) } ?: StaffIdentityMatch("NONE","UNKNOWN")
+        jdbc.update("""UPDATE pharmacists SET standard_n_iin_match_status=?,standard_n_iin_checked_at=now(),
+            standard_n_identity_match_method=?,standard_n_identity_match_status=?,standard_n_identity_checked_at=now(),updated_at=now() WHERE id=?""",
+            context?.let { StaffIinObservation.match(iin,it) } ?: "UNKNOWN",observation.method,observation.status,person.id)
+    }
+    private fun validateDeviceContext(context:StaffDeviceContext) {
+        if(context.processInstanceId.isBlank() || context.processInstanceId.length>256 || context.processInstanceId.any(Char::isISOControl)) invalid()
+        context.standardNContext?.let { source ->
+            validateContext(source)
+            if(source.processInstanceId!=context.processInstanceId ||
+                listOf(source.standardNUserId,source.standardNSessionId,source.workstationId).any { it.isBlank() || it.length>128 }) invalid()
+        }
+    }
+    private fun person(iin:String,lock:Boolean=false)=findPerson("iin",iin,lock)
+    private fun personById(id:String,lock:Boolean=false)=findPerson("id",id,lock)
+    private fun findPerson(column:String,value:String,lock:Boolean):Person?=jdbc.query(
+        "SELECT id,name,phone,status,pharmacy_id,password_hash,iin FROM pharmacists WHERE $column=?"+if(lock) " FOR UPDATE" else "",
+        {rs,_->Person(rs.getString(1),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5),rs.getString(6),rs.getString(7))},value).singleOrNull()
+    private data class Person(val id:String,val name:String,val phone:String,val status:String,val pharmacy:String?,val password:String?,val iin:String?)
+    private data class DeviceGrant(val process:String,val passwordFingerprint:String,val user:String?,val session:String?,val workstation:String?,val expires:Instant)
     private data class Challenge(val purpose:String,val device:String,val pharmacy:String,val iin:String,val phone:String,val person:String?,val eligible:Boolean,val provider:String,val codeHash:String?,val attempts:Int,val expires:Instant,val consumed:Boolean)
     private fun limit(scope:String,max:Int,seconds:Long) {
         val count=jdbc.queryForObject("""INSERT INTO posm_staff_rate_limits(scope_hash,window_start,attempts) VALUES (?,now(),1)

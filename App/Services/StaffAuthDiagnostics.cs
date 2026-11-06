@@ -28,8 +28,8 @@ public static class StaffAuthDiagnostics
         _ => "endpoint_unavailable",
     });
 
-    // Older protocol-2 backends cannot echo the name context; do not start a prompt on them.
-    public static StaffCapabilityCheck Capability(StaffCapabilities? capabilities) => capabilities?.ProtocolVersion != 2 || !capabilities.NameFallbackSupported
+    // A rollback must disable the whole process-login flow, never replay it through legacy source-bound routes.
+    public static StaffCapabilityCheck Capability(StaffCapabilities? capabilities) => capabilities?.ProtocolVersion != 2 || !capabilities.NameFallbackSupported || capabilities.DeviceEmployeeAuthVersion != 1
         ? new(false, "unsupported_protocol")
         : capabilities.Enabled ? new(true, "enabled") : new(false, "server_disabled");
 

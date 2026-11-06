@@ -13,6 +13,7 @@ class StaffAuthCleanup(private val jdbc: JdbcTemplate) {
     fun cleanExpired() {
         jdbc.update("DELETE FROM posm_staff_challenges WHERE expires_at<now()-interval '24 hours'")
         jdbc.update("DELETE FROM posm_staff_sessions WHERE expires_at<now()-interval '24 hours'")
+        jdbc.update("DELETE FROM posm_device_staff_sessions WHERE expires_at<now()-interval '24 hours'")
         jdbc.update("DELETE FROM posm_staff_rate_limits WHERE window_start<now()-interval '24 hours'")
     }
 }

@@ -5,6 +5,33 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-11-06
+
+### Added
+
+- Prepare POSM 1.0.77 employee sign-in on a real Standard-N process start, independently
+  of its database or readable cashier identity; keep one prompt per process generation.
+- Add a device/pharmacy-bound employee authentication mode with real IIN/password/SMS,
+  separate Standard-N identity observations and an additive staff-grant migration.
+
+### Fixed
+
+- Assign the registered POSM device pharmacy on both registration routes even when
+  Standard-N session data is unavailable; preserve existing account assignment policy.
+- Retain the employee form and entered fields on SMS/service failures while releasing
+  cashier work, rather than closing the form before a delayed SMS arrives.
+- Narrow Standard-N staff-session candidates before applying the bounded overflow guard,
+  preserving uncertainty checks and rejecting genuinely ambiguous current sessions.
+- Keep cashier work available during database, service and SMS failures; preserve the
+  customer display, recommendations, durable receipts and the separate `/learn` cabinet.
+
+### Deployment
+
+- Preserve old protocol-2 clients and require an explicit device-employee capability for
+  the new client. No inferred Standard-N identity establishes seller or financial trust.
+- Use fresh backup, exact-source images, migration/rollback rehearsal, native acceptance
+  and the existing POSM signing trust anchor before the common-channel update.
+
 ## [0.2.8] - 2026-11-06
 
 ### Added
