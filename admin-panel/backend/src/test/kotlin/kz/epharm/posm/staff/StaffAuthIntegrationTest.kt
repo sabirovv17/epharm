@@ -117,6 +117,243 @@ class StaffAuthIntegrationTest {
             .andExpect(status().`is`(expected))
     }
 
+    private val deviceContext=StaffDeviceContext(context.processInstanceId)
+    private fun deviceLogin(password:String="Password123!",ctx:StaffDeviceContext=deviceContext,credential:String?=key,expected:Int=200)=
+        post("/device/login",StaffDeviceLoginRequest(iin,password,ctx),credential,expected)
+    private fun deviceSession(token:String,ctx:StaffDeviceContext=deviceContext,credential:String=key,expected:Int=200):com.fasterxml.jackson.databind.JsonNode {
+        val result=mvc.perform(post("/api/posm/staff/device/session/check").header("X-Posm-Key",credential).header("X-Staff-Session",token)
+            .contentType("application/json").content(json.writeValueAsBytes(ctx))).andExpect(status().`is`(expected)).andReturn()
+        return json.readTree(result.response.contentAsByteArray)
+    }
+    private fun financialCounts()=listOf("posm_pharmacist_mappings","pharmacist_wallet_entries").map { table ->
+        jdbc.queryForObject("SELECT count(*) FROM $table",Long::class.java)
+    }
+
+    @Test fun `device registration without Standard-N creates active actual pharmacy profile and own session without financial authority`() {
+        val newIin="000101500011";val number="+77000000012"
+        val id=challenge("register",newIin,number);val before=financialCounts()
+        val request=StaffDeviceRegistrationRequest(id,"1234",newIin,number,"A1!b","Сабиров Амир",deviceContext)
+        post("/device/register",request.copy(password="123"),expected=400)
+        post("/device/register",request.copy(password="я".repeat(37)),expected=400)
+        post("/device/register",request,credential=key2,expected=400)
+        val result=post("/device/register",request)
+        assertEquals("authenticated",result["status"].asText())
+        assertFalse(result.has("context"));assertTrue(result["deviceContext"]["standardNContext"].isNull)
+        assertEquals(json.valueToTree<com.fasterxml.jackson.databind.JsonNode>(deviceContext),result["deviceContext"])
+        val person=pharmacists.findById(result["pharmacist"]["id"].asText()).orElseThrow()
+        assertEquals("active",person.status.name.lowercase());assertEquals("staff-pharmacy",person.pharmacyId)
+        assertEquals(newIin,person.iin);assertEquals("Сабиров Амир",person.name)
+        assertEquals("UNKNOWN",person.standardNIinMatchStatus)
+        assertEquals("NONE",person.standardNIdentityMatchMethod);assertEquals("UNKNOWN",person.standardNIdentityMatchStatus)
+        deviceSession(result["sessionToken"].asText())
+        mobileLogin(newIin,"A1!b")
+        post("/device/register",request,expected=400)
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM pharmacists WHERE iin=?",Int::class.java,newIin))
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_staff_sessions",Int::class.java))
+        assertEquals(before,financialCounts())
+    }
+
+    @Test fun `device own credentials remain independent and late source binding persists across unavailable intervals`() {
+        val before=financialCounts();val result=deviceLogin();val token=result["sessionToken"].asText()
+        assertEquals("authenticated",result["status"].asText());deviceSession(token)
+        val bound=deviceContext.copy(standardNContext=context.copy(standardNIin=iin,standardNIinStatus="available"))
+        deviceSession(token,bound)
+        assertEquals("MATCH",jdbc.queryForObject("SELECT standard_n_iin_match_status FROM pharmacists WHERE id='staff-person'",String::class.java))
+        deviceSession(token)
+        assertEquals("cashier1",jdbc.queryForObject("SELECT standard_n_user_id FROM posm_device_staff_sessions WHERE token_hash=?",String::class.java,hash(token)))
+        assertEquals("UNKNOWN",jdbc.queryForObject("SELECT standard_n_identity_match_status FROM pharmacists WHERE id='staff-person'",String::class.java))
+        deviceSession(token,bound)
+        val switched=bound.copy(standardNContext=bound.standardNContext!!.copy(standardNUserId="cashier2"))
+        TransactionTemplate(transactions).executeWithoutResult { tx ->
+            deviceSession(token,switched,expected=401);tx.setRollbackOnly()
+        }
+        deviceSession(token,expected=401) // Neither caller rollback nor an unavailable source resurrects the old grant.
+        assertNotNull(jdbc.queryForObject("SELECT revoked_at FROM posm_device_staff_sessions WHERE token_hash=?",java.sql.Timestamp::class.java,hash(token)))
+        assertEquals(before,financialCounts())
+    }
+
+    @Test fun `device grant rejects process session and workstation changes durably with correct lock scope`() {
+        for(kind in listOf("process","session","workstation")) {
+            jdbc.update("DELETE FROM posm_staff_rate_limits")
+            val bound=deviceContext.copy(standardNContext=context)
+            val token=deviceLogin(ctx=bound)["sessionToken"].asText()
+            val changed=when(kind) {
+                "process" -> StaffDeviceContext("different-real-process")
+                "session" -> bound.copy(standardNContext=context.copy(standardNSessionId="next-session"))
+                else -> bound.copy(standardNContext=context.copy(workstationId="next-workstation"))
+            }
+            deviceSession(token,changed,expected=401)
+            deviceSession(token,bound,expected=401)
+        }
+    }
+
+    @Test fun `same source session refreshes name and IIN diagnostics without converting a mismatch to name match`() {
+        jdbc.update("UPDATE pharmacists SET name='Сабиров Амир' WHERE id='staff-person'")
+        val token=deviceLogin()["sessionToken"].asText();val before=financialCounts()
+        val named=context.copy(standardNIinStatus="missing",standardNFullName="Амир Сабиров",standardNFullNameStatus="available")
+        for((source,method,match) in listOf(
+            Triple(named,"NAME","MATCH"),
+            Triple(named.copy(standardNIin="000101500011",standardNIinStatus="available"),"IIN","MISMATCH"),
+            Triple(named.copy(standardNFullName="Асанов Амир"),"NAME","MISMATCH"),
+            Triple(named.copy(standardNIin=iin,standardNIinStatus="available"),"IIN","MATCH"),
+        )) {
+            deviceSession(token,deviceContext.copy(standardNContext=source))
+            val row=jdbc.queryForMap("SELECT standard_n_identity_match_method,standard_n_identity_match_status FROM pharmacists WHERE id='staff-person'")
+            assertEquals(method,row["standard_n_identity_match_method"]);assertEquals(match,row["standard_n_identity_match_status"])
+        }
+        assertEquals(before,financialCounts())
+    }
+
+    @Test fun `device context rejects malformed or inconsistent source and strict routes still require their own context`() {
+        val cap=mvc.perform(get("/api/posm/staff/capabilities").header("X-Posm-Key",key)).andExpect(status().isOk).andReturn()
+        assertEquals(1,json.readTree(cap.response.contentAsByteArray)["deviceEmployeeAuthVersion"].asInt())
+        for(ctx in listOf(StaffDeviceContext(""),StaffDeviceContext("x".repeat(257)),StaffDeviceContext("bad\nprocess"),
+            deviceContext.copy(standardNContext=context.copy(processInstanceId="different")),
+            deviceContext.copy(standardNContext=context.copy(standardNIin=iin)))) deviceLogin(ctx=ctx,expected=400)
+        post("/login",mapOf("iin" to iin,"password" to "Password123!"),expected=400)
+        val deviceToken=deviceLogin()["sessionToken"].asText()
+        checkedSession(deviceToken,context,401)
+        val legacyToken=login()["sessionToken"].asText()
+        deviceSession(legacyToken,expected=401)
+        deviceSession(deviceToken,expected=401) // Legacy login explicitly replaces the device employee.
+        val fresh=deviceLogin()["sessionToken"].asText()
+        session(legacyToken,expected=401)
+        deviceSession(fresh)
+    }
+
+    @Test fun `device auth is individual device and pharmacy scoped including another device at the same pharmacy`() {
+        deviceLogin(credential=null,expected=401);deviceLogin(credential="dev-posm-key",expected=401)
+        deviceLogin(credential=key2,expected=401)
+        val otherKey="staff-same-pharmacy-device-secret-000000003"
+        jdbc.update("INSERT INTO fulfillment_devices(id,device_id,pharmacy_id,secret_sha256,secret_hint) VALUES (?,'staff-same-device','staff-pharmacy',?,'test') ON CONFLICT(device_id,pharmacy_id) DO UPDATE SET secret_sha256=excluded.secret_sha256,active=true",UUID.randomUUID(),hash(otherKey))
+        val token=deviceLogin()["sessionToken"].asText()
+        deviceSession(token,credential=otherKey,expected=401);deviceSession(token,credential=key2,expected=401)
+        deviceSession(token)
+        mvc.perform(post("/api/posm/staff/device/logout").header("X-Posm-Key",otherKey).header("X-Staff-Session",token)).andExpect(status().isNoContent)
+        deviceSession(token)
+        mvc.perform(post("/api/posm/staff/device/logout").header("X-Posm-Key",key).header("X-Staff-Session",token)).andExpect(status().isNoContent)
+        deviceSession(token,expected=401)
+    }
+
+    @Test fun `existing pending or blocked employees cannot obtain a device grant or be reassigned by login`() {
+        jdbc.update("UPDATE pharmacists SET status='pending',pharmacy_id=NULL,pharmacy_name=NULL WHERE id='staff-person'")
+        val pending=deviceLogin()
+        assertEquals("pending",pending["status"].asText());assertTrue(pending["sessionToken"].isNull)
+        assertNull(jdbc.queryForMap("SELECT pharmacy_id FROM pharmacists WHERE id='staff-person'")["pharmacy_id"])
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_device_staff_sessions",Int::class.java))
+        jdbc.update("UPDATE pharmacists SET status='blocked' WHERE id='staff-person'");deviceLogin(expected=401)
+        jdbc.update("UPDATE pharmacists SET status='active',pharmacy_id='staff-other' WHERE id='staff-person'")
+        deviceLogin(expected=401)
+        assertEquals("staff-other",jdbc.queryForObject("SELECT pharmacy_id FROM pharmacists WHERE id='staff-person'",String::class.java))
+    }
+
+    @Test fun `simultaneous device and strict logins leave only one employee grant on the device`() {
+        jdbc.update("INSERT INTO pharmacists(id,name,iin,phone,password_hash,pharmacy_id,pharmacy_name,tier,status) VALUES ('second-person','DEMO','000101500011','+77000000012',?,'staff-pharmacy','DEMO','Silver','active')",encoder.encode("Password123!"))
+        val executor=Executors.newFixedThreadPool(2);val ready=CountDownLatch(2);val go=CountDownLatch(1)
+        try {
+            val device=executor.submit<String> {
+                ready.countDown();assertTrue(go.await(5,TimeUnit.SECONDS));deviceLogin()["sessionToken"].asText()
+            }
+            val strict=executor.submit<String> {
+                ready.countDown();assertTrue(go.await(5,TimeUnit.SECONDS))
+                post("/login",StaffLoginRequest("000101500011","Password123!",context))["sessionToken"].asText()
+            }
+            assertTrue(ready.await(5,TimeUnit.SECONDS));go.countDown()
+            val deviceToken=device.get(15,TimeUnit.SECONDS);val strictToken=strict.get(15,TimeUnit.SECONDS)
+            val live=jdbc.queryForObject("""SELECT (SELECT count(*) FROM posm_staff_sessions WHERE device_id='staff-device' AND revoked_at IS NULL)
+                +(SELECT count(*) FROM posm_device_staff_sessions WHERE device_id='staff-device' AND revoked_at IS NULL)""",Int::class.java)
+            assertEquals(1,live)
+            val deviceStatus=mvc.perform(post("/api/posm/staff/device/session/check").header("X-Posm-Key",key).header("X-Staff-Session",deviceToken)
+                .contentType("application/json").content(json.writeValueAsBytes(deviceContext))).andReturn().response.status
+            val strictStatus=mvc.perform(post("/api/posm/staff/session/check").header("X-Posm-Key",key).header("X-Staff-Session",strictToken)
+                .contentType("application/json").content(json.writeValueAsBytes(context))).andReturn().response.status
+            assertEquals(listOf(200,401),listOf(deviceStatus,strictStatus).sorted())
+        } finally {go.countDown();executor.shutdownNow()}
+    }
+
+    @Test fun `pharmacy package shared by two processes preserves both employee grants and same process replacement stays scoped`() {
+        val before=financialCounts();val first=deviceLogin()["sessionToken"].asText()
+        val otherContext=StaffDeviceContext("second-terminal-pid:start")
+        val second=deviceLogin(ctx=otherContext)["sessionToken"].asText()
+        deviceSession(first);deviceSession(second,otherContext)
+        assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM posm_device_staff_sessions WHERE revoked_at IS NULL",Int::class.java))
+        val strict=post("/login",StaffLoginRequest(iin,"Password123!",context))["sessionToken"].asText()
+        deviceSession(first,expected=401);checkedSession(strict,context);deviceSession(second,otherContext)
+        val replaced=deviceLogin()["sessionToken"].asText()
+        checkedSession(strict,context,401);deviceSession(replaced);deviceSession(second,otherContext)
+        assertEquals(before,financialCounts())
+        jdbc.update("UPDATE fulfillment_devices SET secret_sha256=? WHERE device_id='staff-device'",hash("rotated-shared-device-secret-000000001"))
+        jdbc.update("UPDATE fulfillment_devices SET secret_sha256=? WHERE device_id='staff-device'",hash(key))
+        deviceSession(replaced,expected=401);deviceSession(second,otherContext,expected=401)
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_device_staff_sessions WHERE revoked_at IS NULL",Int::class.java))
+    }
+
+    @Test fun `concurrent own logins from distinct processes sharing pharmacy credential both remain valid`() {
+        val executor=Executors.newFixedThreadPool(2);val ready=CountDownLatch(2);val go=CountDownLatch(1)
+        val contexts=listOf(deviceContext,StaffDeviceContext("second-terminal-pid:start"))
+        try {
+            val work=contexts.map { process -> executor.submit<String> {
+                ready.countDown();assertTrue(go.await(5,TimeUnit.SECONDS))
+                deviceLogin(ctx=process)["sessionToken"].asText()
+            } }
+            assertTrue(ready.await(5,TimeUnit.SECONDS));go.countDown()
+            work.zip(contexts).forEach { (token,process) -> deviceSession(token.get(15,TimeUnit.SECONDS),process) }
+            assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM posm_device_staff_sessions WHERE revoked_at IS NULL",Int::class.java))
+        } finally {go.countDown();executor.shutdownNow()}
+    }
+
+    @Test fun `device account limits are shared with learn and strict login and failed attempts commit`() {
+        TransactionTemplate(transactions).executeWithoutResult { tx ->
+            repeat(4) { deviceLogin(password="wrong",expected=401) };tx.setRollbackOnly()
+        }
+        repeat(3) { mobileLogin(password="wrong",expected=401) }
+        repeat(3) { login(password="wrong",expected=401) }
+        deviceLogin(expected=429);mobileLogin(expected=429);login(expected=429)
+        assertEquals(13,jdbc.queryForObject("SELECT attempts FROM posm_staff_rate_limits WHERE scope_hash=?",Int::class.java,hash("login-account:$iin")))
+    }
+
+    @Test fun `device grants survive neither account device revocation cycles reset nor expiry`() {
+        fun token()=deviceLogin()["sessionToken"].asText()
+        val blocked=token();jdbc.update("UPDATE pharmacists SET status='blocked' WHERE id='staff-person'")
+        jdbc.update("UPDATE pharmacists SET status='active' WHERE id='staff-person'");deviceSession(blocked,expected=401)
+        val moved=token();jdbc.update("UPDATE pharmacists SET pharmacy_id='staff-other' WHERE id='staff-person'")
+        jdbc.update("UPDATE pharmacists SET pharmacy_id='staff-pharmacy' WHERE id='staff-person'");deviceSession(moved,expected=401)
+        val inactive=token();jdbc.update("UPDATE fulfillment_devices SET active=false WHERE device_id='staff-device'")
+        jdbc.update("UPDATE fulfillment_devices SET active=true WHERE device_id='staff-device'");deviceSession(inactive,expected=401)
+        val rotated=token();val otherSecret=hash("rotated-device-secret-00000000000001")
+        jdbc.update("UPDATE fulfillment_devices SET secret_sha256=? WHERE device_id='staff-device'",otherSecret)
+        jdbc.update("UPDATE fulfillment_devices SET secret_sha256=? WHERE device_id='staff-device'",hash(key));deviceSession(rotated,expected=401)
+        val expires=token();jdbc.update("UPDATE posm_device_staff_sessions SET expires_at=now()-interval '1 second'");deviceSession(expires,expected=401)
+        val reset=token();val id=challenge()
+        complete(id);deviceSession(reset,expected=401)
+        deviceLogin(password="NewPassword123!")
+    }
+
+    @Test fun `concurrent late source observations cannot bind a grant to two cashier identities`() {
+        val token=deviceLogin()["sessionToken"].asText();val executor=Executors.newFixedThreadPool(2)
+        val ready=CountDownLatch(2);val go=CountDownLatch(1)
+        try {
+            val work=listOf(context,context.copy(standardNUserId="cashier2")).map { source -> executor.submit<Int> {
+                ready.countDown();assertTrue(go.await(5,TimeUnit.SECONDS))
+                mvc.perform(post("/api/posm/staff/device/session/check").header("X-Posm-Key",key).header("X-Staff-Session",token)
+                    .contentType("application/json").content(json.writeValueAsBytes(deviceContext.copy(standardNContext=source)))).andReturn().response.status
+            } }
+            assertTrue(ready.await(5,TimeUnit.SECONDS));go.countDown()
+            assertEquals(listOf(200,401),work.map { it.get(15,TimeUnit.SECONDS) }.sorted())
+            deviceSession(token,expected=401)
+        } finally {go.countDown();executor.shutdownNow()}
+    }
+
+    @Test fun `expired device grants are cleaned without deleting the current employee profile or grant`() {
+        val token=deviceLogin()["sessionToken"].asText()
+        jdbc.update("""INSERT INTO posm_device_staff_sessions(token_hash,pharmacist_id,device_id,pharmacy_id,password_fingerprint,
+            process_instance_id,expires_at) SELECT ?,pharmacist_id,device_id,pharmacy_id,password_fingerprint,process_instance_id,
+            now()-interval '25 hours' FROM posm_device_staff_sessions WHERE token_hash=?""",hash("expired-device-proof"),hash(token))
+        cleanup.cleanExpired()
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM posm_device_staff_sessions",Int::class.java))
+        deviceSession(token);assertTrue(pharmacists.existsById("staff-person"))
+    }
+
     @Test fun `name fallback registration is active scoped explicit and exactly bound while legacy remains usable`() {
         val newIin="000101500011";val number="+77000000012"
         val observed=context.copy(standardNIinStatus="missing",standardNFullName="Мұхтар\u00a0Әуезов",standardNFullNameStatus="available")
@@ -173,6 +410,7 @@ class StaffAuthIntegrationTest {
         val response=mvc.perform(get("/api/posm/staff/capabilities").header("X-Posm-Key",key)).andExpect(status().isOk).andReturn()
         val capabilities=json.readTree(response.response.contentAsByteArray)
         assertEquals(2,capabilities["protocolVersion"].asInt());assertTrue(capabilities["nameFallbackSupported"].asBoolean())
+        assertEquals(1,capabilities["deviceEmployeeAuthVersion"].asInt())
         post("/login",StaffLoginRequest(iin,"Password123!",context.copy(standardNFullName="Сабиров Амир")),expected=400)
         post("/login",StaffLoginRequest(iin,"Password123!",context.copy(standardNFullNameStatus="available")),expected=400)
         post("/login",StaffLoginRequest(iin,"Password123!",context.copy(standardNFullName="А".repeat(256),standardNFullNameStatus="available")),expected=400)
@@ -362,16 +600,24 @@ class StaffAuthIntegrationTest {
         login(password="NewPassword123!")
         assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM mobile_otps",Int::class.java))
     }
-    @Test fun `registration stays pending unassigned and cannot grant bonus identity`() {
+    @Test fun `legacy contextless registration assigns authenticated device pharmacy without inventing a strict grant`() {
         val newIin="000101500011";val number="+77000000012"
-        val id=challenge("register",newIin,number)
+        val id=challenge("register",newIin,number);val before=financialCounts()
         complete(id,purpose="reset",number=number,personIin=newIin,expected=400)
-        complete(id,purpose="register",number=number,personIin=newIin)
-        val row=jdbc.queryForMap("SELECT status,pharmacy_id,password_hash FROM pharmacists WHERE iin=?",newIin)
-        assertEquals("pending",row["status"]);assertNull(row["pharmacy_id"])
+        post("/register",StaffPasswordRequest(id,"1234",newIin,number,"NewPassword123!","DEMO Новый"),credential=key2,expected=400)
+        val registered=complete(id,purpose="register",number=number,personIin=newIin)
+        assertEquals("registered",registered["status"].asText())
+        assertFalse(registered.has("context"));assertFalse(registered.has("sessionToken"))
+        val row=jdbc.queryForMap("SELECT status,pharmacy_id,pharmacy_name,city,password_hash FROM pharmacists WHERE iin=?",newIin)
+        assertEquals("active",row["status"]);assertEquals("staff-pharmacy",row["pharmacy_id"])
+        assertEquals("staff-pharmacy",row["pharmacy_name"]);assertEquals("DEMO",row["city"])
         assertTrue(encoder.matches("NewPassword123!",row["password_hash"].toString()))
-        val result=post("/login",StaffLoginRequest(newIin,"NewPassword123!",context))
-        assertEquals("pending",result["status"].asText());assertTrue(result["sessionToken"].isNull)
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_staff_sessions",Int::class.java))
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_device_staff_sessions",Int::class.java))
+        mobileLogin(newIin,"NewPassword123!")
+        val result=post("/device/login",StaffDeviceLoginRequest(newIin,"NewPassword123!",deviceContext))
+        assertEquals("authenticated",result["status"].asText());deviceSession(result["sessionToken"].asText())
+        assertEquals(before,financialCounts())
     }
     @Test fun `unknown and mismatched reset never send SMS and activation only handles blank password`() {
         val dead=challenge(number="+77001112233")

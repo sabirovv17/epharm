@@ -76,6 +76,16 @@ internal static class Program
                 await Run("responsive-inputs-preserve-native-text-height", InputGeometry);
                 await Run("missing-iin-with-full-name-prompts-and-closes-after-login", FullNameLogin);
                 await Run("changed-full-name-rejects-earlier-login-grant", ChangedFullName);
+                await Run("process-login-with-unreadable-source-closes-and-survives-db-flaps", DeviceLogin);
+                await Run("process-registration-without-source-autocloses", DeviceRegister);
+                await Run("unknown-source-close-does-not-repeat", proof => DeviceDismiss(false, proof));
+                await Run("unknown-source-continue-does-not-repeat", proof => DeviceDismiss(true, proof));
+                await Run("changed-process-rejects-inflight-device-login", DeviceChangedProcess);
+                await Run("process-service-error-bypasses-without-grant", proof => DeviceServiceFailure(false, proof));
+                await Run("process-sms-error-bypasses-without-grant", proof => DeviceServiceFailure(true, proof));
+                await Run("sms-request-source-flap-keeps-filled-form-and-challenge", SmsSourceFlap);
+                await Run("sms-request-failure-retains-form-and-can-retry-to-register", SmsRetry);
+                await Run("device-pending-with-known-source-releases-work-without-grant", DevicePending);
             }
             catch (Exception error)
             {
@@ -85,7 +95,7 @@ internal static class Program
             {
                 watchdog.Stop();
                 foreach (var window in Windows) if (window.IsVisible) window.Dismiss();
-                var success = Results.Count == 10 && Results.All(result => result.Passed);
+                var success = Results.Count == 20 && Results.All(result => result.Passed);
                 WriteProof(success, null);
                 application.Shutdown(success ? 0 : 1);
             }
@@ -246,12 +256,12 @@ internal static class Program
         var context = Context(); var state = State(context); var policy = new StaffPromptPolicy(); var window = Window(client, context, true);
         StaffPromptBypassReason? reason = null; var eventSeen = false;
         window.Authenticated += _ => eventSeen = true;
-        window.BypassRequested += value => { reason = value; policy.Bypass(state, value); window.Dismiss(); };
+        window.BypassRequested += value => { reason = value; policy.Bypass(state, value); window.ReleaseWork(); };
         if (sms) { RegistrationFields(window); Click(Field<Button>(window, "_request")); }
         else { Field<TextBox>(window, "_iin").Text = FixtureIin; Field<PasswordBox>(window, "_password").Password = FixturePassword; Click(Field<Button>(window, "_submit")); }
         await Until(() => !window.IsVisible || !Busy(window));
         Check(proof, "service-failure-reports-safe-bypass", reason == (sms ? StaffPromptBypassReason.SmsUnavailable : StaffPromptBypassReason.ServiceUnavailable));
-        Check(proof, "bypass-closes-window", !window.IsVisible);
+        Check(proof, "service-bypass-retains-form-and-releases-presentation", window.IsVisible && window.WindowStyle != WindowStyle.None);
         Check(proof, "bypass-does-not-create-grant", !eventSeen && state.Grant == null && !state.IsAuthenticated(DateTimeOffset.UtcNow));
         Check(proof, "bypass-records-operational-status", policy.BypassStatus(state.Generation) == (sms ? "staff_bypass_sms_unavailable" : "staff_bypass_service_unavailable"));
     }
@@ -348,6 +358,162 @@ internal static class Program
         Check(proof, "unconfirmed-window-is-not-released-by-old-grant", window.IsVisible);
     }
 
+    private static StaffDeviceSessionState DeviceState()
+    {
+        var state = new StaffDeviceSessionState();
+        state.Observe(StaffProcessPresence.FromInstances(["443:639295055776695955"]), new("database_unavailable"));
+        return state;
+    }
+    private static StaffAuthWindow DeviceWindow(StaffAuthClient client, StaffDeviceSessionState state)
+    {
+        var context = state.Context!;
+        var window = new StaffAuthWindow(client, context.StandardNContext, _screen, requireSignIn: true, deviceContext: context);
+        state.MarkPrompted(); Windows.Add(window); window.Show(); return window;
+    }
+    private static void FillLogin(StaffAuthWindow window)
+    {
+        Field<TextBox>(window, "_iin").Text = FixtureIin;
+        Field<PasswordBox>(window, "_password").Password = FixturePassword;
+    }
+    private static async Task DeviceLogin(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); var context = state.Context!; var generation = state.Generation;
+        using var handler = new FakeHandler { DeviceContext = context }; using var client = new StaffAuthClient(Config(), handler);
+        Check(proof, "real-process-presence-policy-prompts-without-db", state.NeedsPrompt(DateTimeOffset.UtcNow));
+        var window = DeviceWindow(client, state); await Idle();
+        Check(proof, "source-unavailable-window-is-ordinary-and-closable", window.WindowStyle != WindowStyle.None);
+        Check(proof, "own-login-is-enabled-without-source-ids", Field<Button>(window, "_submit").IsEnabled && context.StandardNContext == null);
+        Check(proof, "unknown-source-is-explained-without-denying-login", Field<TextBlock>(window, "_status").Text.Contains("Вход ePharm доступен", StringComparison.Ordinal));
+        Check(proof, "continue-work-is-always-visible", Field<Button>(window, "_continueWithoutSignIn").Visibility == Visibility.Visible);
+        var accepted = false;
+        window.Authenticated += response => { accepted = state.Accept(generation, context, response, DateTimeOffset.UtcNow); if (accepted) window.Dismiss(); };
+        FillLogin(window); SaveOwnWindow(window, "05-process-login-unknown-source");
+        Click(Field<Button>(window, "_submit")); await Until(() => !window.IsVisible || !Busy(window));
+        Check(proof, "four-character-password-uses-device-login-only", handler.DeviceBodyMatched && handler.DeviceLoginCalls == 1 && handler.UnexpectedCalls == 0);
+        Check(proof, "own-login-grant-closes-window", accepted && !window.IsVisible && state.IsAuthenticated(DateTimeOffset.UtcNow));
+        foreach (var status in new[] { "ambiguous_session", "no_session", "database_unavailable" })
+            state.Observe(new("resolved", context.ProcessInstanceId), new(status));
+        state.Observe(new("resolved", context.ProcessInstanceId), new("resolved", new StaffObservedSession(context.ProcessInstanceId, "DEV-SOURCE-USER", "DEV-SOURCE-SESSION", "DEV-SOURCE-WS")));
+        Check(proof, "late-source-binding-keeps-login-without-another-popup", state.Generation == generation && state.IsAuthenticated(DateTimeOffset.UtcNow) && !state.NeedsPrompt(DateTimeOffset.UtcNow));
+    }
+    private static async Task DeviceRegister(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); var context = state.Context!; var generation = state.Generation;
+        using var handler = new FakeHandler { DeviceContext = context }; using var client = new StaffAuthClient(Config(), handler);
+        var window = DeviceWindow(client, state); var accepted = false;
+        window.Authenticated += response => { accepted = state.Accept(generation, context, response, DateTimeOffset.UtcNow); if (accepted) window.Dismiss(); };
+        RegistrationFields(window); await RequestOtp(window, handler); Field<TextBox>(window, "_code").Text = "5445";
+        Click(Field<Button>(window, "_submit")); await Until(() => !window.IsVisible || !Busy(window));
+        Check(proof, "registration-retains-otp-and-four-character-password", handler.DeviceRegisterCalls == 1 && handler.OtpCalls == 1 && handler.DeviceBodyMatched);
+        Check(proof, "registration-without-source-ids-autocloses-after-parent-acceptance", accepted && !window.IsVisible && state.IsAuthenticated(DateTimeOffset.UtcNow));
+        Check(proof, "registration-clears-password-and-sms-controls", Field<PasswordBox>(window, "_password").Password.Length == 0 && Field<TextBox>(window, "_code").Text.Length == 0);
+    }
+    private static async Task DeviceDismiss(bool continueWork, Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); var context = state.Context!;
+        using var handler = new FakeHandler { DeviceContext = context }; using var client = new StaffAuthClient(Config(), handler);
+        var window = DeviceWindow(client, state);
+        window.BypassRequested += reason => { state.Bypass(reason); window.Dismiss(); };
+        window.Closed += (_, _) => { if (state.BypassStatus == null) state.Bypass(StaffPromptBypassReason.IdentityUnavailable); };
+        if (continueWork) Click(Field<Button>(window, "_continueWithoutSignIn")); else window.Close();
+        await Idle();
+        state.Observe(new("resolved", context.ProcessInstanceId), new("ambiguous_session"));
+        state.Observe(new("resolved", context.ProcessInstanceId), new("database_unavailable"));
+        Check(proof, "ordinary-window-close-releases-work-without-a-grant", !window.IsVisible && state.Grant == null);
+        Check(proof, "source-flaps-do-not-reopen-a-dismissed-window", !state.NeedsPrompt(DateTimeOffset.UtcNow) && state.BypassStatus == "staff_bypass_identity_unavailable");
+        Check(proof, "dismissal-does-not-send-http", handler.TotalCalls == 0);
+    }
+    private static async Task DeviceChangedProcess(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); var context = state.Context!; var generation = state.Generation;
+        using var handler = new FakeHandler { DeviceContext = context, BeforeDeviceReply = () => state.Observe(
+            StaffProcessPresence.FromInstances(["443:639295055776695956"]), new("database_unavailable")) };
+        using var client = new StaffAuthClient(Config(), handler); var window = DeviceWindow(client, state);
+        var eventSeen = false; var accepted = false;
+        window.Authenticated += response => { eventSeen = true; accepted = state.Accept(generation, context, response, DateTimeOffset.UtcNow); if (accepted) window.Dismiss(); };
+        FillLogin(window); Click(Field<Button>(window, "_submit")); await Until(() => eventSeen && !Busy(window));
+        Check(proof, "pid-reuse-with-new-start-time-rejects-late-login", !accepted && state.Grant == null && state.Generation != generation);
+        Check(proof, "foreign-process-grant-does-not-release-current-presentation", window.IsVisible);
+    }
+    private static async Task DeviceServiceFailure(bool sms, Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); var context = state.Context!;
+        using var handler = new FakeHandler { DeviceContext = context, UnavailableLogin = !sms, UnavailableOtp = sms };
+        using var client = new StaffAuthClient(Config(), handler); var window = DeviceWindow(client, state);
+        window.BypassRequested += reason => { state.Bypass(reason); window.ReleaseWork(); };
+        if (sms) { RegistrationFields(window); Click(Field<Button>(window, "_request")); }
+        else { FillLogin(window); Click(Field<Button>(window, "_submit")); }
+        await Until(() => !window.IsVisible || !Busy(window));
+        Check(proof, "outage-retains-form-without-a-grant", window.IsVisible && state.Grant == null && window.WindowStyle != WindowStyle.None);
+        Check(proof, "outage-keeps-safe-operational-status", state.BypassStatus == (sms ? "staff_bypass_sms_unavailable" : "staff_bypass_service_unavailable"));
+        Check(proof, "outage-does-not-immediately-reopen", !state.NeedsPrompt(DateTimeOffset.UtcNow));
+    }
+
+    private static async Task SmsSourceFlap(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); var process = state.ProcessInstanceId!;
+        state.Observe(new("resolved", process), new("resolved", new StaffObservedSession(process, "DEV-SOURCE-USER", "DEV-SOURCE-SESSION", "DEV-SOURCE-WS", FixtureIin, "available")));
+        var context = state.Context!; var generation = state.Generation;
+        using var handler = new FakeHandler { DeviceContext = context,
+            BeforeOtpReply = () => state.Observe(new("resolved", process), new("database_unavailable")) };
+        using var client = new StaffAuthClient(Config(), handler); var window = DeviceWindow(client, state);
+        RegistrationFields(window); await RequestOtp(window, handler);
+        Check(proof, "sms-success-keeps-the-filled-window-open", window.IsVisible && Field<TextBox>(window, "_iin").Text == FixtureIin &&
+            Field<TextBox>(window, "_phone").Text == FixturePhone && Field<PasswordBox>(window, "_password").Password == FixturePassword);
+        Check(proof, "source-flap-keeps-generation-and-valid-sms-challenge", state.Generation == generation &&
+            typeof(StaffAuthWindow).GetField("_challenge", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window) != null);
+        var challenge = typeof(StaffAuthWindow).GetField("_challenge", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window);
+        state.Bypass(StaffPromptBypassReason.ServiceUnavailable); window.ReleaseWork("DEV: temporary capability outage; form retained.");
+        Check(proof, "later-service-release-keeps-sms-challenge-and-filled-form", window.IsVisible && window.WindowStyle != WindowStyle.None &&
+            Equals(challenge, typeof(StaffAuthWindow).GetField("_challenge", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)) &&
+            Field<PasswordBox>(window, "_password").Password == FixturePassword);
+        window.AuthenticationStarted += () => generation = state.Generation;
+        var accepted = false; window.Authenticated += response => { accepted = state.Accept(generation, context, response, DateTimeOffset.UtcNow); if (accepted) window.Dismiss(); };
+        Field<TextBox>(window, "_code").Text = "5445";
+        Click(Field<Button>(window, "_submit")); await Until(() => !window.IsVisible || !Busy(window));
+        Check(proof, "registration-accepts-current-process-after-source-outage", accepted && state.IsAuthenticated(DateTimeOffset.UtcNow) && !window.IsVisible);
+    }
+    private static async Task SmsRetry(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); var context = state.Context!; var generation = state.Generation;
+        using var handler = new FakeHandler { DeviceContext = context, OtpFailuresBeforeSuccess = 1 };
+        using var client = new StaffAuthClient(Config(), handler); var window = DeviceWindow(client, state);
+        window.BypassRequested += reason => { state.Bypass(reason); window.ReleaseWork(); };
+        window.AuthenticationStarted += () => generation = state.Generation;
+        var accepted = false; window.Authenticated += response => { accepted = state.Accept(generation, context, response, DateTimeOffset.UtcNow); if (accepted) window.Dismiss(); };
+        RegistrationFields(window); Click(Field<Button>(window, "_request")); await Until(() => handler.OtpCalls == 1 && !Busy(window));
+        Check(proof, "sms-failure-keeps-all-entered-registration-fields", window.IsVisible &&
+            Field<TextBox>(window, "_iin").Text == FixtureIin && Field<TextBox>(window, "_phone").Text == FixturePhone &&
+            Field<TextBox>(window, "_name").Text == "DEV synthetic employee" &&
+            Field<PasswordBox>(window, "_password").Password == FixturePassword && Field<PasswordBox>(window, "_passwordConfirmation").Password == FixturePassword);
+        Check(proof, "sms-failure-releases-work-without-pretending-login", state.Grant == null &&
+            state.BypassStatus == "staff_bypass_sms_unavailable" && !state.NeedsPrompt(DateTimeOffset.UtcNow) &&
+            Field<Button>(window, "_continueWithoutSignIn").Visibility == Visibility.Visible);
+        Click(Field<Button>(window, "_request")); await Until(() => handler.OtpCalls == 2 && !Busy(window));
+        Field<TextBox>(window, "_code").Text = "5445";
+        Click(Field<Button>(window, "_submit")); await Until(() => !window.IsVisible || !Busy(window));
+        Check(proof, "retry-on-same-retained-form-registers-and-closes-after-current-grant", accepted && !window.IsVisible && state.IsAuthenticated(DateTimeOffset.UtcNow) && handler.DeviceRegisterCalls == 1);
+    }
+
+    private static async Task DevicePending(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); var process = state.ProcessInstanceId!;
+        state.Observe(new("resolved", process), new("resolved", new StaffObservedSession(process, "DEV-SOURCE-USER", "DEV-SOURCE-SESSION", "DEV-SOURCE-WS", FixtureIin, "available")));
+        var context = state.Context!;
+        using var handler = new FakeHandler { DeviceContext = context, PendingDeviceLogin = true };
+        using var client = new StaffAuthClient(Config(), handler); var window = DeviceWindow(client, state);
+        var authenticated = false; window.Authenticated += _ => authenticated = true;
+        Check(proof, "known-source-initially-uses-required-presentation", window.WindowStyle == WindowStyle.None);
+        FillLogin(window); Click(Field<Button>(window, "_submit")); await Until(() => handler.DeviceLoginCalls == 1 && !Busy(window));
+        Check(proof, "pending-profile-does-not-emit-authentication-or-grant", !authenticated && state.Grant == null && !state.IsAuthenticated(DateTimeOffset.UtcNow));
+        Check(proof, "pending-keeps-the-form-open-and-releases-work", window.IsVisible && window.WindowStyle != WindowStyle.None &&
+            Field<Button>(window, "_continueWithoutSignIn").Visibility == Visibility.Visible && Field<Button>(window, "_continueWithoutSignIn").IsEnabled);
+        Check(proof, "pending-explanation-is-preserved", Field<TextBlock>(window, "_status").Text.Contains("Назначение аптеки для этого профиля пока не подтверждено", StringComparison.Ordinal));
+        window.Closed += (_, _) => state.Bypass(StaffPromptBypassReason.IdentityUnavailable);
+        window.Close(); await Idle();
+        Check(proof, "pending-profile-can-close-without-forging-login", !window.IsVisible && !state.IsAuthenticated(DateTimeOffset.UtcNow) && !state.NeedsPrompt(DateTimeOffset.UtcNow));
+    }
+
     private static void WriteProof(bool passed, string? note)
     {
         using var process = Process.GetCurrentProcess();
@@ -362,10 +528,18 @@ internal static class Program
     private sealed class FakeHandler : HttpMessageHandler
     {
         public StaffAuthContext ObservedContext { get; init; } = Context();
+        public StaffDeviceContext? DeviceContext { get; init; }
+        public Action? BeforeDeviceReply { get; init; }
+        public bool DeviceBodyMatched { get; private set; }
+        public int DeviceLoginCalls { get; private set; }
+        public int DeviceRegisterCalls { get; private set; }
         public bool LoginContextMatched { get; private set; }
         public bool WrongRegistrationContext { get; init; }
         public bool UnavailableLogin { get; init; }
+        public bool PendingDeviceLogin { get; init; }
         public bool UnavailableOtp { get; init; }
+        public int OtpFailuresBeforeSuccess { get; init; }
+        public Action? BeforeOtpReply { get; init; }
         public int TotalCalls { get; private set; }
         public int OtpCalls { get; private set; }
         public int RegisterCalls { get; private set; }
@@ -379,9 +553,25 @@ internal static class Program
             var payload = await request.Content!.ReadAsStringAsync(ct); using var body = JsonDocument.Parse(payload);
             switch (request.RequestUri.AbsolutePath)
             {
+                case "/api/posm/staff/device/login":
+                case "/api/posm/staff/device/register":
+                    var registering = request.RequestUri.AbsolutePath.EndsWith("/register", StringComparison.Ordinal);
+                    if (registering) DeviceRegisterCalls++; else DeviceLoginCalls++;
+                    var device = JsonSerializer.Deserialize<StaffDeviceContext>(body.RootElement.GetProperty("deviceContext").GetRawText(), Json);
+                    DeviceBodyMatched = device == DeviceContext &&
+                        body.RootElement.GetProperty("iin").GetString() == FixtureIin &&
+                        body.RootElement.GetProperty("password").GetString() == FixturePassword &&
+                        (!registering || body.RootElement.GetProperty("phone").GetString() == FixturePhone);
+                    if (!registering && UnavailableLogin) return Reply(new { code = "UPSTREAM_UNAVAILABLE" }, HttpStatusCode.ServiceUnavailable);
+                    if (!registering && PendingDeviceLogin) return Reply(new StaffAuthResponse("pending", null, null,
+                        new StaffIdentity("DEV-PENDING-PERSON", "DEV pending employee"), DeviceContext: device));
+                    BeforeDeviceReply?.Invoke();
+                    return Reply(new StaffAuthResponse("authenticated", "DEV-SYNTHETIC-PROCESS-GRANT", DateTimeOffset.UtcNow.AddHours(1),
+                        new StaffIdentity("DEV-PERSON", "DEV synthetic employee"), DeviceContext: device));
                 case "/api/posm/staff/otp/request":
                     OtpCalls++;
-                    if (UnavailableOtp) return Reply(new { code = "UPSTREAM_UNAVAILABLE" }, HttpStatusCode.ServiceUnavailable);
+                    if (UnavailableOtp || OtpCalls <= OtpFailuresBeforeSuccess) return Reply(new { code = "UPSTREAM_UNAVAILABLE" }, HttpStatusCode.ServiceUnavailable);
+                    BeforeOtpReply?.Invoke();
                     return Reply(new StaffOtpResponse("DEV-FAKE-CHALLENGE", 300, "+7***0012"));
                 case "/api/posm/staff/register":
                     RegisterCalls++;

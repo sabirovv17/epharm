@@ -46,6 +46,29 @@ public sealed class StaffAuthClient : IDisposable
         catch (JsonException) { return new(false, "endpoint_unavailable"); }
     }
 
+    public Task<StaffAuthResponse> DeviceLoginAsync(string iin, string password, StaffDeviceContext context, CancellationToken ct) =>
+        PostAsync<StaffAuthResponse>("device/login", new { iin, password, deviceContext = context }, ct);
+    public Task<StaffRegistrationResponse> DeviceRegisterAsync(string challengeId, string code, string iin, string phone, string name, string password, StaffDeviceContext context, CancellationToken ct) =>
+        PostAsync<StaffRegistrationResponse>("device/register", new { challengeId, code, iin, phone, name, password, deviceContext = context }, ct);
+
+    public async Task<StaffAuthResponse> ValidateDeviceAsync(string token, StaffDeviceContext context, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/posm/staff/device/session/check") {
+            Content = JsonContent.Create(context, options: Json),
+        };
+        request.Headers.Add("X-Staff-Session", token);
+        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        return await ReadAsync<StaffAuthResponse>(response, ct).ConfigureAwait(false);
+    }
+
+    public async Task DeviceLogoutAsync(string token, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/posm/staff/device/logout");
+        request.Headers.Add("X-Staff-Session", token);
+        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode) throw new StaffApiException("UNAVAILABLE");
+    }
+
     public Task<StaffAuthResponse> LoginAsync(string iin, string password, StaffAuthContext? context, CancellationToken ct)
     {
         if (context == null) throw new StaffApiException("SESSION_REQUIRED");

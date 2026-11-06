@@ -27,7 +27,7 @@ public sealed class StaffAuthClientTests
     }
 
     [Theory]
-    [InlineData("{\"enabled\":true,\"protocolVersion\":2,\"nameFallbackSupported\":true}", true)]
+    [InlineData("{\"enabled\":true,\"protocolVersion\":2,\"nameFallbackSupported\":true,\"deviceEmployeeAuthVersion\":1}", true)]
     [InlineData("{\"enabled\":true,\"protocolVersion\":2}", false)]
     [InlineData("{\"enabled\":true,\"protocolVersion\":2,\"nameFallbackSupported\":false}", false)]
     [InlineData("{\"enabled\":false,\"protocolVersion\":2}", false)]
@@ -45,7 +45,7 @@ public sealed class StaffAuthClientTests
     {
         var calls = 0;
         using var client = Client(new Handler((_, _) => Task.FromResult(Response(++calls == 1
-            ? "{\"enabled\":true,\"protocolVersion\":2,\"nameFallbackSupported\":true}"
+            ? "{\"enabled\":true,\"protocolVersion\":2,\"nameFallbackSupported\":true,\"deviceEmployeeAuthVersion\":1}"
             : "{\"enabled\":true,\"protocolVersion\":2}"))));
         Assert.True((await client.CheckCapabilitiesAsync(TestContext.Current.CancellationToken)).Enabled);
         Assert.Equal(new(false, "unsupported_protocol"), await client.CheckCapabilitiesAsync(TestContext.Current.CancellationToken));

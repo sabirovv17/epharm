@@ -45,3 +45,30 @@ data class StaffSessionResponse(
     val context: StaffContext,
 )
 data class StaffOtpResponse(val challengeId: String,val ttlSeconds: Long=300,val phoneMasked: String,val devCode: String?=null)
+
+/** Own employee authentication remains possible without inventing a Standard-N session. */
+data class StaffDeviceContext(
+    @field:NotBlank @field:Size(max=256) val processInstanceId: String,
+    @field:Valid val standardNContext: StaffContext? = null,
+)
+data class StaffDeviceLoginRequest(
+    @field:Iin @field:NotBlank @field:Size(min=12,max=12) val iin: String,
+    @field:NotBlank @field:Size(min=4,max=128) val password: String,
+    @field:Valid val deviceContext: StaffDeviceContext,
+)
+data class StaffDeviceRegistrationRequest(
+    @field:Size(max=36) val challengeId: String,
+    @field:Pattern(regexp="[0-9]{4,8}") val code: String,
+    @field:Iin @field:NotBlank @field:Size(min=12,max=12) val iin: String,
+    @field:Size(max=32) @field:Pattern(regexp="[+0-9 ()\\-]{6,32}") val phone: String,
+    @field:NotBlank @field:Size(min=4,max=128) val password: String,
+    @field:NotBlank @field:Size(min=3,max=255) val name: String,
+    @field:Valid val deviceContext: StaffDeviceContext,
+)
+data class StaffDeviceSessionResponse(
+    val status: String,
+    val sessionToken: String?,
+    val expiresAt: Instant?,
+    val pharmacist: StaffPerson,
+    val deviceContext: StaffDeviceContext,
+)
