@@ -231,10 +231,11 @@ class LearnerCredentialIntegrationTest {
         assertTrue(TransactionTemplate(txManager).execute{vault.read("credential-person",currentHash()).password==LEARNER_PASSWORD}==true)
         val newIin="880404400014";val newPhone="+77000000014"
         val registration=staff.requestOtp(device,StaffOtpRequest("register",newIin,newPhone))
-        staff.complete(device,StaffPasswordRequest(registration.challengeId,"1234",newIin,newPhone,next,"Synthetic new learner"),"register")
+        assertNull(staff.complete(device,StaffPasswordRequest(registration.challengeId,"1234",newIin,newPhone,next,"Synthetic new learner"),"register")) // No invented Standard-N grant.
         val id=jdbc.queryForObject("SELECT id FROM pharmacists WHERE iin=?",String::class.java,newIin)!!
         assertTrue(TransactionTemplate(txManager).execute{vault.read(id,currentHash(id)).password==next}==true)
-        assertEquals("pending",jdbc.queryForObject("SELECT status FROM pharmacists WHERE id=?",String::class.java,id))
+        assertEquals("active",jdbc.queryForObject("SELECT status FROM pharmacists WHERE id=?",String::class.java,id))
+        assertEquals(device.pharmacyId,jdbc.queryForObject("SELECT pharmacy_id FROM pharmacists WHERE id=?",String::class.java,id))
     }
     @Test fun `hash change without a new copy never labels the old password as current`() {
         capture();val oldHash=currentHash()
