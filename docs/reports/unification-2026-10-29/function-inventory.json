@@ -3584,7 +3584,7 @@
   {
     "id": "H15.12",
     "group": "H15",
-    "name": "Сохранить staff-auth capability/session/API в выключенном production-потоке",
+    "name": "Сохранить staff-auth API и независимый вход фармацевта на зарегистрированной кассе",
     "source": {
       "repo": "sabirovv17/epharm",
       "revision": "d925ff0ae4ed5822acce2f45f326221560ad79a3",
@@ -3597,7 +3597,11 @@
         "POST /api/posm/staff/password/{purpose:reset|activate}",
         "GET /api/posm/staff/session",
         "POST /api/posm/staff/logout",
-        "POST /api/posm/staff/session/check"
+        "POST /api/posm/staff/session/check",
+        "POST /api/posm/staff/device/login",
+        "POST /api/posm/staff/device/logout",
+        "POST /api/posm/staff/device/register",
+        "POST /api/posm/staff/device/session/check"
       ],
       "jobs": [],
       "data": [
@@ -3609,30 +3613,55 @@
         "posm_staff_challenges",
         "posm_staff_sessions",
         "posm_staff_rate_limits",
-        "merch_executor_otp_challenges"
+        "merch_executor_otp_challenges",
+        "posm_device_staff_sessions"
       ],
       "files": [
         "admin-panel/backend/src/main/kotlin/kz/epharm/posm/controller/PosmController.kt",
         "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/PosmDeviceAuthenticationService.kt",
-        "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt"
+        "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+        "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+        "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffDtos.kt",
+        "admin-panel/backend/src/main/resources/db/migration/V097__posm_device_employee_sessions.sql",
+        "App/Services/StaffAuthClient.cs",
+        "App/Services/StaffDeviceSessionState.cs"
       ]
     },
     "target": {
       "section": "Аптеки и товары",
       "subsection": "POSM / совместимость устройств",
-      "actions": ["Сохранить staff-auth capability/session/API в выключенном production-потоке"],
+      "actions": [
+        "Сохранить staff-auth API и независимый вход фармацевта на зарегистрированной кассе"
+      ],
       "scope": "Независимый device-auth и сохранённая привязка device/pharmacy; не admin session"
     },
     "state": "source_confirmed",
     "acceptance": [
-      "Объединение не включает обязательное окно РПС и не блокирует Стандарт-Н",
-      "Capability/disable работает независимо от админских сессий",
-      "Контекстный POST проверяет ИИН в body; старый GET остаётся совместимым без ИИН в URL",
-      "Контекстная SMS-регистрация создаёт активный профиль аптеки кассы без финансовой перепривязки; старый запрос сохраняет pending",
-      "Сбой допускает работу с диагностикой без staff grant; production release gate остаётся выключенным"
+      "Инвентаризация и объединение сами по себе не разрешают включение РПС; домен, POSM и отдельный /learn сохраняются",
+      "Capability сохраняет protocolVersion=2/nameFallbackSupported=true и добавляет deviceEmployeeAuthVersion=1; новый клиент не переигрывает запрос через старые маршруты при откате",
+      "Исторические строгие login/session маршруты сохраняют точный Standard-N контекст; legacy GET не помещает ИИН/ФИО в URL",
+      "Новый device/login подтверждает собственный ИИН/пароль и привязывает отдельный грант к авторизованным device/pharmacy и реальному processInstanceId без выдуманных Standard-N идентификаторов",
+      "Обе SMS-регистрации назначают новому активному профилю действующую аптеку авторизованной кассы даже без Standard-N БД; legacy запрос без context возвращает registered без строгого гранта, device/register возвращает проверяемый process-грант",
+      "Существующий pending/blocked профиль либо чужая назначенная аптека не активируются и не перепривязываются обычным входом; исторические неподтверждённые записи требуют отдельного проверенного решения",
+      "Первый поздний достоверный Standard-N контекст добавляется без повторного входа; недоступный интервал не стирает сохранённую привязку, смена известных user/session/workstation/process отзывает грант",
+      "Собственный вход не означает совпадение ИИН Стандарт-Н: UNKNOWN/NONE, IIN/NAME MATCH/MISMATCH и финансовая привязка продавца остаются отдельными фактами",
+      "Пароли 4–128 символов, до 72 UTF-8 байт, общий устойчивый лимит ИИН между learn/strict/device login; пароли и OTP не логируются и не повторяются автоматически",
+      "Сбой или неопределённый источник допускает работу с диагностикой без подтверждённого гранта; рекомендации, чеки, видео, QR и watchdog не зависят от входа"
     ],
-    "risks": ["Существование API не разрешает включение функции на кассах"],
-    "owner": "ePharm unification integration owner"
+    "risks": [
+      "Существование API не разрешает включение функции на кассах; отдельные runtime/VM/SMS доказательства не подменяются source inventory",
+      "Без читаемой Standard-N сессии нельзя гарантированно распознать смену пользователя внутри того же работающего процесса",
+      "Индивидуальный device/process грант не создаёт posm_pharmacist_mappings, начислений или доверенной финансовой идентификации"
+    ],
+    "owner": "ePharm unification integration owner",
+    "sourceUpdates": [
+      {
+        "date": "2026-11-06",
+        "revision": "1882f367af8152dcb8ff4eda0a20926529863d86",
+        "scope": "PR150 process-bound employee API and authenticated-device pharmacy registration; earlier source.revision is retained as historical provenance",
+        "runtimeVerifiedByThisInventory": false
+      }
+    ]
   },
   {
     "id": "H15.13",

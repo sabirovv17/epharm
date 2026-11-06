@@ -34,6 +34,225 @@
     "windowsTestsRun": false,
     "productionSmokeRun": false
   },
+  "currentSourceUpdate": {
+    "date": "2026-11-06",
+    "revision": "1882f367af8152dcb8ff4eda0a20926529863d86",
+    "scope": "PR150 process-bound own employee authentication and source-independent authenticated-device pharmacy assignment",
+    "evidenceType": "source contract update only; original sourceSnapshot/sourceManifest/checkExecution/feature baseline values remain historical; no runtime acceptance inferred",
+    "newEndpoints": [
+      "POST /api/posm/staff/device/login",
+      "POST /api/posm/staff/device/logout",
+      "POST /api/posm/staff/device/register",
+      "POST /api/posm/staff/device/session/check"
+    ],
+    "schemas": {
+      "StaffContext": {
+        "type": "object",
+        "required": ["standardNUserId", "standardNSessionId", "workstationId", "processInstanceId"],
+        "properties": {
+          "standardNUserId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "constraint": "nonblank"
+          },
+          "standardNSessionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "constraint": "nonblank"
+          },
+          "workstationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "constraint": "nonblank"
+          },
+          "processInstanceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "standardNIin": {
+            "type": ["string", "null"],
+            "pattern": "^[0-9]{12}$"
+          },
+          "standardNIinStatus": {
+            "type": "string",
+            "enum": ["available", "missing", "invalid", "unavailable", "ambiguous"],
+            "default": "unavailable"
+          },
+          "standardNFullName": {
+            "type": ["string", "null"],
+            "maxLength": 255
+          },
+          "standardNFullNameStatus": {
+            "type": "string",
+            "enum": ["available", "missing", "invalid", "unavailable", "ambiguous"],
+            "default": "unavailable"
+          }
+        },
+        "constraints": [
+          "Source IIN/name value present only with available status; nonavailable value is null.",
+          "Optional source process must equal outer process. Available IIN always wins; valid full-name exact-token comparison only when IIN missing/unavailable."
+        ]
+      },
+      "StaffDeviceContext": {
+        "type": "object",
+        "required": ["processInstanceId"],
+        "properties": {
+          "processInstanceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "constraint": "nonblank; no control characters; client uses real PID+start or stable real-process-set hash"
+          },
+          "standardNContext": {
+            "type": ["object", "null"],
+            "schemaRef": "StaffContext",
+            "default": null
+          }
+        }
+      },
+      "StaffDeviceLoginRequest": {
+        "type": "object",
+        "required": ["iin", "password", "deviceContext"],
+        "properties": {
+          "iin": {
+            "type": "string",
+            "pattern": "^[0-9]{12}$",
+            "constraint": "valid Kazakhstan IIN checksum; no government identity-validation claim"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 128,
+            "constraint": "nonblank; at most72 UTF-8 bytes; exact whitespace preserved when nonblank"
+          },
+          "deviceContext": {
+            "schemaRef": "StaffDeviceContext"
+          }
+        }
+      },
+      "StaffDeviceRegistrationRequest": {
+        "type": "object",
+        "required": ["challengeId", "code", "iin", "phone", "password", "name", "deviceContext"],
+        "properties": {
+          "iin": {
+            "type": "string",
+            "pattern": "^[0-9]{12}$",
+            "constraint": "valid Kazakhstan IIN checksum; no government identity-validation claim"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 128,
+            "constraint": "nonblank; at most72 UTF-8 bytes; exact whitespace preserved when nonblank"
+          },
+          "deviceContext": {
+            "schemaRef": "StaffDeviceContext"
+          },
+          "challengeId": {
+            "type": "string",
+            "maxLength": 36,
+            "constraint": "UUID of matching unused registration OTP challenge"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[0-9]{4,8}$"
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 32,
+            "constraint": "allowed phone input normalized to +7 and10 digits"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 255,
+            "constraint": "nonblank; trimmed length3..255"
+          }
+        }
+      },
+      "StaffDeviceSessionResponse": {
+        "type": "object",
+        "required": ["status", "sessionToken", "expiresAt", "pharmacist", "deviceContext"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["authenticated", "pending"]
+          },
+          "sessionToken": {
+            "type": ["string", "null"],
+            "constraint": "opaque token returned only at authenticated login/register; null on session check/pending"
+          },
+          "expiresAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "constraint": "8h grant; unchanged on check; null on pending"
+          },
+          "pharmacist": {
+            "type": "object",
+            "required": ["id", "name"],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "deviceContext": {
+            "schemaRef": "StaffDeviceContext",
+            "constraint": "exact submitted context, not server-invented or overwritten source IDs"
+          }
+        },
+        "routeConstraints": [
+          "device/register and session/check return authenticated; only existing pending login returns pending with null token/expiry.",
+          "No legacy context field is emitted by device routes."
+        ]
+      }
+    },
+    "currentReleaseGate": {
+      "sourceValue": true,
+      "localDisable": "StaffAuthenticationEnabled or EPHARM_STAFF_AUTH_ENABLED=false",
+      "serverGate": "POSM_STAFF_AUTH_ENABLED + exact capability markers",
+      "authority": "Activation requires separate user-authorized rollout, not this inventory"
+    },
+    "sourceManifest": [
+      {
+        "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+        "sha256": "10aceb9d0d8edc1b9cd4fac311aebb017f569edd8918818dbaf29f4e57e96aa1"
+      },
+      {
+        "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+        "sha256": "3eeda0ee73a9a8f5fd96e5edec262e604996642dd471a65b82ed80c114fa3258"
+      },
+      {
+        "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffDtos.kt",
+        "sha256": "1ec5bdf85ea9a40bf302615fe6e1fdcfdd6a8c8def7ef7b95e424927620846fd"
+      },
+      {
+        "path": "admin-panel/backend/src/main/resources/db/migration/V097__posm_device_employee_sessions.sql",
+        "sha256": "b946a0ba605e5e9b3189f055477c02f564bf8102c71faea75f79f703a3a7cc87"
+      },
+      {
+        "path": "App/Services/StaffAuthClient.cs",
+        "sha256": "42563b92a7cbd81320b4a20a5115e9898a4b2165b83f0e2b9f6047ee56f9986b"
+      },
+      {
+        "path": "App/Services/StaffDeviceSessionState.cs",
+        "sha256": "cc7b91fe5c0cd9ea74e15bda2b47bd629398132c10504e2ac708d47a0eedb10c"
+      },
+      {
+        "path": "App/Services/StaffAuthDiagnostics.cs",
+        "sha256": "57441211aea431055dc5d4b1a4bdf59c240f22818c0bd1c98fd5163277d50811"
+      }
+    ],
+    "currentSourceContractCount": 53,
+    "runtimeChecksExecutedByThisUpdate": 0
+  },
   "errorEnvelope": {
     "dto": "ApiErrorResponse",
     "fields": ["code", "message", "timestamp", "fields?"],
@@ -1748,7 +1967,12 @@
       "response": {
         "server": "map",
         "client": "StaffCapabilities",
-        "keyFields": ["enabled", "protocolVersion=2"]
+        "keyFields": [
+          "enabled",
+          "protocolVersion=2",
+          "nameFallbackSupported=true",
+          "deviceEmployeeAuthVersion=1"
+        ]
       },
       "errors": [
         {
@@ -1760,7 +1984,9 @@
       "sideEffects": [],
       "requiredInvariant": [
         "Optional channel; release gate false means this POSM binary must never open RPS/staff window even if server says enabled.",
-        "Capabilities and all staff responses Cache-Control:no-store."
+        "Capabilities and all staff responses Cache-Control:no-store.",
+        "New process-login clients require deviceEmployeeAuthVersion exactly1 in addition to existing protocol2/name marker; absent/unsupported marker disables their staff flow, never falls back/replays through strict legacy login.",
+        "A successful capability/device heartbeat is not proof of human login, Standard-N identity match or financial seller binding."
       ],
       "sourcePaths": [
         {
@@ -1782,6 +2008,11 @@
           "path": "App/MainWindow.Staff.cs",
           "line": 29,
           "anchor": "private void StartStaffAuthentication()"
+        },
+        {
+          "path": "App/Services/StaffAuthDiagnostics.cs",
+          "line": 32,
+          "anchor": "public static StaffCapabilityCheck Capability("
         }
       ],
       "positiveChecks": [
@@ -1789,7 +2020,8 @@
       ],
       "negativeChecks": [
         "Legacy key rejected for staff even when general legacy enabled.",
-        "Enabling env/JSON alone cannot bypass false release constant."
+        "Enabling env/JSON alone cannot bypass false release constant.",
+        "Missing/zero/unknown deviceEmployeeAuthVersion disables process login on old/rolled-back backend without affecting core POSM."
       ],
       "state": "source_confirmed",
       "origin": "https://epharm.inkar.kz"
@@ -1810,7 +2042,7 @@
         "keyFields": [
           "iin",
           "password",
-          "context{standardNUserId,standardNSessionId,workstationId,processInstanceId}"
+          "context{standardNUserId,standardNSessionId,workstationId,processInstanceId,standardNIin?,standardNIinStatus,standardNFullName?,standardNFullNameStatus}"
         ]
       },
       "response": {
@@ -1850,7 +2082,9 @@
       ],
       "requiredInvariant": [
         "Staff session never replaces device auth, never enters sales/shown outbox/logs.",
-        "Optional login failure cannot block Standard-N sales/recommendations/videos."
+        "Optional login failure cannot block Standard-N sales/recommendations/videos.",
+        "Strict protocol2 context matching remains unchanged; only the separate device routes permit missing Standard-N context.",
+        "Password must be nonblank4..128 characters and <=72 UTF-8 bytes; hashed-IIN10attempts/5minutes is shared with device and /learn login, with separate device30attempts/5minutes."
       ],
       "sourcePaths": [
         {
@@ -1973,10 +2207,10 @@
         "keyFields": ["challengeId", "code", "iin", "phone", "password", "name?", "context?"]
       },
       "response": {
-        "server": "StaffSessionResponse with context; pending map without context",
+        "server": "StaffSessionResponse with supplied strict context; registered map without context",
         "client": "StaffRegistrationResponse",
         "keyFields": [
-          "status:pending|authenticated",
+          "status:registered|authenticated",
           "sessionToken?",
           "expiresAt?",
           "pharmacist?",
@@ -2011,11 +2245,14 @@
         }
       ],
       "sideEffects": [
-        "Without context creates pending unassigned pharmacist (legacy). With exact context from individual authenticated pharmacy device creates active assigned pharmacist and context-bound session. Never assigns financial seller identity."
+        "Successful real OTP registration creates active pharmacist at the active pharmacy obtained solely from the authenticated individual device, including requests without Standard-N context. No address/name/sales inference or financial seller mapping.",
+        "With exact context, creates the existing strict context-bound grant. Without context, returns status:registered only: no invented Standard-N IDs, context or strict grant.",
+        "Duplicate IIN/phone is not overwritten; existing pending/blocked/other-pharmacy accounts are not activated or moved by registration/login."
       ],
       "requiredInvariant": [
         "Human password/OTP is not logged, cached, outboxed, forwarded through redirect, or silently retried.",
-        "New activation/registration must not grant administrative privileges."
+        "New activation/registration must not grant administrative privileges.",
+        "Historical contextless requests previously returned pending; that is preserved audit history, not the current registration policy. No blanket backfill or activation of old unassigned profiles is implied."
       ],
       "sourcePaths": [
         {
@@ -2037,11 +2274,22 @@
           "path": "App/Services/StaffAuthClient.cs",
           "line": 81,
           "anchor": "private async Task<T> PostAsync<T>"
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+          "line": 108,
+          "anchor": "private fun completeAccount("
+        },
+        {
+          "path": "admin-panel/backend/src/test/kotlin/kz/epharm/posm/staff/StaffAuthIntegrationTest.kt",
+          "line": 572,
+          "anchor": "legacy contextless registration assigns authenticated device pharmacy"
         }
       ],
       "positiveChecks": [
-        "Isolated correct-purpose fake OTP succeeds once with expected response.",
-        "Contextual SMS registration closes the current window only after generation/context/grant validation; old requests remain pending."
+        "Correct-purpose scoped OTP succeeds once; registered profile is visible in pharmacist registry and can use /learn.",
+        "Contextless legacy registration assigns actual device pharmacy/name/city but creates no strict/process grant; subsequent new device login uses own credentials.",
+        "Contextual registration closes the window only after generation/context/grant acceptance."
       ],
       "negativeChecks": [
         "Changed device/pharmacy/purpose/person/phone or replayed challenge fails.",
@@ -2299,7 +2547,9 @@
           "workstationId",
           "processInstanceId",
           "standardNIin?",
-          "standardNIinStatus"
+          "standardNIinStatus",
+          "standardNFullName?",
+          "standardNFullNameStatus"
         ]
       },
       "response": {
@@ -2333,7 +2583,8 @@
       "requiredInvariant": [
         "Do not interpret self-reported heartbeat staffAuthStatus as this authorization proof.",
         "Changing cashier process/session invalidates grant; no token persistence in generic outbox.",
-        "Observed IIN never appears in a URL; the full stored context must match. Unknown IIN is not a mismatch or financial identity proof."
+        "Observed IIN never appears in a URL; the full stored context must match. Unknown IIN is not a mismatch or financial identity proof.",
+        "Full name is only a weaker diagnostic fallback for missing/unavailable source IIN; an available mismatching IIN always wins. Exact stored strict context still includes both source observations."
       ],
       "sourcePaths": [
         {
@@ -2417,6 +2668,427 @@
       ],
       "state": "source_confirmed",
       "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "STAFF_DEVICE_LOGIN",
+      "method": "POST",
+      "path": "/api/posm/staff/device/login",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "Authenticated nonlegacy individual device joined to active pharmacy; POSM_STAFF_AUTH_ENABLED required. Body/header claims never choose trusted device/pharmacy.",
+        "valuesIncluded": false
+      },
+      "identity": "Own active same-pharmacy employee plus device/process grant; pending existing account returns pending without grant.",
+      "request": {
+        "server": "StaffDeviceLoginRequest",
+        "client": "DeviceLoginAsync",
+        "keyFields": ["iin", "password", "deviceContext{processInstanceId,standardNContext?}"],
+        "schemaRef": "currentSourceUpdate.schemas.StaffDeviceLoginRequest"
+      },
+      "response": {
+        "server": "StaffDeviceSessionResponse",
+        "client": "StaffAuthResponse.DeviceContext",
+        "keyFields": [
+          "status:authenticated|pending",
+          "sessionToken?",
+          "expiresAt?",
+          "pharmacist{id,name}",
+          "deviceContext"
+        ],
+        "schemaRef": "currentSourceUpdate.schemas.StaffDeviceSessionResponse"
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/legacy/invalid/revoked device key or inactive pharmacy."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Malformed body, invalid IIN/password/process/source shape, or inconsistent inner/outer process."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Staff authentication disabled."
+        },
+        {
+          "status": 401,
+          "code": "INVALID_CREDENTIALS",
+          "when": "Invalid own proof, blocked/inactive or different assigned pharmacy."
+        },
+        {
+          "status": 429,
+          "code": "OTP_TOO_MANY_ATTEMPTS",
+          "when": "Shared hashed-IIN or device login budget exhausted."
+        }
+      ],
+      "sideEffects": [
+        "Verifies password under person lock, shared account/device budgets and existing vault capture.",
+        "Creates hashed8h token in separate V097 table, bound to device/pharmacy/process/password fingerprint; replaces prior strict/process grants on that device atomically.",
+        "Source observation updates only separate IIN/NAME diagnostics; historical unassigned/pending/blocked/other-pharmacy profile is not silently activated/moved."
+      ],
+      "requiredInvariant": [
+        "Device/pharmacy come only from authenticated individual X-Posm-Key; no source DB, address, name or body-supplied pharmacy substitutes for that assignment.",
+        "This proves own ePharm credentials only. Missing source stays NONE/UNKNOWN; available source IIN wins over name, and diagnostics never create seller mappings/wallet authority.",
+        "No password/OTP/token in logs, generic outbox, URLs or silent mutation retries/redirects; Cache-Control:no-store.",
+        "Recommendation/cart/video/QR/watchdog and Standard-N remain independent; service/SMS/source uncertainty has an explicit fail-open diagnostic, never a fabricated authenticated grant."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+          "line": 55,
+          "anchor": "fun deviceLogin("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+          "line": 184,
+          "anchor": "fun deviceLogin("
+        },
+        {
+          "path": "App/Services/StaffAuthClient.cs",
+          "line": 49,
+          "anchor": "public Task<StaffAuthResponse> DeviceLoginAsync("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffDtos.kt",
+          "line": 50,
+          "anchor": "data class StaffDeviceContext("
+        },
+        {
+          "path": "admin-panel/backend/src/main/resources/db/migration/V097__posm_device_employee_sessions.sql",
+          "line": 2,
+          "anchor": "CREATE TABLE posm_device_staff_sessions ("
+        },
+        {
+          "path": "admin-panel/backend/src/test/kotlin/kz/epharm/posm/staff/StaffAuthIntegrationTest.kt",
+          "line": 123,
+          "anchor": "private fun deviceSession("
+        }
+      ],
+      "positiveChecks": [
+        "Without any source DB context, valid own credentials authenticate on real process; /learn and registry use same pharmacist.",
+        "Concurrent strict/device logins leave one current employee grant on device."
+      ],
+      "negativeChecks": [
+        "Wrong password/account/pharmacy/blocked gives401; existing pending has no grant.",
+        "Switching learn/strict/device routes cannot bypass durable10attempt/5minute IIN budget; failure survives transaction rollback.",
+        "Legacy/source token cannot validate on new device route; missing capability version does not trigger legacy fallback."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz",
+      "sourceRevision": "1882f367af8152dcb8ff4eda0a20926529863d86"
+    },
+    {
+      "id": "STAFF_DEVICE_REGISTER",
+      "method": "POST",
+      "path": "/api/posm/staff/device/register",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "Authenticated nonlegacy individual device joined to active pharmacy; POSM_STAFF_AUTH_ENABLED required. Body/header claims never choose trusted device/pharmacy.",
+        "valuesIncluded": false
+      },
+      "identity": "Real purpose-bound OTP creates own active profile in authenticated device pharmacy; independent of source DB.",
+      "request": {
+        "server": "StaffDeviceRegistrationRequest",
+        "client": "DeviceRegisterAsync",
+        "keyFields": [
+          "challengeId",
+          "code",
+          "iin",
+          "phone",
+          "password",
+          "name",
+          "deviceContext{processInstanceId,standardNContext?}"
+        ],
+        "schemaRef": "currentSourceUpdate.schemas.StaffDeviceRegistrationRequest"
+      },
+      "response": {
+        "server": "StaffDeviceSessionResponse",
+        "client": "StaffRegistrationResponse.DeviceContext",
+        "keyFields": [
+          "status:authenticated",
+          "sessionToken",
+          "expiresAt",
+          "pharmacist{id,name}",
+          "deviceContext"
+        ],
+        "schemaRef": "currentSourceUpdate.schemas.StaffDeviceSessionResponse"
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/legacy/invalid/revoked device key or inactive pharmacy."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Malformed body, invalid IIN/password/process/source shape, or inconsistent inner/outer process."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Staff authentication disabled."
+        },
+        {
+          "status": 400,
+          "code": "OTP_INVALID",
+          "when": "Invalid/expired/consumed/wrong-scope registration challenge."
+        },
+        {
+          "status": 429,
+          "code": "OTP_TOO_MANY_ATTEMPTS",
+          "when": "OTP verification budget exhausted."
+        }
+      ],
+      "sideEffects": [
+        "Reuses existing phone-wide OTP/provider/purpose/device/pharmacy/IIN proof, password4..128/72UTF8-byte policy and vault capture.",
+        "Creates active profile with actual device pharmacy/name/city even if source unavailable; no duplicate/reassignment/backfill.",
+        "Consumes OTP once and issues separate process grant. Parent window closes only after exact generation/deviceContext/token/person/expiry acceptance."
+      ],
+      "requiredInvariant": [
+        "Device/pharmacy come only from authenticated individual X-Posm-Key; no source DB, address, name or body-supplied pharmacy substitutes for that assignment.",
+        "This proves own ePharm credentials only. Missing source stays NONE/UNKNOWN; available source IIN wins over name, and diagnostics never create seller mappings/wallet authority.",
+        "No password/OTP/token in logs, generic outbox, URLs or silent mutation retries/redirects; Cache-Control:no-store.",
+        "Recommendation/cart/video/QR/watchdog and Standard-N remain independent; service/SMS/source uncertainty has an explicit fail-open diagnostic, never a fabricated authenticated grant."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+          "line": 61,
+          "anchor": "fun deviceRegister("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+          "line": 197,
+          "anchor": "fun deviceRegister("
+        },
+        {
+          "path": "App/Services/StaffAuthClient.cs",
+          "line": 51,
+          "anchor": "public Task<StaffRegistrationResponse> DeviceRegisterAsync("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffDtos.kt",
+          "line": 50,
+          "anchor": "data class StaffDeviceContext("
+        },
+        {
+          "path": "admin-panel/backend/src/main/resources/db/migration/V097__posm_device_employee_sessions.sql",
+          "line": 2,
+          "anchor": "CREATE TABLE posm_device_staff_sessions ("
+        },
+        {
+          "path": "admin-panel/backend/src/test/kotlin/kz/epharm/posm/staff/StaffAuthIntegrationTest.kt",
+          "line": 123,
+          "anchor": "private fun deviceSession("
+        }
+      ],
+      "positiveChecks": [
+        "Scoped real-provider protocol (mocked only in automated fixtures) registers once without source; registry and /learn see same active assigned profile."
+      ],
+      "negativeChecks": [
+        "Wrong device/pharmacy/purpose/phone/IIN, expired/replayed OTP or duplicate account cannot register/overwrite.",
+        "Three-character/blank/oversized UTF8 password and exhausted OTP attempts fail.",
+        "No fabricated Standard-N IDs or financial mapping/wallet rows; stale in-flight process response cannot close current window."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz",
+      "sourceRevision": "1882f367af8152dcb8ff4eda0a20926529863d86"
+    },
+    {
+      "id": "STAFF_DEVICE_SESSION_CHECK",
+      "method": "POST",
+      "path": "/api/posm/staff/device/session/check",
+      "auth": {
+        "headers": ["X-Posm-Key", "X-Staff-Session"],
+        "boundary": "Authenticated nonlegacy individual device joined to active pharmacy; POSM_STAFF_AUTH_ENABLED required. Body/header claims never choose trusted device/pharmacy.",
+        "valuesIncluded": false
+      },
+      "identity": "Same device/pharmacy/process/employee/password fingerprint, with optional remembered exact source identity.",
+      "request": {
+        "server": "StaffDeviceContext JSON body",
+        "client": "ValidateDeviceAsync",
+        "keyFields": ["processInstanceId", "standardNContext?"],
+        "schemaRef": "currentSourceUpdate.schemas.StaffDeviceContext"
+      },
+      "response": {
+        "server": "StaffDeviceSessionResponse",
+        "client": "StaffAuthResponse.DeviceContext",
+        "keyFields": [
+          "status:authenticated",
+          "sessionToken:null",
+          "expiresAt:unchanged",
+          "pharmacist{id,name}",
+          "deviceContext:exactSubmitted"
+        ],
+        "schemaRef": "currentSourceUpdate.schemas.StaffDeviceSessionResponse"
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/legacy/invalid/revoked device key or inactive pharmacy."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Malformed body, invalid IIN/password/process/source shape, or inconsistent inner/outer process."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Staff authentication disabled."
+        },
+        {
+          "status": 401,
+          "code": "INVALID_CREDENTIALS",
+          "when": "Missing/foreign/revoked/expired token, password/status/pharmacy change, changed outer process or known cashier identity."
+        }
+      ],
+      "sideEffects": [
+        "First reliable source tuple binds without new login. Null intervals preserve stored user/session/workstation; same tuple with changed IIN/name refreshes diagnostic.",
+        "A changed outer process or known user/session/workstation durably revokes token and returns401, including caller rollback; no selecting latest row.",
+        "Account status/pharmacy/password/device credential changes revoke via triggers, plus current state/fingerprint checks; expiry is not extended."
+      ],
+      "requiredInvariant": [
+        "Device/pharmacy come only from authenticated individual X-Posm-Key; no source DB, address, name or body-supplied pharmacy substitutes for that assignment.",
+        "This proves own ePharm credentials only. Missing source stays NONE/UNKNOWN; available source IIN wins over name, and diagnostics never create seller mappings/wallet authority.",
+        "No password/OTP/token in logs, generic outbox, URLs or silent mutation retries/redirects; Cache-Control:no-store.",
+        "Recommendation/cart/video/QR/watchdog and Standard-N remain independent; service/SMS/source uncertainty has an explicit fail-open diagnostic, never a fabricated authenticated grant."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+          "line": 63,
+          "anchor": "fun checkDeviceSession("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+          "line": 221,
+          "anchor": "fun deviceSession("
+        },
+        {
+          "path": "App/Services/StaffAuthClient.cs",
+          "line": 54,
+          "anchor": "public async Task<StaffAuthResponse> ValidateDeviceAsync("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffDtos.kt",
+          "line": 50,
+          "anchor": "data class StaffDeviceContext("
+        },
+        {
+          "path": "admin-panel/backend/src/main/resources/db/migration/V097__posm_device_employee_sessions.sql",
+          "line": 2,
+          "anchor": "CREATE TABLE posm_device_staff_sessions ("
+        },
+        {
+          "path": "admin-panel/backend/src/test/kotlin/kz/epharm/posm/staff/StaffAuthIntegrationTest.kt",
+          "line": 123,
+          "anchor": "private fun deviceSession("
+        }
+      ],
+      "positiveChecks": [
+        "No-source grant survives DB loss; late source binds without second prompt; repeated same source validates.",
+        "Same tuple name match cannot override available mismatching IIN."
+      ],
+      "negativeChecks": [
+        "Foreign device/pharmacy, expired/revoked/reset/blocked/moved account and changed process/source tuple rejected.",
+        "Concurrent different late source tuples cannot both bind; subsequent null interval never resurrects revoked token.",
+        "Legacy strict grant and malformed/unequal inner/outer process are not accepted."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz",
+      "sourceRevision": "1882f367af8152dcb8ff4eda0a20926529863d86"
+    },
+    {
+      "id": "STAFF_DEVICE_LOGOUT",
+      "method": "POST",
+      "path": "/api/posm/staff/device/logout",
+      "auth": {
+        "headers": ["X-Posm-Key", "X-Staff-Session"],
+        "boundary": "Authenticated nonlegacy individual device joined to active pharmacy; POSM_STAFF_AUTH_ENABLED required. Body/header claims never choose trusted device/pharmacy.",
+        "valuesIncluded": false
+      },
+      "identity": "Revoke only matching separate device/pharmacy employee token.",
+      "request": {
+        "server": "none; optional X-Staff-Session header",
+        "client": "DeviceLogoutAsync",
+        "keyFields": []
+      },
+      "response": {
+        "server": "204 no content",
+        "client": "none",
+        "keyFields": []
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/legacy/invalid/revoked device key or inactive pharmacy."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Malformed body, invalid IIN/password/process/source shape, or inconsistent inner/outer process."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Staff authentication disabled."
+        }
+      ],
+      "sideEffects": [
+        "Marks matching separate token revoked; absent/foreign/unknown token is safe scoped no-op."
+      ],
+      "requiredInvariant": [
+        "Device/pharmacy come only from authenticated individual X-Posm-Key; no source DB, address, name or body-supplied pharmacy substitutes for that assignment.",
+        "This proves own ePharm credentials only. Missing source stays NONE/UNKNOWN; available source IIN wins over name, and diagnostics never create seller mappings/wallet authority.",
+        "No password/OTP/token in logs, generic outbox, URLs or silent mutation retries/redirects; Cache-Control:no-store.",
+        "Recommendation/cart/video/QR/watchdog and Standard-N remain independent; service/SMS/source uncertainty has an explicit fail-open diagnostic, never a fabricated authenticated grant."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+          "line": 65,
+          "anchor": "fun deviceLogout("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+          "line": 255,
+          "anchor": "fun deviceLogout("
+        },
+        {
+          "path": "App/Services/StaffAuthClient.cs",
+          "line": 64,
+          "anchor": "public async Task DeviceLogoutAsync("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffDtos.kt",
+          "line": 50,
+          "anchor": "data class StaffDeviceContext("
+        },
+        {
+          "path": "admin-panel/backend/src/main/resources/db/migration/V097__posm_device_employee_sessions.sql",
+          "line": 2,
+          "anchor": "CREATE TABLE posm_device_staff_sessions ("
+        },
+        {
+          "path": "admin-panel/backend/src/test/kotlin/kz/epharm/posm/staff/StaffAuthIntegrationTest.kt",
+          "line": 123,
+          "anchor": "private fun deviceSession("
+        }
+      ],
+      "positiveChecks": ["Own logout prevents subsequent device session validation."],
+      "negativeChecks": [
+        "Foreign same-pharmacy device cannot revoke another device token; invalid device key/disabled channel still denied."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz",
+      "sourceRevision": "1882f367af8152dcb8ff4eda0a20926529863d86"
     },
     {
       "id": "LEARN_SPA_BOUNDARY",
