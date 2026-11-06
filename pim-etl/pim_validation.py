@@ -113,7 +113,15 @@ def normalize_row(row, record, quality, audit):
                "ware_id": ware, "pharmacy_id": values[3], "part_id": values[0]})
         values[1] = ware
     if not values[2].strip() and UUID_RE.fullmatch(ware):
-        raise ValidationError(f"record {record}: missing product name")
+        # Retain the full source row for PIM/financial audit. An unnamed product
+        # must not enter the public catalog or offer export.
+        quality["unnamed_valid_ware_rows"] += 1
+        audit({"record": record, "issue": "unnamed_valid_ware_quarantined_from_catalog",
+               "ware_id": values[1], "pharmacy_id": values[3], "part_id": values[0]})
+        # Canonicalize whitespace-only names so ClickHouse counts and HAVING
+        # agree with Python's Unicode-aware blank-name check. The source CSV
+        # remains immutable and the row remains present in the PIM snapshot.
+        values[2] = ""
     try:
         values[17] = normalize_expiry(values[17].strip())
     except ValidationError as exc:
@@ -132,7 +140,7 @@ def normalize_records(rows, output, quality, audit, interrupt_after=None):
         raise ValidationError("source header does not match the 20-column contract")
     output.write("\t".join(HEADER) + "\n")
     count = 0
-    products, pharmacies, keys = set(), set(), set()
+    products, named_products, pharmacies, keys = set(), set(), set(), set()
     for record, row in enumerate(rows, 1):
         if interrupt_after is not None and record > interrupt_after:
             raise InterruptedError("simulated interrupted normalization")
@@ -144,13 +152,21 @@ def normalize_records(rows, output, quality, audit, interrupt_after=None):
         pharmacies.add(values[3])
         if UUID_RE.fullmatch(values[1]):
             products.add(values[1])
+            if values[2].strip():
+                named_products.add(values[1])
         output.write("\t".join(escape_tsv(value) for value in values) + "\n")
         count += 1
     if count == 0:
         raise ValidationError("source contains no product/batch rows")
+    unnamed = quality["unnamed_valid_ware_rows"]
+    quarantine_limit = max(1, min(100, count // 10000))
+    if unnamed > quarantine_limit:
+        raise ValidationError(f"unnamed products exceed quarantine limit: {unnamed}>{quarantine_limit}")
+    if not named_products:
+        raise ValidationError("source contains no named product for safe catalog export")
     return {"rows": count, "valid_unique_ware_ids": len(products),
             "pharmacies": len(pharmacies), "duplicate_pharmacy_part_keys": 0,
-            "discarded_rows": 0}
+            "discarded_rows": 0, "catalog_quarantine_limit": quarantine_limit}
 
 
 def validate_file(source, artifact_root, expected_bytes=None, interrupt_after=None):
@@ -162,7 +178,8 @@ def validate_file(source, artifact_root, expected_bytes=None, interrupt_after=No
     if expected_bytes is not None and before.st_size != expected_bytes:
         raise ValidationError("download size differs from SMB source size")
     source_sha = sha256(source)
-    artifact = Path(artifact_root) / f"{source.stem}-{source_sha[:16]}"
+    # Keep older failed artifacts (and their audit evidence) immutable.
+    artifact = Path(artifact_root) / f"{source.stem}-{source_sha[:16]}-nameq-v2"
     manifest_path = artifact / "manifest.json"
     if manifest_path.exists():
         cached = json.loads(manifest_path.read_text())
@@ -174,12 +191,13 @@ def validate_file(source, artifact_root, expected_bytes=None, interrupt_after=No
     # Protect the directory even when the CLI is run outside the systemd UMask.
     artifact.mkdir(parents=True, exist_ok=False, mode=0o700)
     quality = Counter()
-    base = {"schema_version": 1, "snapshot_date": source.stem, "source_file": source.name,
+    base = {"schema_version": 2, "snapshot_date": source.stem, "source_file": source.name,
             "source_bytes": before.st_size, "source_sha256": source_sha,
             "observed_at": datetime.now(timezone.utc).isoformat(), "encoding": "cp1251",
             "normalized_format": "UTF-8 ClickHouse TabSeparatedWithNames with backslash escapes",
             "nullable_source_numeric_fields": [HEADER[index] for index in sorted(OPTIONAL_NUMERIC)],
-            "invalid_identity_policy": "preserve every PIM row; exclude invalid/blank IDs from Medusa exports"}
+            "invalid_identity_policy": "preserve every PIM row; exclude invalid/blank IDs from catalog exports",
+            "unnamed_product_policy": "preserve audited source row; exclude unnamed valid-ID rows from catalog products and offers, subject to a strict count cap"}
     try:
         csv.field_size_limit(32 * 1024 * 1024)
         with source.open(encoding="cp1251", errors="surrogateescape", newline="") as handle, \

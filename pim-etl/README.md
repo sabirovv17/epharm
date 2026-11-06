@@ -6,12 +6,17 @@ This directory contains the recovered production pipeline that imports daily Sta
 
 - A source file is accepted only when its date filename, byte size, 20-column CP1251/TSV contract, every row, numeric value, pharmacy identity, and duplicate key checks pass.
 - Invalid or blank product identifiers remain loss-accounted in PIM but never enter catalogue exports. No identifier is invented.
+- Valid-ID rows with a blank product name are retained in the source/PIM audit but excluded from catalog products. Their entire product–pharmacy offer is suppressed, so a nameless negative-stock batch cannot inflate availability. The audit records the source row and identity; more than 1 per 10,000 source rows (minimum 1, maximum 100), or a file with no named product, still fails closed. A new validation artifact never overwrites earlier failure evidence.
+- `quarantined_rows` in the export manifest counts defective source rows, not the number of product–pharmacy offers suppressed by a mixed named/unnamed group.
 - Data is loaded into staging tables. Every live partition is backed up, replacement intent is journalled durably, and partial publication is rolled back or recovered on the next run. Terminal staging tables are removed immediately; rollback backups are retained for 72 hours by default and then cleaned idempotently.
 - The catalogue is exported only from a completely published snapshot. Missing prices or expiry dates fail closed for sellability, and data older than 48 hours is not delivered.
 - The receiver must independently match the protected host/user/port allowlist, uses a pinned `known_hosts` file and a dedicated key, and must acknowledge the exact snapshot and manifest hashes.
 - Secrets live only in root-readable files under `/etc/pim-dashboard`. They are neither committed nor inserted into subprocess arguments.
 
 The SSH catalogue receiver is not the Medusa commerce HTTP origin. Replacing the retired commerce origin remains a separate P0 operation requiring a current URL and keys.
+Before deploying the name-quarantine policy, confirm that the independent receiver accepts
+`export_policy_version: 3`. The server's older ETL installation must be reconciled with this
+Git-tracked runtime and protected configuration; copying only the validator is not a safe rollout.
 
 ## Layout
 
