@@ -85,6 +85,7 @@ internal static class Program
                 await Run("process-sms-error-bypasses-without-grant", proof => DeviceServiceFailure(true, proof));
                 await Run("sms-request-source-flap-keeps-filled-form-and-challenge", SmsSourceFlap);
                 await Run("sms-request-failure-retains-form-and-can-retry-to-register", SmsRetry);
+                await Run("device-pending-with-known-source-releases-work-without-grant", DevicePending);
             }
             catch (Exception error)
             {
@@ -94,7 +95,7 @@ internal static class Program
             {
                 watchdog.Stop();
                 foreach (var window in Windows) if (window.IsVisible) window.Dismiss();
-                var success = Results.Count == 19 && Results.All(result => result.Passed);
+                var success = Results.Count == 20 && Results.All(result => result.Passed);
                 WriteProof(success, null);
                 application.Shutdown(success ? 0 : 1);
             }
@@ -494,6 +495,25 @@ internal static class Program
         Check(proof, "retry-on-same-retained-form-registers-and-closes-after-current-grant", accepted && !window.IsVisible && state.IsAuthenticated(DateTimeOffset.UtcNow) && handler.DeviceRegisterCalls == 1);
     }
 
+    private static async Task DevicePending(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); var process = state.ProcessInstanceId!;
+        state.Observe(new("resolved", process), new("resolved", new StaffObservedSession(process, "DEV-SOURCE-USER", "DEV-SOURCE-SESSION", "DEV-SOURCE-WS", FixtureIin, "available")));
+        var context = state.Context!;
+        using var handler = new FakeHandler { DeviceContext = context, PendingDeviceLogin = true };
+        using var client = new StaffAuthClient(Config(), handler); var window = DeviceWindow(client, state);
+        var authenticated = false; window.Authenticated += _ => authenticated = true;
+        Check(proof, "known-source-initially-uses-required-presentation", window.WindowStyle == WindowStyle.None);
+        FillLogin(window); Click(Field<Button>(window, "_submit")); await Until(() => handler.DeviceLoginCalls == 1 && !Busy(window));
+        Check(proof, "pending-profile-does-not-emit-authentication-or-grant", !authenticated && state.Grant == null && !state.IsAuthenticated(DateTimeOffset.UtcNow));
+        Check(proof, "pending-keeps-the-form-open-and-releases-work", window.IsVisible && window.WindowStyle != WindowStyle.None &&
+            Field<Button>(window, "_continueWithoutSignIn").Visibility == Visibility.Visible && Field<Button>(window, "_continueWithoutSignIn").IsEnabled);
+        Check(proof, "pending-explanation-is-preserved", Field<TextBlock>(window, "_status").Text.Contains("Назначение аптеки для этого профиля пока не подтверждено", StringComparison.Ordinal));
+        window.Closed += (_, _) => state.Bypass(StaffPromptBypassReason.IdentityUnavailable);
+        window.Close(); await Idle();
+        Check(proof, "pending-profile-can-close-without-forging-login", !window.IsVisible && !state.IsAuthenticated(DateTimeOffset.UtcNow) && !state.NeedsPrompt(DateTimeOffset.UtcNow));
+    }
+
     private static void WriteProof(bool passed, string? note)
     {
         using var process = Process.GetCurrentProcess();
@@ -516,6 +536,7 @@ internal static class Program
         public bool LoginContextMatched { get; private set; }
         public bool WrongRegistrationContext { get; init; }
         public bool UnavailableLogin { get; init; }
+        public bool PendingDeviceLogin { get; init; }
         public bool UnavailableOtp { get; init; }
         public int OtpFailuresBeforeSuccess { get; init; }
         public Action? BeforeOtpReply { get; init; }
@@ -542,6 +563,8 @@ internal static class Program
                         body.RootElement.GetProperty("password").GetString() == FixturePassword &&
                         (!registering || body.RootElement.GetProperty("phone").GetString() == FixturePhone);
                     if (!registering && UnavailableLogin) return Reply(new { code = "UPSTREAM_UNAVAILABLE" }, HttpStatusCode.ServiceUnavailable);
+                    if (!registering && PendingDeviceLogin) return Reply(new StaffAuthResponse("pending", null, null,
+                        new StaffIdentity("DEV-PENDING-PERSON", "DEV pending employee"), DeviceContext: device));
                     BeforeDeviceReply?.Invoke();
                     return Reply(new StaffAuthResponse("authenticated", "DEV-SYNTHETIC-PROCESS-GRANT", DateTimeOffset.UtcNow.AddHours(1),
                         new StaffIdentity("DEV-PERSON", "DEV synthetic employee"), DeviceContext: device));

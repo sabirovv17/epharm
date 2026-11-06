@@ -421,6 +421,7 @@ public sealed class StaffAuthWindow : Window
                 ? T("Назначение аптеки для этого профиля пока не подтверждено. Обратитесь к администратору; Standard-N продолжает работать.",
                     "Бұл профильдің дәріханаға тағайындалуы әлі расталмаған. Әкімшіге хабарласыңыз; Standard-N жұмысын жалғастырады.")
                 : "Профиль ожидает подтверждения назначения администратором. Вход пока не разрешён.";
+            if (_deviceContext != null && result.Status is ("pending" or "registered")) ReleaseWork(_status.Text);
             return;
         }
         if (_challenge == null || _challengeExpiresAt <= DateTimeOffset.UtcNow || _challengeIin != _iin.Text.Trim() || _challengePhone != _phone.Text.Trim()) throw new StaffApiException("SMS_REQUIRED");
@@ -450,6 +451,7 @@ public sealed class StaffAuthWindow : Window
                 : registered.Status == "pending"
                     ? "Профиль создан без кассовой сессии. Для назначения аптеки обратитесь к администратору."
                     : "Профиль создан. Войдите по ИИН и паролю после определения кассовой сессии.";
+            if (_deviceContext != null && registered.Status is ("pending" or "registered")) ReleaseWork(_status.Text);
         }
         else
         {
