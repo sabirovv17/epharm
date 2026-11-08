@@ -89,6 +89,9 @@ internal static class Program
                 await Run("explicit-no-sms-registration-uses-direct-route-and-closes", DirectRegistration);
                 await Run("registration-policy-rollback-rejects-stale-direct-grant", RegistrationPolicyRollback);
                 await Run("sms-free-registration-does-not-bypass-password-recovery", DirectRegistrationRecovery);
+                await Run("background-capability-outage-keeps-inflight-registration-valid", BackgroundCapabilityOutage);
+                await Run("registration-rate-limit-keeps-specific-error-and-releases-work", proof => RateLimited(false, proof));
+                await Run("login-rate-limit-keeps-specific-error-and-releases-work", proof => RateLimited(true, proof));
             }
             catch (Exception error)
             {
@@ -98,7 +101,7 @@ internal static class Program
             {
                 watchdog.Stop();
                 foreach (var window in Windows) if (window.IsVisible) window.Dismiss();
-                var success = Results.Count == 23 && Results.All(result => result.Passed);
+                var success = Results.Count == 26 && Results.All(result => result.Passed);
                 WriteProof(success, null);
                 application.Shutdown(success ? 0 : 1);
             }
@@ -541,6 +544,48 @@ internal static class Program
         Check(proof, "direct-registration-closes-only-after-current-grant", accepted && state.IsAuthenticated(DateTimeOffset.UtcNow) && !window.IsVisible);
         Check(proof, "direct-registration-clears-password-controls", Field<PasswordBox>(window, "_password").Password.Length == 0 && Field<PasswordBox>(window, "_passwordConfirmation").Password.Length == 0);
     }
+    private static async Task BackgroundCapabilityOutage(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); var context = state.Context!; var generation = state.Generation;
+        StaffAuthWindow? window = null;
+        using var handler = new FakeHandler { DeviceContext = context, BeforeDeviceReply = () => {
+            foreach (var status in new[] { "network_unavailable", "endpoint_unavailable" }) {
+                var failure = new StaffCapabilityCheck(false, status);
+                if (StaffAuthDiagnostics.RegistrationPolicy(failure) is { } required) window!.SetRegistrationSmsRequired(required);
+                Check(proof, "registration-is-still-pending-during-background-failure", window!.IsRequestPending);
+                state.Bypass(StaffPromptBypassReason.ServiceUnavailable, preservePendingRequest: window.IsRequestPending);
+                window.ReleaseWork();
+                Check(proof, "background-failure-does-not-create-a-grant", state.Grant == null && state.Generation == generation);
+            }
+        } };
+        using var client = new StaffAuthClient(Config(), handler);
+        window = DeviceWindow(client, state, registrationSmsRequired: false); RegistrationFields(window);
+        var accepted = false;
+        window.Authenticated += response => { accepted = state.Accept(generation, context, response, DateTimeOffset.UtcNow); if (accepted) window.Dismiss(); };
+        Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+        Check(proof, "healthy-registration-survives-both-failed-capability-polls", accepted && !window.IsVisible && state.IsAuthenticated(DateTimeOffset.UtcNow));
+        Check(proof, "no-policy-flip-or-replayed-registration", handler.WithoutSmsCalls == 1 && handler.OtpCalls == 0 && handler.DeviceRegisterCalls == 0 && handler.DeviceLogoutCalls == 0);
+    }
+    private static async Task RateLimited(bool login, Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); var process = state.ProcessInstanceId!;
+        state.Observe(new("resolved", process), new("resolved", new StaffObservedSession(process, "DEV-USER", "DEV-SESSION", "DEV-WS", FixtureIin, "available")));
+        using var handler = new FakeHandler { DeviceContext = state.Context, RateLimitedRequests = true };
+        using var client = new StaffAuthClient(Config(), handler);
+        var window = DeviceWindow(client, state, registrationSmsRequired: false);
+        if (login) FillLogin(window); else RegistrationFields(window);
+        Check(proof, "known-source-starts-required-presentation", window.WindowStyle == WindowStyle.None);
+        var bypassed = false; var authenticated = false;
+        window.BypassRequested += _ => bypassed = true; window.Authenticated += _ => authenticated = true;
+        Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+        var message = Field<TextBlock>(window, "_status").Text;
+        Check(proof, "rate-limit-is-not-reported-as-service-failure", message.Contains("Слишком много попыток", StringComparison.Ordinal) &&
+            !message.Contains("недоступ", StringComparison.OrdinalIgnoreCase) && !bypassed);
+        Check(proof, "rate-limit-keeps-form-without-authorizing", window.IsVisible && !authenticated && state.Grant == null && Field<TextBox>(window, "_iin").Text == FixtureIin);
+        Check(proof, "rate-limit-releases-cashier-work", window.WindowStyle != WindowStyle.None && Field<Button>(window, "_continueWithoutSignIn").Visibility == Visibility.Visible);
+        Check(proof, "rate-limit-does-not-retry-or-send-sms", handler.TotalCalls == 1 && handler.OtpCalls == 0 && (login ? handler.DeviceLoginCalls == 1 : handler.WithoutSmsCalls == 1));
+        window.Close(); Check(proof, "rate-limited-window-is-closable", !window.IsVisible);
+    }
     private static async Task RegistrationPolicyRollback(Dictionary<string, bool> proof)
     {
         var state = DeviceState(); var context = state.Context!;
@@ -603,6 +648,7 @@ internal static class Program
         public bool WrongRegistrationContext { get; init; }
         public bool UnavailableLogin { get; init; }
         public bool PendingDeviceLogin { get; init; }
+        public bool RateLimitedRequests { get; init; }
         public bool UnavailableOtp { get; init; }
         public int OtpFailuresBeforeSuccess { get; init; }
         public Action? BeforeOtpReply { get; init; }
@@ -637,6 +683,7 @@ internal static class Program
                         (!registering || body.RootElement.GetProperty("phone").GetString() == FixturePhone);
                     if (direct) DirectBodyMatched = DeviceBodyMatched && body.RootElement.EnumerateObject().Select(x => x.Name).Order().SequenceEqual(
                         new[] { "deviceContext", "iin", "name", "password", "phone" });
+                    if (RateLimitedRequests) return Reply(new { code = "OTP_TOO_MANY_ATTEMPTS" }, HttpStatusCode.TooManyRequests);
                     if (direct && WithoutSmsCalls <= DirectFailuresBeforeSuccess) return Reply(new { code = "VALIDATION_FAILED" }, HttpStatusCode.BadRequest);
                     if (!registering && UnavailableLogin) return Reply(new { code = "UPSTREAM_UNAVAILABLE" }, HttpStatusCode.ServiceUnavailable);
                     if (!registering && PendingDeviceLogin) return Reply(new StaffAuthResponse("pending", null, null,

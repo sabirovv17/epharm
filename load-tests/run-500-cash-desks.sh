@@ -13,7 +13,17 @@ if [[ "$BASE_URL" == *epharm.inkar.kz* && "${CONFIRM_PRODUCTION_LOAD:-}" != I_AC
 fi
 
 mkdir -p "$RESULT_DIR"
-docker_args=(--rm -i -v "$RESULT_DIR:/results")
+docker_args=(--rm --read-only --tmpfs /tmp --user "$(id -u):$(id -g)" -v "$RESULT_DIR:/results" -v "$ROOT_DIR/load-tests/k6:/scripts:ro")
+if [[ -n "${K6_DOCKER_NETWORK:-}" ]]; then
+  [[ "$K6_DOCKER_NETWORK" =~ ^(container:)?[A-Za-z0-9_.-]+$ && "$K6_DOCKER_NETWORK" != host ]] || {
+    echo 'ERROR: K6_DOCKER_NETWORK must name a disposable network/container, never the host network' >&2; exit 1
+  }
+  docker_args+=(--network "$K6_DOCKER_NETWORK")
+fi
+if [[ -n "${BACKGROUND_EXPECTATIONS_FILE:-}" ]]; then
+  [[ -r "$BACKGROUND_EXPECTATIONS_FILE" ]] || { echo 'ERROR: BACKGROUND_EXPECTATIONS_FILE is not readable' >&2; exit 1; }
+  docker_args+=(-v "$BACKGROUND_EXPECTATIONS_FILE:/run/background.expected.json:ro" -e BACKGROUND_EXPECTATIONS_FILE=/run/background.expected.json)
+fi
 if [[ -n "${POSM_DEVICE_KEYS_FILE:-}" ]]; then
   [[ -r "$POSM_DEVICE_KEYS_FILE" ]] || {
     echo "ERROR: POSM_DEVICE_KEYS_FILE is not readable: $POSM_DEVICE_KEYS_FILE" >&2
@@ -27,6 +37,7 @@ fi
 
 docker run "${docker_args[@]}" \
   -e BASE_URL="$BASE_URL" \
+  -e K6_NO_USAGE_REPORT=true \
   -e RUN_ID="$RUN_ID" \
   -e PHARMACY_IDS="${PHARMACY_IDS:-ph_auezova_134}" \
   -e ADMIN_TOKEN="${ADMIN_TOKEN:-}" \
@@ -42,4 +53,4 @@ docker run "${docker_args[@]}" \
   -e TRIGGER_BARCODE="${TRIGGER_BARCODE:-4603423004936}" \
   -e TRIGGER_SKU="${TRIGGER_SKU:-}" \
   -e CONFIRM_PRODUCTION_LOAD="${CONFIRM_PRODUCTION_LOAD:-}" \
-  "$K6_IMAGE" run - < "$ROOT_DIR/load-tests/k6/500-cash-desks.js"
+  "$K6_IMAGE" run /scripts/500-cash-desks.js

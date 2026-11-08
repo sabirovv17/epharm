@@ -8,6 +8,32 @@ namespace CustomerDisplay.Core.Tests;
 public sealed class StaffAuthDiagnosticsTests
 {
     [Theory]
+    [InlineData("network_unavailable")]
+    [InlineData("endpoint_unavailable")]
+    [InlineData("device_auth_required")]
+    [InlineData("unsupported_protocol")]
+    [InlineData("server_disabled")]
+    public void UnconfirmedCapabilityCannotReplaceTheLastKnownRegistrationPolicy(string status)
+    {
+        var pending = new StaffRegistrationPolicy();
+        pending.SetSmsRequired(false); var generation = pending.Generation;
+        if (StaffAuthDiagnostics.RegistrationPolicy(new(false, status)) is { } required)
+            pending.SetSmsRequired(required);
+        Assert.False(pending.SmsRequired);
+        Assert.True(pending.IsCurrent(generation));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OnlyAHealthyEnabledCapabilityCanChangeRegistrationPolicy(bool required) =>
+        Assert.Equal(required, StaffAuthDiagnostics.RegistrationPolicy(new(true, "enabled", required)));
+
+    [Fact]
+    public void InconsistentCapabilityCannotAuthorizeAPolicyChange() =>
+        Assert.Null(StaffAuthDiagnostics.RegistrationPolicy(new(true, "network_unavailable", false)));
+
+    [Theory]
     [InlineData("staff_bypass_service_unavailable")]
     [InlineData("staff_bypass_sms_unavailable")]
     [InlineData("staff_bypass_sms_wait")]

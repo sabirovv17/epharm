@@ -188,10 +188,22 @@ class StaffRegistrationWithoutSmsIntegrationTest {
         repeat(4){register(conflict,expected=400)}
         register(conflict,credential=otherKey,expected=429)
         assertEquals(6,jdbc.queryForObject("SELECT attempts FROM posm_staff_rate_limits WHERE scope_hash=?",Int::class.java,hash("register-account:$existingIin")))
-        jdbc.update("UPDATE posm_staff_rate_limits SET attempts=10 WHERE scope_hash=?",hash("register-device:no-sms-device"))
+        jdbc.update("UPDATE posm_staff_rate_limits SET attempts=10 WHERE scope_hash=?",hash("register-device:15:no-sms-pharmacy13:no-sms-device"))
         register(expected=429)
-        assertEquals(11,jdbc.queryForObject("SELECT attempts FROM posm_staff_rate_limits WHERE scope_hash=?",Int::class.java,hash("register-device:no-sms-device")))
+        assertEquals(11,jdbc.queryForObject("SELECT attempts FROM posm_staff_rate_limits WHERE scope_hash=?",Int::class.java,hash("register-device:15:no-sms-pharmacy13:no-sms-device")))
         assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM pharmacists",Int::class.java));noSmsCalls()
+    }
+
+    @Test fun `registration quota belongs to authenticated pharmacy and device pair not a common terminal name`() {
+        jdbc.update("UPDATE fulfillment_devices SET device_id='no-sms-device' WHERE device_id='no-sms-other-device'")
+        val identities=listOf(existingIin,newIin,otherIin)
+        repeat(10) { index -> register(request.copy(iin=identities[index%3],phone="+77000000111",deviceContext=StaffDeviceContext("process-$index")),expected=400) }
+        register(expected=429)
+        val registered=register(credential=otherKey)
+        assertEquals("authenticated",registered["status"].asText())
+        assertEquals("no-sms-other",jdbc.queryForObject("SELECT pharmacy_id FROM pharmacists WHERE iin=?",String::class.java,newIin))
+        register(request.copy(iin=otherIin),expected=429)
+        assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM pharmacists",Int::class.java));noSmsCalls()
     }
 
     @Test fun `successful no SMS registration invalidates old phone challenges without creating verified OTP proof`() {

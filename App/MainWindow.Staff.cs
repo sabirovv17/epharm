@@ -56,11 +56,14 @@ public partial class MainWindow
                     catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
                     catch { }
                     await Dispatcher.InvokeAsync(() => {
-                        _staffRegistrationSmsRequired = capability.RegistrationSmsRequired;
-                        _staffWindow?.SetRegistrationSmsRequired(_staffRegistrationSmsRequired);
+                        if (StaffAuthDiagnostics.RegistrationPolicy(capability) is { } required)
+                        {
+                            _staffRegistrationSmsRequired = required;
+                            _staffWindow?.SetRegistrationSmsRequired(required);
+                        }
                         if (_staffEnabled && (capability.Status is "network_unavailable" or "endpoint_unavailable"))
                         {
-                            BypassStaffPrompt(StaffPromptBypassReason.ServiceUnavailable);
+                            BypassStaffPrompt(StaffPromptBypassReason.ServiceUnavailable, backgroundCheck: true);
                             return;
                         }
                         SetStaffCapability(capability.Enabled);
@@ -244,13 +247,16 @@ public partial class MainWindow
         if (activate) { _staffWindow.WindowState = WindowState.Normal; _staffWindow.Activate(); }
     }
 
-    private void BypassStaffPrompt(StaffPromptBypassReason reason)
+    private void BypassStaffPrompt(StaffPromptBypassReason reason, bool backgroundCheck = false)
     {
         if (!_staffEnabled || _staffStop.IsCancellationRequested) return;
         var token = _staffSession.Grant;
-        var status = _staffSession.Bypass(reason);
+        var pendingRequest = backgroundCheck && _staffWindow?.IsRequestPending == true;
+        var status = _staffSession.Bypass(reason, preservePendingRequest: pendingRequest);
         if (reason is StaffPromptBypassReason.ServiceUnavailable or StaffPromptBypassReason.SmsUnavailable)
-            _staffWindow?.ReleaseWork("Сервис временно недоступен. Форма сохранена. Можно продолжить работу или повторить запрос позже.");
+            _staffWindow?.ReleaseWork(pendingRequest ? null : backgroundCheck
+                ? "Не удалось обновить настройки входа. Форма сохранена; можно продолжить работу и повторить запрос позже."
+                : "Сервис временно недоступен. Форма сохранена. Можно продолжить работу или повторить запрос позже.");
         else _staffWindow?.Dismiss();
         _staffStatusWindow?.Close();
         SetStaffAuthenticationStatus(status);

@@ -50,7 +50,7 @@ class StaffAuthService(
     }
 
     private fun grant(device: PosmDeviceIdentity, person: Person, c: StaffContext, iin: String): StaffSessionResponse {
-        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 718095))",device.deviceId)
+        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 718095))",deviceScope(device))
         // This observation is not proof of the Standard-N account owner's identity.
         recordObservation(person,iin,c)
         val token=randomToken()
@@ -71,7 +71,7 @@ class StaffAuthService(
         val phone=phone(request.phone)
         phoneLock.lock(phone)
         phoneLock.limitSharedSms(phone)
-        limit("sms-device:${device.deviceId}",10,3600)
+        limit("sms-device:${deviceScope(device)}",10,3600)
         limit("sms-account:${request.iin}",5,3600)
         limit("sms-phone:$phone",1,60)
         phoneLock.invalidateStaff(phone)
@@ -216,7 +216,7 @@ class StaffAuthService(
         password(request.password,4)
         val phone=phone(request.phone)
         phoneLock.lock(phone)
-        limit("register-device:${device.deviceId}",10,3600)
+        limit("register-device:${deviceScope(device)}",10,3600)
         limit("register-account:${request.iin}",5,3600)
         val person=registerAccount(device,request.iin,phone,request.password,request.name,"self_declared")
         phoneLock.invalidateStaff(phone)
@@ -225,7 +225,7 @@ class StaffAuthService(
     }
 
     private fun deviceGrant(device:PosmDeviceIdentity,person:Person,c:StaffDeviceContext):StaffDeviceSessionResponse {
-        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 718095))",device.deviceId)
+        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 718095))",deviceScope(device))
         recordObservation(person,person.iin ?: unauthorized(),c.standardNContext)
         revokeDeviceGrants(device,c.processInstanceId)
         val token=randomToken();val expires=Instant.now().plusSeconds(8*3600)
@@ -249,7 +249,7 @@ class StaffAuthService(
             AND pharmacy_id=? AND revoked_at IS NULL AND expires_at>now()""",{rs,_->rs.getString(1)},tokenHash,device.deviceId,device.pharmacyId).singleOrNull() ?: unauthorized()
         // Match password/reset writers' person-before-session lock order.
         val person=personById(personId,true) ?: unauthorized()
-        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 718095))",device.deviceId)
+        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 718095))",deviceScope(device))
         val stored=jdbc.query("""SELECT * FROM posm_device_staff_sessions WHERE token_hash=? AND device_id=? AND pharmacy_id=?
             AND revoked_at IS NULL AND expires_at>now() FOR UPDATE""",{rs,_-> DeviceGrant(
                 rs.getString("process_instance_id"),rs.getString("password_fingerprint"),rs.getString("standard_n_user_id"),
@@ -281,7 +281,7 @@ class StaffAuthService(
     }
 
     private fun verifyPassword(device:PosmDeviceIdentity,iin:String,value:String):Person {
-        limit("login-device:${device.deviceId}",30,300)
+        limit("login-device:${deviceScope(device)}",30,300)
         password(value,4)
         val person=person(iin,true)
         val matches=encoder.matches(value,person?.password ?: dummyHash)
@@ -292,6 +292,12 @@ class StaffAuthService(
         // Pharmacy ZIP credentials can be shared by several terminals; replacing one process must not log out another.
         jdbc.update("UPDATE posm_staff_sessions SET revoked_at=now() WHERE device_id=? AND pharmacy_id=? AND process_instance_id=? AND revoked_at IS NULL",device.deviceId,device.pharmacyId,process)
         jdbc.update("UPDATE posm_device_staff_sessions SET revoked_at=now() WHERE device_id=? AND pharmacy_id=? AND process_instance_id=? AND revoked_at IS NULL",device.deviceId,device.pharmacyId,process)
+    }
+    private fun deviceScope(device:PosmDeviceIdentity):String {
+        val pharmacy=device.pharmacyId?.takeIf { it.isNotBlank() } ?: unauthorized()
+        val id=device.deviceId?.takeIf { it.isNotBlank() } ?: unauthorized()
+        // Device names are unique only within a pharmacy; length prefixes avoid delimiter collisions.
+        return "${pharmacy.length}:$pharmacy${id.length}:$id"
     }
     private fun recordObservation(person:Person,iin:String,context:StaffContext?) {
         val observation=context?.let { StaffIdentityObservation.match(iin,person.name,it) } ?: StaffIdentityMatch("NONE","UNKNOWN")
