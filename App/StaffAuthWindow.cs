@@ -144,6 +144,7 @@ public sealed class StaffAuthWindow : Window
     }
 
     public bool WasDismissed => _dismissAllowed;
+    public bool IsRequestPending => _busy;
     public void Dismiss() { _dismissAllowed = true; Close(); }
 
     /// <summary>Fail-open releases presentation, not the filled form or an outstanding SMS challenge.</summary>
@@ -533,8 +534,9 @@ public sealed class StaffAuthWindow : Window
                     ? T("Проверьте ИИН и данные регистрации. Если профиль уже существует, перейдите ко входу.",
                         "ЖСН мен тіркелу деректерін тексеріңіз. Профиль бар болса, кіруге өтіңіз.")
                     : Explain(ex.Code);
-                if (ex.Code is "UNAVAILABLE" or "INVALID_RESPONSE" || _mode.SelectedIndex != 0 && ex.Code == "RATE_LIMITED")
+                if (ex.Code is "UNAVAILABLE" or "INVALID_RESPONSE")
                     ReleaseForServiceFailure(smsOperation);
+                else if (ex.Code == "RATE_LIMITED") ReleaseWork();
                 if (_mode.SelectedIndex == 0 && StaffAuthDiagnostics.OfferRecovery(ex.Code)) {
                     ClearChallenge(); _password.Clear(); _passwordConfirmation.Clear(); _code.Clear();
                     _recoveryGuidance.Visibility = Visibility.Visible;

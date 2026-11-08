@@ -24,6 +24,46 @@ public sealed class StaffDeviceSessionStateTests
     }
 
     [Fact]
+    public void BackgroundCapabilityFailureReleasesWorkWithoutCancellingAPendingRegistration()
+    {
+        var state = State(); var context = state.Context!; var generation = state.Generation;
+        state.MarkPrompted();
+        Assert.Equal("staff_bypass_service_unavailable", state.Bypass(StaffPromptBypassReason.ServiceUnavailable, preservePendingRequest: true));
+        Assert.Equal(generation, state.Generation); Assert.Null(state.Grant);
+        Assert.False(state.IsAuthenticated(Now)); Assert.False(state.NeedsPrompt(Now));
+        Assert.True(state.Accept(generation, context, Response(context), Now));
+        Assert.True(state.IsAuthenticated(Now)); Assert.Null(state.BypassStatus);
+    }
+
+    [Theory]
+    [InlineData(StaffPromptBypassReason.IdentityUnavailable)]
+    [InlineData(StaffPromptBypassReason.SmsWait)]
+    [InlineData(StaffPromptBypassReason.SmsUnavailable)]
+    public void ExplicitDismissalStillRejectsThePendingReply(StaffPromptBypassReason reason)
+    {
+        var state = State(); var context = state.Context!; var generation = state.Generation;
+        state.Bypass(reason, preservePendingRequest: true);
+        Assert.False(state.Accept(generation, context, Response(context), Now));
+        Assert.Null(state.Grant);
+    }
+
+    [Fact]
+    public void BackgroundFailureCannotPreserveAnExistingGrantOrPermitALateProcessReply()
+    {
+        var authenticated = State(); Login(authenticated); var previous = authenticated.Generation;
+        authenticated.Bypass(StaffPromptBypassReason.ServiceUnavailable, preservePendingRequest: true);
+        Assert.Null(authenticated.Grant); Assert.True(authenticated.Generation > previous);
+        var state = State(); var context = state.Context!; var generation = state.Generation;
+        state.Bypass(StaffPromptBypassReason.ServiceUnavailable, preservePendingRequest: true);
+        state.Observe(new("resolved", "43:639295055776695956"), new("database_unavailable"));
+        Assert.False(state.Accept(generation, context, Response(context), Now));
+        var disabled = State(); var sent = disabled.Context!; var pending = disabled.Generation;
+        disabled.Bypass(StaffPromptBypassReason.ServiceUnavailable, preservePendingRequest: true);
+        disabled.Invalidate(); // Explicit server disable is still authoritative.
+        Assert.False(disabled.Accept(pending, sent, Response(sent), Now));
+    }
+
+    [Fact]
     public void RegistrationPolicyDefaultsToSmsAndOnlyExplicitChangesInvalidateAttempts()
     {
         var policy = new StaffRegistrationPolicy();

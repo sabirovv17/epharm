@@ -207,7 +207,15 @@ No placeholder/test code is sent; the phone is labelled unconfirmed. Successful
 acceptance of the normal current process grant closes the window and preserves
 automatic pharmacy assignment independently of the Standard-N database.
 
-Absent/old/failed capability defaults to the existing SMS policy. A policy change
+Before the first valid capability the form defaults to the existing SMS policy.
+Afterwards only an enabled, compatible capability can change the known registration
+policy: a failed background refresh is not evidence that SMS became required.
+A transient background failure releases work without cancelling an independently
+pending login/registration response. Explicit close, process/source-user change,
+server disable and an actual registration-policy change still reject stale replies.
+HTTP 429 keeps the specific attempt-limit message and the entered form; it does not
+claim a service outage, create a grant or automatically replay the mutation.
+A policy change
 invalidates a pending registration response without logging out an unrelated existing
 employee or automatically replaying an account creation. Login, reset and activation
 keep their previous endpoints and proofs. Fail-open, recommendations, customer display,

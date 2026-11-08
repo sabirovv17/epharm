@@ -86,6 +86,7 @@ public sealed class StaffDeviceAuthClientTests
     [Theory]
     [InlineData(403, "FORBIDDEN")]
     [InlineData(404, "UNAVAILABLE")]
+    [InlineData(429, "RATE_LIMITED")]
     [InlineData(503, "UNAVAILABLE")]
     public async Task DirectRegistrationIsNeverReplayedAsSmsRegistrationOrRecovery(int status, string code)
     {
@@ -119,6 +120,37 @@ public sealed class StaffDeviceAuthClientTests
         using var client = Client(new Handler((_, _) => Task.FromResult(Reply(new { }, HttpStatusCode.ServiceUnavailable))));
         var capability = await client.CheckCapabilitiesAsync(TestContext.Current.CancellationToken);
         Assert.False(capability.Enabled); Assert.True(capability.RegistrationSmsRequired);
+    }
+
+    [Theory]
+    [InlineData("http503")]
+    [InlineData("malformed")]
+    [InlineData("network")]
+    [InlineData("timeout")]
+    public async Task AFailedHttpRefreshCannotChangeAKnownNoSmsPolicyOrItsPendingGeneration(string failure)
+    {
+        var calls = 0;
+        using var client = Client(new Handler((request, _) => {
+            Assert.Equal(HttpMethod.Get, request.Method); Assert.Equal("/api/posm/staff/capabilities", request.RequestUri!.AbsolutePath);
+            if (++calls == 1) return Task.FromResult(Reply(new {
+                enabled = true, protocolVersion = 2, nameFallbackSupported = true, deviceEmployeeAuthVersion = 1,
+                registrationSmsRequired = false,
+            }));
+            return failure switch {
+                "network" => throw new HttpRequestException("Synthetic transport failure"),
+                "timeout" => throw new OperationCanceledException(),
+                "malformed" => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("not-json") }),
+                _ => Task.FromResult(Reply(new { }, HttpStatusCode.ServiceUnavailable)),
+            };
+        }));
+        var policy = new StaffRegistrationPolicy();
+        var first = await client.CheckCapabilitiesAsync(TestContext.Current.CancellationToken);
+        Assert.True(first.Enabled); Assert.False(first.RegistrationSmsRequired);
+        policy.SetSmsRequired(StaffAuthDiagnostics.RegistrationPolicy(first)!.Value); var pending = policy.Generation;
+        var second = await client.CheckCapabilitiesAsync(TestContext.Current.CancellationToken);
+        Assert.False(second.Enabled);
+        if (StaffAuthDiagnostics.RegistrationPolicy(second) is { } required) policy.SetSmsRequired(required);
+        Assert.False(policy.SmsRequired); Assert.True(policy.IsCurrent(pending)); Assert.Equal(2, calls);
     }
 
     [Fact]

@@ -22,6 +22,10 @@ public static class StaffAuthDiagnostics
     public static bool IsKnown(string? status) => status != null && Statuses.Contains(status);
     public static string Normalize(string? status) => IsKnown(status) ? status! : "initializing";
 
+    // An unavailable endpoint is not evidence that the server changed its registration policy.
+    public static bool? RegistrationPolicy(StaffCapabilityCheck capability) =>
+        capability.Enabled && capability.Status == "enabled" ? capability.RegistrationSmsRequired : null;
+
     public static StaffCapabilityCheck CapabilityFailure(HttpStatusCode status) => new(false, status switch {
         HttpStatusCode.Unauthorized => "device_auth_required",
         HttpStatusCode.Forbidden => "forbidden",

@@ -84,7 +84,11 @@ npm test
 npm run build
 ```
 
-Mobile:
+Mobile is currently paused by the project owner. Do not run Flutter/Android/iOS checks or builds
+until the owner resumes mobile work. CI skips both mobile jobs unless the repository variable
+`MOBILE_APP_CI_ENABLED` is explicitly `true`; all other merge checks remain required.
+
+When mobile work resumes:
 
 ```bash
 flutter analyze lib test

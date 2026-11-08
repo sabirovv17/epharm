@@ -103,9 +103,12 @@ public sealed class StaffDeviceSessionState
     public void MarkPrompted() => Prompted = true;
     public void ClearGrant() { Grant = null; ExpiresAt = null; }
     public void Invalidate() { Generation++; ClearGrant(); Prompted = false; BypassStatus = null; }
-    public string Bypass(StaffPromptBypassReason reason)
+    public string Bypass(StaffPromptBypassReason reason, bool preservePendingRequest = false)
     {
-        Invalidate(); Prompted = true;
+        // A failed background poll must not cancel an independently pending login/registration response.
+        if (!preservePendingRequest || reason != StaffPromptBypassReason.ServiceUnavailable || Grant != null)
+            Invalidate();
+        Prompted = true;
         return BypassStatus = reason switch {
             StaffPromptBypassReason.ServiceUnavailable => "staff_bypass_service_unavailable",
             StaffPromptBypassReason.SmsUnavailable => "staff_bypass_sms_unavailable",

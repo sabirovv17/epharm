@@ -1,5 +1,23 @@
 # Backend
 
+## RPS registration availability
+
+The authenticated POSM identity is `(pharmacyId, deviceId)`, not the Windows/device
+name alone. Staff registration, login and SMS device budgets and staff advisory locks
+use that complete identity. Independently authenticated pharmacies named `KASSA` or
+`MANAGER` must not consume one another's quota or serialize one another's employee
+requests. Multiple processes in the same pharmacy/device still share a budget.
+The global IIN/phone limits, attempt durability, individual key checks and original
+maximum/window values remain enforced. Existing hashed rate counters are not deleted;
+the corrected device scope starts its own budget and ordinary retention removes old
+counters. This change needs no migration and does not move existing pharmacists.
+
+HTTP 429 means an attempt budget was exhausted, not that the service crashed. The
+POSM form keeps the entered data and offers continued cash-desk work; it must not
+automatically retry an account mutation. Transport failures and 5xx are separate
+diagnostics. The isolated RPS workload in `load-tests/` checks the HTTP result,
+process-bound grant, duplicate rejection and actual pharmacy assignment in SQL.
+
 ## Temporary SMS-free RPS registration (v0.2.10)
 
 `POSM_STAFF_REGISTRATION_SMS_REQUIRED` defaults to `true`. An explicitly approved

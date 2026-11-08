@@ -2,6 +2,7 @@ import http from 'k6/http'
 import { check, sleep } from 'k6'
 import exec from 'k6/execution'
 import { Counter, Trend } from 'k6/metrics'
+import { positiveBackground, recommendationValid, playlistValid } from './rps-contract.mjs'
 
 const baseUrl = (__ENV.BASE_URL || 'http://host.docker.internal:8080').replace(/\/$/, '')
 const posmKey = __ENV.POSM_DEVICE_KEY || 'dev-posm-key'
@@ -17,9 +18,15 @@ const pharmacyIds = (__ENV.PHARMACY_IDS || 'ph_auezova_134')
 const adminToken = (__ENV.ADMIN_TOKEN || '').trim()
 const runId = __ENV.RUN_ID || `${Date.now()}`
 const videoSizeKb = Math.max(1, Math.min(Number(__ENV.VIDEO_SIZE_KB || 256), 60 * 1024))
-const videoPayload = new Uint8Array(videoSizeKb * 1024)
 const loadErrors = new Counter('epharm_load_errors')
 const offlineReplayLatency = new Trend('epharm_offline_replay_latency', true)
+const backgroundFile = (__ENV.BACKGROUND_EXPECTATIONS_FILE || '').trim()
+const backgroundFixture = backgroundFile ? JSON.parse(open(backgroundFile)) : null
+const background = backgroundFixture ? positiveBackground(backgroundFixture) : null
+const triggerBarcode = background?.triggerBarcode || __ENV.TRIGGER_BARCODE || '4603423004936'
+const triggerSku = background?.triggerSku || __ENV.TRIGGER_SKU || null
+const positiveRecommendations = new Counter('epharm_positive_recommendations')
+const positivePlaylists = new Counter('epharm_positive_playlists')
 
 if (baseUrl.includes('epharm.inkar.kz') && __ENV.CONFIRM_PRODUCTION_LOAD !== 'I_ACCEPT_PRODUCTION_IMPACT') {
   throw new Error('Production load tests require CONFIRM_PRODUCTION_LOAD=I_ACCEPT_PRODUCTION_IMPACT')
@@ -99,6 +106,7 @@ const selected = (__ENV.SCENARIOS || 'heartbeat,playlist_polling,recommendations
 
 export const options = {
   discardResponseBodies: true,
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
   scenarios: Object.fromEntries(
     selected.map((name) => {
       if (!allScenarios[name]) throw new Error(`Unknown scenario: ${name}`)
@@ -115,6 +123,8 @@ export const options = {
     'http_req_duration{workload:offline-sync}': ['p(95)<1500', 'p(99)<3000'],
     'http_req_duration{workload:video-upload}': ['p(95)<10000', 'p(99)<20000'],
     epharm_load_errors: ['count==0'],
+    ...(background && selected.includes('recommendations') ? { epharm_positive_recommendations: ['count>0'] } : {}),
+    ...(background && selected.includes('playlist_polling') ? { epharm_positive_playlists: ['count>0'] } : {}),
   },
 }
 
@@ -140,12 +150,15 @@ function posmParams(workload, target, extra = {}) {
   }
 }
 
-function assertResponse(response, expected, name) {
+function assertResponse(response, expected, name, semantic = true) {
   const ok = check(response, {
-    [`${name}: status ${expected}`]: (res) => res.status === expected,
+    [`${name}: status ${expected} and payload`]: (res) => res.status === expected && semantic,
   })
   if (!ok) loadErrors.add(1, { workload: name, status: String(response.status) })
+  return ok
 }
+
+function body(response) { try { return response.json() } catch (_) { return null } }
 
 function assertSaleResponse(response, expectedAccepted, name) {
   let payload = null
@@ -176,30 +189,33 @@ export function playlistPolling() {
   const target = desk()
   const response = http.get(
     `${baseUrl}/api/posm/playlists/active?pharmacyId=${encodeURIComponent(target.pharmacyId)}`,
-    posmParams('playlist', target),
+    { ...posmParams('playlist', target), ...(background ? { responseType: 'text' } : {}) },
   )
-  assertResponse(response, 200, 'playlist')
+  const valid = assertResponse(response, 200, 'playlist', !background || playlistValid(body(response), background))
+  if (background && valid) positivePlaylists.add(1)
 }
 
 export function recommendation() {
   const target = desk()
+  const sessionId = `${runId}-${target.deviceId}-recommend-${exec.scenario.iterationInTest}`
   const payload = JSON.stringify({
     pharmacistId: '',
     pharmacistName: 'Load Test',
     pharmacyId: target.pharmacyId,
-    sessionId: `${runId}-${target.deviceId}-recommend-${__ITER}`,
-    scannedBarcode: __ENV.TRIGGER_BARCODE || '4603423004936',
+    sessionId,
+    scannedBarcode: triggerBarcode,
     cart: [
       {
-        sku: __ENV.TRIGGER_SKU || null,
-        barcode: __ENV.TRIGGER_BARCODE || '4603423004936',
+        sku: triggerSku,
+        barcode: triggerBarcode,
         name: 'Load test product',
         qty: 1,
       },
     ],
   })
-  const response = http.post(`${baseUrl}/api/posm/recommend`, payload, posmParams('recommendation', target))
-  assertResponse(response, 200, 'recommendation')
+  const response = http.post(`${baseUrl}/api/posm/recommend`, payload, { ...posmParams('recommendation', target), ...(background ? { responseType: 'text' } : {}) })
+  const valid = assertResponse(response, 200, 'recommendation', !background || recommendationValid(body(response), sessionId, background))
+  if (background && valid) positiveRecommendations.add(1)
 }
 
 function salePayload(target, eventId) {
@@ -215,7 +231,7 @@ function salePayload(target, eventId) {
     totalAmount: 1000,
     items: [
       {
-        barcode: __ENV.TRIGGER_BARCODE || '4603423004936',
+        barcode: triggerBarcode,
         name: 'Load test product',
         qty: 1,
         price: 1000,
@@ -230,7 +246,7 @@ export function sale() {
   const target = desk()
   const response = http.post(
     `${baseUrl}/api/posm/sales`,
-    salePayload(target, `sale-${__ITER}-${Date.now()}`),
+    salePayload(target, `sale-${exec.scenario.iterationInTest}`),
     saleParams('sales', target),
   )
   assertSaleResponse(response, true, 'sales')
@@ -238,7 +254,7 @@ export function sale() {
 
 export function offlineSync() {
   const target = desk()
-  const payload = salePayload(target, `offline-${__ITER}`)
+  const payload = salePayload(target, `offline-${exec.scenario.iterationInTest}`)
   const started = Date.now()
   const first = http.post(`${baseUrl}/api/posm/sales`, payload, saleParams('offline-sync', target))
   assertSaleResponse(first, true, 'offline-sync')
@@ -250,6 +266,8 @@ export function offlineSync() {
 }
 
 export function videoUpload() {
+  // Allocate only in uploader VUs, not in every one of the 500 offline-sync workers.
+  const videoPayload = new Uint8Array(videoSizeKb * 1024)
   const response = http.post(
     `${baseUrl}/api/admin/screens/slides`,
     {
@@ -269,6 +287,6 @@ export function videoUpload() {
 export function handleSummary(data) {
   return {
     stdout: JSON.stringify(data.metrics, null, 2),
-    [`/results/summary-${runId}.json`]: JSON.stringify(data, null, 2),
+    [`/results/summary-${runId}.json`]: JSON.stringify({ positiveFixture: backgroundFixture ? { runId: backgroundFixture.runId, ruleId: background.ruleId, slideId: background.slideId } : null, ...data }, null, 2),
   }
 }

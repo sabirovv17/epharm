@@ -248,6 +248,51 @@ class StaffAuthIntegrationTest {
         deviceSession(token,expected=401)
     }
 
+    @Test fun `password login device quota cannot be consumed by the same terminal name in another pharmacy`() {
+        jdbc.update("UPDATE fulfillment_devices SET device_id='staff-device' WHERE device_id='staff-other-device'")
+        val identities=listOf(iin,"000101500011","880404400014")
+        repeat(30) { index -> post("/device/login",StaffDeviceLoginRequest(identities[index%3],"Wrong123!",deviceContext),expected=401) }
+        jdbc.update("DELETE FROM posm_staff_rate_limits WHERE scope_hash=?",hash("login-account:$iin"))
+        login(expected=429)
+        jdbc.update("UPDATE pharmacists SET pharmacy_id='staff-other',pharmacy_name='staff-other' WHERE id='staff-person'")
+        val result=deviceLogin(credential=key2)
+        assertEquals("authenticated",result["status"].asText())
+        deviceSession(result["sessionToken"].asText(),credential=key2)
+        assertEquals("staff-other",jdbc.queryForObject("SELECT pharmacy_id FROM posm_device_staff_sessions WHERE revoked_at IS NULL",String::class.java))
+    }
+
+    @Test fun `SMS device quota cannot be consumed by the same terminal name in another pharmacy`() {
+        jdbc.update("UPDATE fulfillment_devices SET device_id='staff-device' WHERE device_id='staff-other-device'")
+        val identities=listOf(iin,"000101500011","880404400014")
+        repeat(10) { index -> post("/otp/request",StaffOtpRequest("register",identities[index%3],"+770000009${index.toString().padStart(2,'0')}")) }
+        post("/otp/request",StaffOtpRequest("register","000101500011","+77000000910"),expected=429)
+        post("/otp/request",StaffOtpRequest("register","000101500011","+77000000911"),credential=key2)
+        assertEquals(11,jdbc.queryForObject("SELECT count(*) FROM posm_staff_challenges",Int::class.java))
+    }
+
+    @Test fun `held employee grant lock in one pharmacy does not block the same terminal name in another`() {
+        jdbc.update("UPDATE fulfillment_devices SET device_id='staff-device' WHERE device_id='staff-other-device'")
+        jdbc.update("""INSERT INTO pharmacists(id,name,iin,phone,password_hash,pharmacy_id,pharmacy_name,tier,status)
+            VALUES ('staff-other-person','Synthetic Other','000101500011','+77000000012',?,'staff-other','DEMO','Silver','active')""",encoder.encode("Password123!"))
+        val executor=Executors.newFixedThreadPool(2)
+        var waiting:java.util.concurrent.Future<com.fasterxml.jackson.databind.JsonNode>?=null
+        try {
+            TransactionTemplate(transactions).executeWithoutResult {
+                jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?,718095))","14:staff-pharmacy12:staff-device")
+                waiting=executor.submit<com.fasterxml.jackson.databind.JsonNode> { deviceLogin() }
+                val independent=executor.submit<com.fasterxml.jackson.databind.JsonNode> {
+                    post("/device/login",StaffDeviceLoginRequest("000101500011","Password123!",deviceContext),credential=key2)
+                }
+                assertEquals("authenticated",independent.get(5,TimeUnit.SECONDS)["status"].asText())
+                val deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(3)
+                while(jdbc.queryForObject("SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND NOT granted",Int::class.java)==0 && System.nanoTime()<deadline) Thread.sleep(10)
+                assertFalse(waiting!!.isDone,"The same pharmacy must still serialize its grant")
+                assertTrue(jdbc.queryForObject("SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND NOT granted",Int::class.java)!!>0)
+            }
+            assertEquals("authenticated",waiting!!.get(5,TimeUnit.SECONDS)["status"].asText())
+        } finally {executor.shutdownNow()}
+    }
+
     @Test fun `existing pending or blocked employees cannot obtain a device grant or be reassigned by login`() {
         jdbc.update("UPDATE pharmacists SET status='pending',pharmacy_id=NULL,pharmacy_name=NULL WHERE id='staff-person'")
         val pending=deviceLogin()

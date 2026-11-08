@@ -65,6 +65,10 @@ jobs:
           node --check ops/acc-order-bridge/scripts/configure-pilot.mjs
           node --check ops/acc-order-bridge/scripts/configure-rollout.mjs
           node --test ops/acc-order-bridge/tests/*.test.mjs
+      - name: Test isolated RPS load contracts
+        run: |
+          node --test load-tests/rps-contract.test.mjs
+          python3 -m unittest discover -s load-tests -p 'test_rps_fixture.py'
       - name: Verify merchandising portal proxy isolation
         run: |
           node --check ops/merch-portal-patches/strip-demo-autofill.mjs
@@ -92,6 +96,7 @@ jobs:
         run: bash storefront/deploy/inkar-server/tests/crm-internal-tls-contract.sh
       - name: Verify immutable release handoff
         run: |
+          python3 -m unittest discover -s tools/tests -p 'test_ci_mobile_pause.py'
           python3 -m unittest discover -s tools/release/tests -p 'test_merch_artifact.py'
           python3 -m unittest discover -s tools/release/tests -p 'test_admin_artifact.py'
           python3 -m unittest discover -s tools/release/tests -p 'test_release_source.py'
@@ -404,6 +409,8 @@ jobs:
 
   mobile-android:
     name: mobile / analyze, test and Android build
+    # The owner paused the unused mobile app; opt back in explicitly when work resumes.
+    if: vars.MOBILE_APP_CI_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -431,6 +438,7 @@ jobs:
 
   mobile-ios:
     name: mobile / iOS simulator build
+    if: vars.MOBILE_APP_CI_ENABLED == 'true'
     runs-on: macos-15
     timeout-minutes: 45
     steps:
@@ -673,6 +681,7 @@ jobs:
           BACKEND: ${{ needs.backend.result }}
           ADMIN_E2E: ${{ needs.admin-e2e.result }}
           CONTAINERS: ${{ needs.containers.result }}
+          MOBILE_APP_CI_ENABLED: ${{ vars.MOBILE_APP_CI_ENABLED }}
           MOBILE_ANDROID: ${{ needs.mobile-android.result }}
           MOBILE_IOS: ${{ needs.mobile-ios.result }}
           POSM_CORE: ${{ needs.posm-core.result }}
@@ -683,13 +692,20 @@ jobs:
         run: |
           required=(
             "$REPO_QUALITY" "$OPS_CONTRACT" "$P0_CONFIG" "$ADMIN" "$STOREFRONT"
-            "$BACKEND" "$ADMIN_E2E" "$CONTAINERS" "$MOBILE_ANDROID" "$MOBILE_IOS"
+            "$BACKEND" "$ADMIN_E2E" "$CONTAINERS"
             "$PIM_ETL"
             "$POSM_CORE" "$POSM_WINDOWS" "$CODEQL"
           )
           for result in "${required[@]}"; do
             test "$result" = success || exit 1
           done
+          if [[ "$MOBILE_APP_CI_ENABLED" = true ]]; then
+            test "$MOBILE_ANDROID" = success
+            test "$MOBILE_IOS" = success
+          else
+            test "$MOBILE_ANDROID" = skipped
+            test "$MOBILE_IOS" = skipped
+          fi
           if [[ "$EVENT_NAME" = pull_request ]]; then
             test "$DEPENDENCY_REVIEW" = success
             test "$COMMITLINT" = success
