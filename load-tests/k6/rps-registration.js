@@ -44,9 +44,9 @@ export const options = {
       : mode === 'register' && schedule === 'minute'
         ? { rps: { executor: 'constant-arrival-rate', exec: 'rps', rate: devices.length, timeUnit: '60s', duration: '60s', preAllocatedVUs: concurrency, maxVUs: maxRpsVUs } }
         : { rps: { executor: 'shared-iterations', exec: 'rps', vus: concurrency, iterations: devices.length * rounds, maxDuration: duration } }),
-    heartbeat: { executor: 'constant-arrival-rate', exec: 'heartbeat', rate: 500, timeUnit: '60s', duration, preAllocatedVUs: 10, maxVUs: 50 },
-    playlist: { executor: 'constant-arrival-rate', exec: 'playlist', rate: 500, timeUnit: '30s', duration, preAllocatedVUs: 15, maxVUs: 50 },
-    recommendations: { executor: 'constant-arrival-rate', exec: 'recommendation', rate: 20, timeUnit: '1s', duration, preAllocatedVUs: 20, maxVUs: 100 },
+    heartbeat: { executor: 'constant-arrival-rate', exec: 'heartbeat', rate: 500, timeUnit: '60s', duration, preAllocatedVUs: 20, maxVUs: 50 },
+    playlist: { executor: 'constant-arrival-rate', exec: 'playlist', rate: 500, timeUnit: '30s', duration, preAllocatedVUs: 40, maxVUs: 50 },
+    recommendations: { executor: 'constant-arrival-rate', exec: 'recommendation', rate: 20, timeUnit: '1s', duration, preAllocatedVUs: 60, maxVUs: 100 },
   },
   thresholds: {
     checks: ['rate==1'],

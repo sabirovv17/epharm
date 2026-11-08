@@ -5,6 +5,29 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.11] - 2026-11-09
+
+### Fixed
+
+- Scope staff device quotas and advisory locks by authenticated pharmacy and device,
+  so independently authenticated cash desks named `KASSA` or `MANAGER` no longer
+  consume one another's registration, login or SMS budgets. Preserve existing
+  per-IIN/phone budgets and assignment, uniqueness and password checks; no migration.
+- POSM 1.0.80 preserves known SMS policy and an in-flight registration during a
+  transient background capability failure. Explicit close, process changes and
+  server disable still reject stale replies. Show attempt limits as HTTP429 rather
+  than overwriting them with a generic service-outage message.
+
+### Testing
+
+- Add isolated500-desk RPS registration/login/session workloads with individual
+  keys, repeated device names, positive recommendations/playlists and SQL verification.
+  Strengthen the existing six-workload model and make offline replay IDs independent
+  of VU allocation. Never use real accounts, SMS or production for these workloads.
+- Pause unused Flutter/Android/iOS CI at the owner's request. An explicit
+  `MOBILE_APP_CI_ENABLED=true` resumes both mandatory mobile jobs; all remaining
+  backend, admin, POSM, security and merge checks remain required.
+
 ## [0.2.10] - 2026-11-06
 
 ### Added

@@ -18,7 +18,6 @@ const pharmacyIds = (__ENV.PHARMACY_IDS || 'ph_auezova_134')
 const adminToken = (__ENV.ADMIN_TOKEN || '').trim()
 const runId = __ENV.RUN_ID || `${Date.now()}`
 const videoSizeKb = Math.max(1, Math.min(Number(__ENV.VIDEO_SIZE_KB || 256), 60 * 1024))
-const videoPayload = new Uint8Array(videoSizeKb * 1024)
 const loadErrors = new Counter('epharm_load_errors')
 const offlineReplayLatency = new Trend('epharm_offline_replay_latency', true)
 const backgroundFile = (__ENV.BACKGROUND_EXPECTATIONS_FILE || '').trim()
@@ -267,6 +266,8 @@ export function offlineSync() {
 }
 
 export function videoUpload() {
+  // Allocate only in uploader VUs, not in every one of the 500 offline-sync workers.
+  const videoPayload = new Uint8Array(videoSizeKb * 1024)
   const response = http.post(
     `${baseUrl}/api/admin/screens/slides`,
     {
