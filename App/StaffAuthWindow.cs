@@ -82,7 +82,7 @@ public sealed class StaffAuthWindow : Window
         _sessionRequiredMessage = deviceContext != null
             ? "Вход ePharm доступен. Если данные Standard-N недоступны, соответствие кассира пока не подтверждено; касса продолжает работать."
             : (sessionReason ?? "Кассовая сессия ещё не подтверждена.") +
-            " Вход будет доступен после определения текущей сессии Standard-N. Регистрация и восстановление пароля доступны сейчас; касса продолжает работать.";
+            " Вход будет доступен после определения текущей сессии Standard-N. Для регистрации без SMS нужна актуальная версия ePharm; восстановление пароля доступно сейчас. Касса продолжает работать.";
         Title = "Вход сотрудника ePharm";
         Width = 1100; Height = 700; MinWidth = 360; MinHeight = 300;
         ShowActivated = requireSignIn;
@@ -162,7 +162,11 @@ public sealed class StaffAuthWindow : Window
         if (message != null) _status.Text = message;
     }
 
-    private bool RegistrationWithoutSms => _deviceContext != null && _mode.SelectedIndex == 1 && !_registrationPolicy.SmsRequired;
+    private bool RegistrationWithoutSms => _mode.SelectedIndex == 1;
+    private bool CanRegisterWithoutSms => RegistrationWithoutSms && _deviceContext != null && !_registrationPolicy.SmsRequired;
+    private string RegistrationUnavailable => T(
+        "Регистрация без SMS пока недоступна на этой кассе. Обновите ePharm или повторите позже. Данные сохранены; можно продолжить работу.",
+        "Бұл кассада SMS-сіз тіркелу әзірге қолжетімсіз. ePharm-ды жаңартыңыз немесе кейін қайталаңыз. Деректер сақталды; жұмысты жалғастыруға болады.");
 
     public void SetRegistrationSmsRequired(bool required)
     {
@@ -172,9 +176,9 @@ public sealed class StaffAuthWindow : Window
         _request.Visibility = _codeRow.Visibility = RegistrationWithoutSms ? Visibility.Collapsed : Visibility.Visible;
         _request.IsEnabled = !_busy && !RegistrationWithoutSms;
         UpdateModePresentation();
-        _status.Text = RegistrationWithoutSms
-            ? T("Регистрация временно доступна без SMS. Номер телефона сохраняется без подтверждения.", "Тіркелу уақытша SMS-сіз қолжетімді. Телефон нөмірі расталмай сақталады.")
-            : T("Для регистрации нужен SMS-код. Запросите новый код. Если профиль уже создан, перейдите ко входу.", "Тіркелу үшін SMS коды қажет. Жаңа код сұраңыз. Профиль жасалған болса, кіруге өтіңіз.");
+        if (CanRegisterWithoutSms)
+            _status.Text = T("Регистрация доступна без SMS. Номер телефона сохраняется без подтверждения.", "Тіркелу SMS-сіз қолжетімді. Телефон нөмірі расталмай сақталады.");
+        else ReleaseWork(RegistrationUnavailable);
     }
 
     private FrameworkElement BuildLayout()
@@ -368,14 +372,11 @@ public sealed class StaffAuthWindow : Window
             3 => T("Создайте пароль", "Құпиясөз жасаңыз"), _ => T("Вход для фармацевта", "Фармацевттің кіруі"),
         };
         _intro.Text = _mode.SelectedIndex switch {
-            1 => T("Заполните данные и подтвердите телефон. После регистрации профиль появится в разделе «Фармацевты».", "Деректерді толтырып, телефонды растаңыз. Тіркелген соң профиль «Фармацевтер» бөлімінде пайда болады."),
+            1 => T("Заполните ИИН, ФИО, телефон и пароль. SMS не требуется; номер телефона пока не подтверждён.", "ЖСН, аты-жөніңізді, телефон мен құпиясөзді енгізіңіз. SMS қажет емес; телефон нөмірі әлі расталмаған."),
             2 => T("Укажите ИИН и ранее привязанный телефон. Подтвердите SMS-код и задайте новый пароль.", "ЖСН мен тіркелген телефонды көрсетіңіз. SMS кодын растап, жаңа құпиясөз орнатыңыз."),
             3 => T("Подтвердите ранее привязанный телефон и создайте пароль для существующего профиля.", "Тіркелген телефонды растап, бар профиль үшін құпиясөз жасаңыз."),
             _ => T("Введите ИИН и пароль. Если вы впервые в ePharm, выберите регистрацию нового сотрудника.", "ЖСН мен құпиясөзді енгізіңіз. ePharm жүйесіне алғаш кірсеңіз, жаңа қызметкер ретінде тіркеліңіз."),
         };
-        if (RegistrationWithoutSms) _intro.Text = T(
-            "Заполните ИИН, ФИО, телефон и пароль. SMS временно не требуется; номер телефона пока не подтверждён.",
-            "ЖСН, аты-жөніңізді, телефон мен құпиясөзді енгізіңіз. SMS уақытша қажет емес; телефон нөмірі әлі расталмаған.");
         _passwordHint.Text = T("Новый пароль: 4–128 символов и не более 72 байт UTF-8.", "Жаңа құпиясөз: 4–128 таңба, UTF-8 форматында ең көбі 72 байт.");
         if (_workReleased || _deviceContext != null && !_requireSignIn) {
             _continueWithoutSignIn.Content = T("Продолжить работу без входа", "Кірмей жұмысты жалғастыру");
@@ -402,6 +403,7 @@ public sealed class StaffAuthWindow : Window
         if (login && (_context == null || _deviceContext != null && !StaffPromptPolicy.HasComparableIdentity(_context)))
             _status.Text = _sessionRequiredMessage;
         if (_deviceContext != null && !_requireSignIn) _continueWithoutSignIn.Visibility = Visibility.Visible;
+        if (RegistrationWithoutSms && !CanRegisterWithoutSms) ReleaseWork(RegistrationUnavailable);
     }
     private void ValidateIdentity()
     {
@@ -411,7 +413,7 @@ public sealed class StaffAuthWindow : Window
     private async Task RequestOtp()
     {
         ValidateIdentity();
-        if (RegistrationWithoutSms) throw new StaffApiException("INVALID_DATA");
+        if (RegistrationWithoutSms) throw new StaffApiException("REGISTRATION_UNAVAILABLE");
         var iin = _iin.Text.Trim(); var phone = _phone.Text.Trim(); var purpose = Purpose;
         var policyGeneration = _registrationPolicy.Generation;
         var result = await _client.RequestOtpAsync(purpose, iin, phone, _stop.Token);
@@ -429,7 +431,6 @@ public sealed class StaffAuthWindow : Window
         ValidateIdentity();
         var password = _password.Password;
         var confirmation = _passwordConfirmation.Password;
-        _password.Clear(); _passwordConfirmation.Clear();
         if (_mode.SelectedIndex == 0 && password.Length == 0) throw new StaffApiException("PASSWORD_REQUIRED");
         if (_mode.SelectedIndex != 0 && StaffPasswordValidation.Error(password, confirmation) is { } passwordError) throw new StaffApiException(passwordError);
         if (_mode.SelectedIndex == 0)
@@ -454,6 +455,7 @@ public sealed class StaffAuthWindow : Window
         }
         if (RegistrationWithoutSms)
         {
+            if (!CanRegisterWithoutSms) throw new StaffApiException("REGISTRATION_UNAVAILABLE");
             if (_name.Text.Trim().Length < 3) throw new StaffApiException("NAME_REQUIRED");
             var policyGeneration = _registrationPolicy.Generation;
             AuthenticationStarted?.Invoke();
@@ -464,25 +466,11 @@ public sealed class StaffAuthWindow : Window
         }
         if (_challenge == null || _challengeExpiresAt <= DateTimeOffset.UtcNow || _challengeIin != _iin.Text.Trim() || _challengePhone != _phone.Text.Trim()) throw new StaffApiException("SMS_REQUIRED");
         if (!Regex.IsMatch(_code.Text.Trim(), "^[0-9]{4,8}$")) throw new StaffApiException("CODE_REQUIRED");
-        if (_mode.SelectedIndex == 1)
-        {
-            if (_name.Text.Trim().Length < 3) throw new StaffApiException("NAME_REQUIRED");
-            var policyGeneration = _registrationPolicy.Generation;
-            AuthenticationStarted?.Invoke();
-            var registered = _deviceContext != null
-                ? await _client.DeviceRegisterAsync(_challenge, _code.Text.Trim(), _iin.Text.Trim(), _phone.Text.Trim(), _name.Text.Trim(), password, _deviceContext, _stop.Token)
-                : await _client.RegisterAsync(_challenge, _code.Text.Trim(), _iin.Text.Trim(), _phone.Text.Trim(), _name.Text.Trim(), password, _context, _stop.Token);
-            _stop.Token.ThrowIfCancellationRequested();
-            if (!await DiscardChangedRegistration(policyGeneration, registered)) CompleteRegistration(registered);
-        }
-        else
-        {
-            await _client.ChangePasswordAsync(Purpose, _challenge, _code.Text.Trim(), _iin.Text.Trim(), _phone.Text.Trim(), password, _stop.Token);
-            _stop.Token.ThrowIfCancellationRequested(); _mode.SelectedIndex = 0;
-            _status.Text = _context == null
-                ? "Пароль сохранён. " + _sessionRequiredMessage
-                : "Пароль сохранён. Теперь войдите с новым паролем.";
-        }
+        await _client.ChangePasswordAsync(Purpose, _challenge, _code.Text.Trim(), _iin.Text.Trim(), _phone.Text.Trim(), password, _stop.Token);
+        _stop.Token.ThrowIfCancellationRequested(); _mode.SelectedIndex = 0;
+        _status.Text = _context == null
+            ? "Пароль сохранён. " + _sessionRequiredMessage
+            : "Пароль сохранён. Теперь войдите с новым паролем.";
     }
     private void CompleteRegistration(StaffRegistrationResponse registered)
     {
@@ -533,12 +521,12 @@ public sealed class StaffAuthWindow : Window
                 _status.Text = ex.Code == "INVALID_DATA" && RegistrationWithoutSms
                     ? T("Проверьте ИИН и данные регистрации. Если профиль уже существует, перейдите ко входу.",
                         "ЖСН мен тіркелу деректерін тексеріңіз. Профиль бар болса, кіруге өтіңіз.")
-                    : Explain(ex.Code);
+                    : ex.Code == "REGISTRATION_UNAVAILABLE" ? RegistrationUnavailable : Explain(ex.Code);
                 if (ex.Code is "UNAVAILABLE" or "INVALID_RESPONSE")
                     ReleaseForServiceFailure(smsOperation);
-                else if (ex.Code == "RATE_LIMITED") ReleaseWork();
+                else if (ex.Code is "RATE_LIMITED" or "REGISTRATION_UNAVAILABLE") ReleaseWork();
                 if (_mode.SelectedIndex == 0 && StaffAuthDiagnostics.OfferRecovery(ex.Code)) {
-                    ClearChallenge(); _password.Clear(); _passwordConfirmation.Clear(); _code.Clear();
+                    ClearChallenge(); _code.Clear();
                     _recoveryGuidance.Visibility = Visibility.Visible;
                 }
             }
@@ -572,7 +560,7 @@ public sealed class StaffAuthWindow : Window
         "PASSWORD_REQUIRED" => "Введите пароль. Для нового пароля нужно не менее 4 символов.",
         "PASSWORD_LENGTH" => "Новый пароль должен содержать от 4 до 128 символов.",
         "PASSWORD_BYTES" => "Пароль слишком длинный: допускается не более 72 байт UTF-8. Сократите пароль, особенно если он содержит кириллицу или эмодзи.",
-        "PASSWORD_MISMATCH" => "Пароли не совпадают. Введите новый пароль и его подтверждение ещё раз.",
+        "PASSWORD_MISMATCH" => "Пароли не совпадают. Проверьте пароль и его подтверждение.",
         "NAME_REQUIRED" => "Введите полное ФИО.", "SMS_REQUIRED" => "Сначала запросите новый SMS-код для указанных данных.",
         "CODE_REQUIRED" => "Введите код из SMS: 4–8 цифр.", "RATE_LIMITED" => "Слишком много попыток. Подождите перед повтором.",
         "INVALID_CREDENTIALS" or "FORBIDDEN" => "Не удалось войти. Проверьте ИИН и пароль или обратитесь к администратору.",

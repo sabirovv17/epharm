@@ -32,7 +32,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
-@SpringBootTest(properties=["app.posm.staff-auth-enabled=true","app.posm.staff-registration-sms-required=false","app.otp.dev-mode=false"])
+@SpringBootTest(properties=["app.posm.staff-auth-enabled=true","app.posm.staff-registration-sms-required=true","app.otp.dev-mode=false"])
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Testcontainers
@@ -233,7 +233,7 @@ class StaffRegistrationWithoutSmsIntegrationTest {
         noSmsCalls()
     }
 
-    @Test fun `flag stops new registration SMS only while previous real codes and recovery still require provider proof`() {
+    @Test fun `legacy true flag cannot restore registration SMS while previous real codes and recovery still require provider proof`() {
         post("/api/posm/staff/otp/request",StaffOtpRequest("register",newIin,phone),expected=503)
         assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_staff_challenges",Int::class.java))
         assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_staff_rate_limits",Int::class.java));noSmsCalls()

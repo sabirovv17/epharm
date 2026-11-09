@@ -30,7 +30,6 @@ class StaffAuthService(
     private val credentialVault: kz.epharm.learnercredentials.LearnerPasswordVault,
     @Value("\${app.otp.dev-mode:true}") private val devMode: Boolean,
     @Value("\${app.otp.dev-fixed:5445}") private val devCode: String,
-    @Value("\${app.posm.staff-registration-sms-required:true}") private val registrationSmsRequired: Boolean = true,
 ) {
     private val random=SecureRandom()
     private val dummyHash=encoder.encode("unused-${UUID.randomUUID()}")
@@ -67,7 +66,7 @@ class StaffAuthService(
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
     fun requestOtp(device: PosmDeviceIdentity, request: StaffOtpRequest): StaffOtpResponse {
-        if(request.purpose=="register" && !registrationSmsRequired) throw AppException(ErrorCode.UPSTREAM_UNAVAILABLE,"Обновите POSM: регистрация сотрудника временно выполняется без SMS",HttpStatus.SERVICE_UNAVAILABLE)
+        if(request.purpose=="register") throw AppException(ErrorCode.UPSTREAM_UNAVAILABLE,"Обновите POSM: регистрация сотрудника выполняется без SMS",HttpStatus.SERVICE_UNAVAILABLE)
         val phone=phone(request.phone)
         phoneLock.lock(phone)
         phoneLock.limitSharedSms(phone)
@@ -78,7 +77,6 @@ class StaffAuthService(
         jdbc.update("DELETE FROM mobile_otps WHERE phone=?",phone)
         val person=person(request.iin)
         val eligible=when(request.purpose) {
-            "register" -> person==null && jdbc.queryForObject("SELECT count(*) FROM pharmacists WHERE phone=?",Long::class.java,phone)==0L
             "reset" -> person!=null && person.status!="blocked" && !person.password.isNullOrBlank() && PhoneUtil.normalize(person.phone)==phone
             "activate" -> person!=null && person.status!="blocked" && person.password.isNullOrBlank() && PhoneUtil.normalize(person.phone)==phone
             else -> invalid()
@@ -211,7 +209,6 @@ class StaffAuthService(
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
     fun deviceRegisterWithoutSms(device:PosmDeviceIdentity,request:StaffDeviceRegistrationWithoutSmsRequest):StaffDeviceSessionResponse {
-        if(registrationSmsRequired) throw AppException(ErrorCode.UPSTREAM_UNAVAILABLE,"Регистрация требует подтверждения по SMS",HttpStatus.SERVICE_UNAVAILABLE)
         validateDeviceContext(request.deviceContext)
         password(request.password,4)
         val phone=phone(request.phone)

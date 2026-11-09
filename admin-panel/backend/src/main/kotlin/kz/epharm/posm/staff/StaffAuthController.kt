@@ -18,12 +18,11 @@ class StaffAuthController(
     private val service: StaffAuthService,
     @Value("\${app.posm.staff-auth-enabled:false}") private val enabled: Boolean,
     private val passwordLoginLimiter: kz.epharm.mobile.auth.service.PharmacistPasswordLoginLimiter,
-    @Value("\${app.posm.staff-registration-sms-required:true}") private val registrationSmsRequired: Boolean = true,
 ) {
     @GetMapping("/capabilities")
     fun capabilities(@RequestHeader("X-Posm-Key",required=false) key:String?):ResponseEntity<*> {
         device(key,false)
-        return response(mapOf("enabled" to enabled,"protocolVersion" to 2,"nameFallbackSupported" to true,"deviceEmployeeAuthVersion" to 1,"registrationSmsRequired" to registrationSmsRequired))
+        return response(mapOf("enabled" to enabled,"protocolVersion" to 2,"nameFallbackSupported" to true,"deviceEmployeeAuthVersion" to 1,"registrationSmsRequired" to false))
     }
     @PostMapping("/login")
     fun login(@RequestHeader("X-Posm-Key",required=false) key:String?,@Valid @RequestBody request:StaffLoginRequest):ResponseEntity<StaffSessionResponse> {
@@ -63,7 +62,6 @@ class StaffAuthController(
     @PostMapping("/device/register-without-sms")
     fun deviceRegisterWithoutSms(@RequestHeader("X-Posm-Key",required=false) key:String?,@Valid @RequestBody request:StaffDeviceRegistrationWithoutSmsRequest):ResponseEntity<StaffDeviceSessionResponse> {
         val identity=device(key)
-        if(registrationSmsRequired) throw AppException(ErrorCode.UPSTREAM_UNAVAILABLE,"Регистрация требует подтверждения по SMS",HttpStatus.SERVICE_UNAVAILABLE)
         return response(service.deviceRegisterWithoutSms(identity,request))
     }
     @PostMapping("/device/session/check")

@@ -198,21 +198,27 @@ assigned profiles are not blanket-activated or silently moved. Individual remedi
 its own verified evidence; merely requesting an OTP is not completed-registration provenance.
 A copied/misassigned device key cannot establish the physical location from sales/address text.
 
-### Temporary registration without SMS (POSM 1.0.78)
+### Initial registration without SMS (POSM 1.0.81)
 
-Only an explicit `registrationSmsRequired=false` capability hides the registration
-SMS-send button and code field. The form keeps full name, IIN, declared phone,
+The registration SMS-send button and code field are always hidden and disabled,
+including initial/default, cached, legacy and unavailable capability states.
+Only an explicit compatible `registrationSmsRequired=false` capability permits the
+direct registration request. The form keeps full name, IIN, declared phone,
 password and password confirmation, then calls `/api/posm/staff/device/register-without-sms`.
 No placeholder/test code is sent; the phone is labelled unconfirmed. Successful
 acceptance of the normal current process grant closes the window and preserves
 automatic pharmacy assignment independently of the Standard-N database.
 
-Before the first valid capability the form defaults to the existing SMS policy.
-Afterwards only an enabled, compatible capability can change the known registration
-policy: a failed background refresh is not evidence that SMS became required.
+Before a valid capability or with an incompatible server, registration explains
+its unavailability, preserves the fields and permits work without requesting SMS.
+Only an enabled, compatible capability can change the known registration policy;
+it never restores SMS controls. A failed background refresh does not change policy.
 A transient background failure releases work without cancelling an independently
 pending login/registration response. Explicit close, process/source-user change,
 server disable and an actual registration-policy change still reject stale replies.
+Local validation and HTTP errors retain both password fields in the existing
+window. Passwords are cleared on a mode change, successful accepted authentication
+and close; they are never written to logs, disk, the outbox or screenshots by the app.
 HTTP 429 keeps the specific attempt-limit message and the entered form; it does not
 claim a service outage, create a grant or automatically replay the mutation.
 A policy change

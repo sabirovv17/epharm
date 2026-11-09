@@ -90,7 +90,14 @@ class StaffAuthIntegrationTest {
         return json.readTree(result.response.contentAsByteArray)
     }
     private fun login(credential:String=key,password:String="Password123!",expected:Int=200)=post("/login",StaffLoginRequest(iin,password,context),credential,expected)
-    private fun challenge(purpose:String="reset",id:String=iin,number:String=phone)=post("/otp/request",StaffOtpRequest(purpose,id,number)).get("challengeId").asText()
+    private fun challenge(purpose:String="reset",id:String=iin,number:String=phone):String {
+        if(purpose!="register") return post("/otp/request",StaffOtpRequest(purpose,id,number)).get("challengeId").asText()
+        // Model a genuinely issued legacy challenge; new registration can no longer send SMS.
+        val issued=UUID.randomUUID()
+        jdbc.update("""INSERT INTO posm_staff_challenges(id,purpose,device_id,pharmacy_id,iin,phone,eligible,provider,expires_at)
+            VALUES (?,'register','staff-device','staff-pharmacy',?,?,true,'test-external',now()+interval '5 minutes')""",issued,id,number)
+        return issued.toString()
+    }
     private fun elapseSharedSmsCooldown() {
         // Exercise the next permitted issuance without sleeping or expiring the existing proof.
         assertEquals(1,jdbc.update("UPDATE posm_staff_rate_limits SET window_start=now()-interval '61 seconds' WHERE scope_hash=?",hash("sms-shared-phone:$phone")))
@@ -154,16 +161,20 @@ class StaffAuthIntegrationTest {
         assertEquals(before,financialCounts())
     }
 
-    @Test fun `registration without SMS is rejected by default without consuming any proof or provider call`() {
+    @Test fun `initial registration is SMS free by default without granting phone or financial proof`() {
         val request=StaffDeviceRegistrationWithoutSmsRequest("000101500011","+77000000012","A1!b","Сабиров Амир",deviceContext)
-        post("/device/register-without-sms",request,expected=503)
-        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM pharmacists",Int::class.java))
+        val before=financialCounts()
+        val result=post("/device/register-without-sms",request)
+        assertEquals("authenticated",result["status"].asText())
+        assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM pharmacists",Int::class.java))
+        assertEquals("staff-pharmacy",jdbc.queryForObject("SELECT pharmacy_id FROM pharmacists WHERE iin=?",String::class.java,request.iin))
+        assertEquals("self_declared",jdbc.queryForObject("SELECT phone_verification_status FROM pharmacists WHERE iin=?",String::class.java,request.iin))
         assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_staff_challenges",Int::class.java))
-        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_staff_rate_limits",Int::class.java))
         verify(exactly=0){provider.requestOtp(any(),any())}
         verify(exactly=0){provider.verifyOtp(any(),any())}
         val cap=mvc.perform(get("/api/posm/staff/capabilities").header("X-Posm-Key",key)).andExpect(status().isOk).andReturn()
-        assertTrue(json.readTree(cap.response.contentAsByteArray)["registrationSmsRequired"].asBoolean())
+        assertFalse(json.readTree(cap.response.contentAsByteArray)["registrationSmsRequired"].asBoolean())
+        assertEquals(before,financialCounts())
     }
 
     @Test fun `device own credentials remain independent and late source binding persists across unavailable intervals`() {
@@ -264,9 +275,9 @@ class StaffAuthIntegrationTest {
     @Test fun `SMS device quota cannot be consumed by the same terminal name in another pharmacy`() {
         jdbc.update("UPDATE fulfillment_devices SET device_id='staff-device' WHERE device_id='staff-other-device'")
         val identities=listOf(iin,"000101500011","880404400014")
-        repeat(10) { index -> post("/otp/request",StaffOtpRequest("register",identities[index%3],"+770000009${index.toString().padStart(2,'0')}")) }
-        post("/otp/request",StaffOtpRequest("register","000101500011","+77000000910"),expected=429)
-        post("/otp/request",StaffOtpRequest("register","000101500011","+77000000911"),credential=key2)
+        repeat(10) { index -> post("/otp/request",StaffOtpRequest("reset",identities[index%3],"+770000009${index.toString().padStart(2,'0')}")) }
+        post("/otp/request",StaffOtpRequest("reset","000101500011","+77000000910"),expected=429)
+        post("/otp/request",StaffOtpRequest("reset","000101500011","+77000000911"),credential=key2)
         assertEquals(11,jdbc.queryForObject("SELECT count(*) FROM posm_staff_challenges",Int::class.java))
     }
 

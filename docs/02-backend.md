@@ -18,11 +18,12 @@ automatically retry an account mutation. Transport failures and 5xx are separate
 diagnostics. The isolated RPS workload in `load-tests/` checks the HTTP result,
 process-bound grant, duplicate rejection and actual pharmacy assignment in SQL.
 
-## Temporary SMS-free RPS registration (v0.2.10)
+## SMS-free initial RPS registration (v0.2.13)
 
-`POSM_STAFF_REGISTRATION_SMS_REQUIRED` defaults to `true`. An explicitly approved
-`false` advertises `registrationSmsRequired=false` in the existing individual-device
-capability response. POSM 1.0.78 then sends IIN, full name, phone, password and
+Initial RPS registration always advertises `registrationSmsRequired=false` in the
+existing individual-device capability response. The historical
+`POSM_STAFF_REGISTRATION_SMS_REQUIRED` setting cannot re-enable SMS in this backend;
+its configuration mapping remains only for older rollback binaries. POSM sends IIN, full name, phone, password and
 `deviceContext` to `POST /api/posm/staff/device/register-without-sms`. It sends no
 code/challenge and makes no SMS-provider request. The active profile belongs to the
 authenticated device's pharmacy and receives the usual process-bound employee grant.
@@ -34,11 +35,14 @@ IIN/phone uniqueness, password/vault checks, durable registration limits and ind
 device authentication remain enforced. Declaring a number grants no password-reset,
 mobile-login, merchandising-payment or Standard-N identity proof.
 
-In this mode new RPS register-OTP issuance returns 503 without sending SMS; already
+New RPS register-OTP issuance always returns 503 before taking phone locks or
+contacting the provider, without sending SMS; already
 issued genuine registration codes may still complete. Login, activation, reset,
-`/learn`, mobile and producer OTP contracts remain unchanged. Re-enable the flag
-to restore the SMS registration form on compatible clients. Missing capability on
-an older server also defaults to SMS; no request is automatically replayed.
+`/learn`, mobile and producer OTP contracts remain unchanged. POSM 1.0.81 never
+restores the registration SMS form for an unavailable, missing or old capability:
+unsupported registration keeps the entered form, explains the problem and permits
+cash work. No request is automatically replayed. Older installed binaries need the
+signed client update to remove their historical SMS controls.
 
 ## POSM employee login independent of Standard-N (v0.2.9 candidate)
 
