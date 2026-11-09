@@ -16,11 +16,9 @@ class PharmacistPasswordLoginLimiter(private val jdbc: JdbcTemplate) {
     fun check(iin: String) {
         val scope = MessageDigest.getInstance("SHA-256").digest("login-account:$iin".toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
-        val attempts = jdbc.queryForObject("""INSERT INTO posm_staff_rate_limits(scope_hash,window_start,attempts) VALUES (?,now(),1)
-            ON CONFLICT(scope_hash) DO UPDATE SET attempts=CASE WHEN posm_staff_rate_limits.window_start<now()-interval '300 seconds' THEN 1 ELSE posm_staff_rate_limits.attempts+1 END,
-            window_start=CASE WHEN posm_staff_rate_limits.window_start<now()-interval '300 seconds' THEN now() ELSE posm_staff_rate_limits.window_start END RETURNING attempts""",
-            Int::class.java, scope)!!
-        if (attempts > 10) throw AppException(ErrorCode.OTP_TOO_MANY_ATTEMPTS,
-            "Слишком много попыток — попробуйте позже", HttpStatus.TOO_MANY_REQUESTS)
+        val attempt = takeFixedWindowAttempt(jdbc, scope, 300)
+        if (attempt.attempts > 10) throw AppException(ErrorCode.OTP_TOO_MANY_ATTEMPTS,
+            "Слишком много попыток — попробуйте позже", HttpStatus.TOO_MANY_REQUESTS,
+            retryAfterSeconds = attempt.retryAfterSeconds)
     }
 }

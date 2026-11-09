@@ -6,6 +6,26 @@ namespace CustomerDisplay.Core.Tests;
 public sealed class StaffPasswordValidationTests
 {
     [Theory]
+    [InlineData("", "PASSWORD_REQUIRED")]
+    [InlineData("a", "PASSWORD_LENGTH")]
+    [InlineData("123", "PASSWORD_LENGTH")]
+    [InlineData("    ", "PASSWORD_LENGTH")]
+    [InlineData("1234", null)]
+    [InlineData(" pass ", null)]
+    public void LoginUsesTheSamePolicyWithoutTrimming(string password, string? error) =>
+        Assert.Equal(error, StaffPasswordValidation.LoginError(password));
+
+    [Fact]
+    public void LoginEnforcesCharacterAndUtf8ByteBoundsWithoutTruncation()
+    {
+        Assert.Null(StaffPasswordValidation.LoginError(new string('a', 72)));
+        Assert.Equal("PASSWORD_BYTES", StaffPasswordValidation.LoginError(new string('a', 73)));
+        Assert.Null(StaffPasswordValidation.LoginError(new string('я', 36)));
+        Assert.Equal("PASSWORD_BYTES", StaffPasswordValidation.LoginError(new string('я', 37)));
+        Assert.Equal("PASSWORD_LENGTH", StaffPasswordValidation.LoginError(new string('a', 129)));
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("1")]
     [InlineData("123")]

@@ -137,7 +137,7 @@ public sealed class ReceiptCaptureTests : IDisposable
         var outside = Path.Combine(_root, "outside");
         Directory.CreateDirectory(outside);
         var archiveRoot = Path.Combine(_root, "receipts", "legacy-unconfirmed");
-        Directory.CreateSymbolicLink(archiveRoot, outside);
+        TestDirectoryLink.Create(archiveRoot, outside);
 
         Assert.Throws<InvalidDataException>(() => CreateStore().Complete(Sale(held.SaleId)));
 

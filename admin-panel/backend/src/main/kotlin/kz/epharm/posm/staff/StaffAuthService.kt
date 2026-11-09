@@ -65,6 +65,7 @@ class StaffAuthService(
     }
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun requestOtp(device: PosmDeviceIdentity, request: StaffOtpRequest): StaffOtpResponse {
         if(request.purpose=="register") throw AppException(ErrorCode.UPSTREAM_UNAVAILABLE,"Обновите POSM: регистрация сотрудника выполняется без SMS",HttpStatus.SERVICE_UNAVAILABLE)
         val phone=phone(request.phone)
@@ -99,6 +100,7 @@ class StaffAuthService(
     }
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun complete(device: PosmDeviceIdentity, request: StaffPasswordRequest, purpose: String): StaffSessionResponse? {
         request.context?.let(::validateContext)
         val registration=completeAccount(device,request,purpose)
@@ -116,7 +118,8 @@ class StaffAuthService(
             rs.getString("code_hash"),rs.getInt("attempts"),rs.getTimestamp("expires_at").toInstant(),rs.getTimestamp("consumed_at")!=null,
         )},id).singleOrNull() ?: invalidOtp()
         if(challenge.consumed || !challenge.expires.isAfter(Instant.now())) invalidOtp()
-        if(challenge.attempts>=5) throw AppException(ErrorCode.OTP_TOO_MANY_ATTEMPTS,"Запросите новый код",HttpStatus.TOO_MANY_REQUESTS)
+        if(challenge.attempts>=5) throw AppException(ErrorCode.OTP_TOO_MANY_ATTEMPTS,"Запросите новый код",HttpStatus.TOO_MANY_REQUESTS,
+            retryAction=kz.epharm.shared.error.RetryAction.REQUEST_NEW_OTP)
         jdbc.update("UPDATE posm_staff_challenges SET attempts=attempts+1 WHERE id=?",id)
         if(challenge.purpose!=purpose || challenge.device!=device.deviceId || challenge.pharmacy!=device.pharmacyId ||
             challenge.iin!=request.iin || challenge.phone!=phone || !challenge.eligible || challenge.provider!=provider.id) invalidOtp()
@@ -200,6 +203,7 @@ class StaffAuthService(
     }
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun deviceRegister(device:PosmDeviceIdentity,request:StaffDeviceRegistrationRequest):StaffDeviceSessionResponse {
         validateDeviceContext(request.deviceContext)
         val credentials=StaffPasswordRequest(request.challengeId,request.code,request.iin,request.phone,request.password,request.name)
@@ -208,6 +212,7 @@ class StaffAuthService(
     }
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun deviceRegisterWithoutSms(device:PosmDeviceIdentity,request:StaffDeviceRegistrationWithoutSmsRequest):StaffDeviceSessionResponse {
         validateDeviceContext(request.deviceContext)
         password(request.password,4)
@@ -319,11 +324,9 @@ class StaffAuthService(
     private data class DeviceGrant(val process:String,val passwordFingerprint:String,val user:String?,val session:String?,val workstation:String?,val expires:Instant)
     private data class Challenge(val purpose:String,val device:String,val pharmacy:String,val iin:String,val phone:String,val person:String?,val eligible:Boolean,val provider:String,val codeHash:String?,val attempts:Int,val expires:Instant,val consumed:Boolean)
     private fun limit(scope:String,max:Int,seconds:Long) {
-        val count=jdbc.queryForObject("""INSERT INTO posm_staff_rate_limits(scope_hash,window_start,attempts) VALUES (?,now(),1)
-            ON CONFLICT(scope_hash) DO UPDATE SET attempts=CASE WHEN posm_staff_rate_limits.window_start<now()-(? * interval '1 second') THEN 1 ELSE posm_staff_rate_limits.attempts+1 END,
-            window_start=CASE WHEN posm_staff_rate_limits.window_start<now()-(? * interval '1 second') THEN now() ELSE posm_staff_rate_limits.window_start END RETURNING attempts""",
-            Int::class.java,hash(scope),seconds,seconds)!!
-        if(count>max) throw AppException(ErrorCode.OTP_TOO_MANY_ATTEMPTS,"Слишком много попыток — попробуйте позже",HttpStatus.TOO_MANY_REQUESTS)
+        val attempt=kz.epharm.mobile.auth.service.takeFixedWindowAttempt(jdbc,hash(scope),seconds)
+        if(attempt.attempts>max) throw AppException(ErrorCode.OTP_TOO_MANY_ATTEMPTS,"Слишком много попыток — попробуйте позже",HttpStatus.TOO_MANY_REQUESTS,
+            retryAfterSeconds=attempt.retryAfterSeconds)
     }
     private fun phone(raw:String):String=PhoneUtil.normalize(raw).also { if(!Regex("\\+7[0-9]{10}").matches(it)) invalid() }
     private fun password(value:String,min:Int) { if(value.isBlank() || value.length !in min..128 || value.toByteArray(Charsets.UTF_8).size>72) invalid() }

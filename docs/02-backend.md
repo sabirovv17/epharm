@@ -1,5 +1,58 @@
 # Backend
 
+## OTP admission and retry contract (local post-157 candidate)
+
+OTP/phone-lock entry points share a non-queuing admission advisor **before** the
+transaction advisor. `SMS_MAX_CONCURRENT_TRANSACTIONS` defaults to 4, capped at
+`floor((Hikari maximum-pool-size - 2) / 2)`: mobile wrappers may retain an outer
+transaction while running a `REQUIRES_NEW` OTP transaction. The pool must contain
+at least four connections. Nested annotated calls reuse admission; rejection is
+503 `OTP_PROVIDER_UNAVAILABLE`, without borrowing a connection or inventing a retry
+deadline. The separate shared provider-call budget `SMS_MAX_CONCURRENT` defaults
+to 2. Phone locks, durable attempt counts, invalidation and one-use proofs remain
+inside their original transactions. Cancellation/error releases in-memory permits;
+it never grants authentication or automatically retries a mutation.
+
+The released SMS-free initial registration remains SMS-free and permanently
+advertises `registrationSmsRequired=false`. Its phone-lock/BCrypt transaction also
+uses admission; overload can return 503, but cannot restore SMS registration or
+label a self-declared phone as verified. Reset/activation, genuine previously
+issued proofs and other OTP channels retain their security contracts.
+
+This bounds slow-SMS/lock-storm damage; it does not increase BCrypt CPU capacity
+or replace a production-sized load test. Admission is not a separate connection
+pool: unrelated authentication requests can still wait for a shared account-row
+lock. Account locks are intentionally preserved; cross-path contention needs an
+integration stress regression before claiming all database contention is gone.
+
+Known account/device/SMS 429 windows return matching positive integer `Retry-After`
+and optional JSON `retryAfterSeconds`, rounded up from their actual remaining
+deadline. Unknown provider availability has no invented cooldown. An exhausted
+POSM OTP proof returns `retryAction=REQUEST_NEW_OTP` with the same 429/code and no
+countdown: its attempt budget cannot recover by waiting. Clients may preserve
+entered form data but must never replay passwords/OTP, send SMS, or retry account
+mutations automatically.
+
+Release publication takes a PostgreSQL transaction advisory lock per normalized
+platform and flushes retired current rows before insertion. New V099 enforces one
+current row per platform with a partial unique index. Historical duplicates fail
+migration rather than selecting a signed release silently; resolve that condition
+explicitly before deployment. No previously applied migration is edited.
+
+Post-157 verification (2026-11-09) is separate from the earlier local audit: the
+complete main backend compiled on JDK22; a bounded 15-file test-source slice compiled,
+and nine unit classes passed **42/42 cases, zero failures/skips** after final PR review. This includes the
+released IIN/no-SMS guards, synthetic provider interruption and admission cancellation.
+The pool8/pool10 regression uses real Spring transactions/advisors and Hikari with
+fake physical JDBC connections, not a PostgreSQL/SMS transport. Local Docker's named
+pipe is unavailable; six selected integration classes were compiled, not executed.
+The fake JDBC configuration is explicitly `TestConfiguration`; an additional regression
+uses Boot's real component-scan exclusion filter to prove it cannot replace integration
+datasource beans. The final run recompiled test sources and reused the unchanged,
+previously compiled main outputs under the local memory limit.
+Full Spring/PostgreSQL integration and post-fix 500/min capacity are **not verified**.
+Production deployment and real SMS acceptance remain separate explicit gates.
+
 ## RPS registration availability
 
 The authenticated POSM identity is `(pharmacyId, deviceId)`, not the Windows/device

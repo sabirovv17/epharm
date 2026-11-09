@@ -35,6 +35,7 @@ class MobilePasswordResetService(private val jdbc: JdbcTemplate, private val pro
     private val random = SecureRandom()
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun request(iin: String, remoteAddress: String): MobilePasswordResetRequested {
         val now = Instant.now()
         limit("request-iin:$iin", 5, 3600, now)
@@ -71,6 +72,7 @@ class MobilePasswordResetService(private val jdbc: JdbcTemplate, private val pro
     }
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun verify(request: VerifyMobilePasswordReset): MobilePasswordResetVerified {
         val challenge = lockChallenge(request.challengeId)
         val now = Instant.now()
@@ -100,6 +102,7 @@ class MobilePasswordResetService(private val jdbc: JdbcTemplate, private val pro
     }
 
     @Transactional
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun complete(request: CompleteMobilePasswordReset): MobileAuthResponse {
         if (request.password.length !in 8..128 || request.password.toByteArray(Charsets.UTF_8).size > 72)
             throw AppException(ErrorCode.VALIDATION_FAILED, "Пароль: от 8 символов и не более 72 байт UTF-8")

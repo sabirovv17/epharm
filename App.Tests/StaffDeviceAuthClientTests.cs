@@ -48,6 +48,79 @@ public sealed class StaffDeviceAuthClientTests
         Assert.Equal(Device, response.DeviceContext); Assert.Null(response.Context); Assert.Equal("authenticated", response.Status);
     }
 
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("120", 120)]
+    [InlineData("9999999", 86400)]
+    [InlineData("0", null)]
+    [InlineData("invalid", null)]
+    public async Task RateLimitCarriesOnlyBoundedServerRetryAfterWithoutReplaying(string? header, int? expected)
+    {
+        var calls = 0;
+        using var client = Client(new Handler((_, _) => {
+            calls++;
+            var response = Reply(new { message = "Never display raw server data" }, HttpStatusCode.TooManyRequests);
+            if (header != null) response.Headers.TryAddWithoutValidation("Retry-After", header);
+            return Task.FromResult(response);
+        }));
+        var error = await Assert.ThrowsAsync<StaffApiException>(() => client.DeviceLoginAsync("000101500011", "A4x!", Device, TestContext.Current.CancellationToken));
+        Assert.Equal("RATE_LIMITED", error.Code); Assert.Equal(expected, error.RetryAfterSeconds); Assert.Equal(1, calls);
+        Assert.DoesNotContain("Never display", error.Message);
+    }
+
+    [Fact]
+    public async Task RateLimitAcceptsHttpDateWithoutCreatingAnArbitraryDeadline()
+    {
+        using var client = Client(new Handler((_, _) => {
+            var response = Reply(new { }, HttpStatusCode.TooManyRequests);
+            response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(DateTimeOffset.UtcNow.AddSeconds(120));
+            return Task.FromResult(response);
+        }));
+        var error = await Assert.ThrowsAsync<StaffApiException>(() => client.DeviceLoginAsync("000101500011", "A4x!", Device, TestContext.Current.CancellationToken));
+        Assert.InRange(error.RetryAfterSeconds!.Value, 118, 120);
+    }
+
+    [Theory]
+    [InlineData("REQUEST_NEW_OTP", "REQUEST_NEW_OTP")]
+    [InlineData("UNTRUSTED_TEXT", null)]
+    [InlineData(null, null)]
+    public async Task RateLimitReadsOnlyAllowlistedMachineAction(string? supplied, string? expected)
+    {
+        using var client = Client(new Handler((_, _) => Task.FromResult(Reply(
+            new { retryAction = supplied, message = "SENSITIVE-SERVER-TEXT" }, HttpStatusCode.TooManyRequests))));
+        var error = await Assert.ThrowsAsync<StaffApiException>(() => client.DeviceRegisterAsync("challenge", "1234", "000101500011",
+            "+77000000000", "Synthetic Person", "A4x!", Device, TestContext.Current.CancellationToken));
+        Assert.Equal("RATE_LIMITED", error.Code); Assert.Equal(expected, error.RetryAction); Assert.Null(error.RetryAfterSeconds);
+        Assert.DoesNotContain("SENSITIVE", error.Message);
+    }
+
+    [Theory]
+    [InlineData("malformed")]
+    [InlineData("oversized")]
+    [InlineData("array")]
+    [InlineData("nonstring")]
+    public async Task UnsafeOptionalErrorBodiesKeepGenericRateLimitGuidance(string kind)
+    {
+        var body = kind switch {
+            "oversized" => "{\"retryAction\":\"REQUEST_NEW_OTP\",\"message\":\"" + new string('x', 4096) + "\"}",
+            "array" => "[]", "nonstring" => "{\"retryAction\":1}", _ => "{invalid-json",
+        };
+        using var client = Client(new Handler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.TooManyRequests) {
+            Content = new StringContent(body, Encoding.UTF8, "application/json"),
+        })));
+        var error = await Assert.ThrowsAsync<StaffApiException>(() => client.DeviceLoginAsync("000101500011", "A4x!", Device, TestContext.Current.CancellationToken));
+        Assert.Equal("RATE_LIMITED", error.Code); Assert.Null(error.RetryAction); Assert.Null(error.RetryAfterSeconds);
+    }
+
+    [Fact]
+    public async Task NonRateLimitResponseCannotInjectOtpAction()
+    {
+        using var client = Client(new Handler((_, _) => Task.FromResult(Reply(
+            new { retryAction = "REQUEST_NEW_OTP" }, HttpStatusCode.ServiceUnavailable))));
+        var error = await Assert.ThrowsAsync<StaffApiException>(() => client.DeviceLoginAsync("000101500011", "A4x!", Device, TestContext.Current.CancellationToken));
+        Assert.Equal("UNAVAILABLE", error.Code); Assert.Null(error.RetryAction);
+    }
+
     [Fact]
     public async Task DeviceRegistrationRetainsRealSmsAndFourCharacterPasswordWithoutSyntheticSourceContext()
     {

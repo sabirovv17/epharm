@@ -70,6 +70,12 @@ export function registrationVuBudget(preallocated, desks) {
   return Math.min(desks, Math.max(preallocated, 50))
 }
 
+// k6 includes setup_data (process-bound bearer grants) in its summary input.
+// Persist only public aggregate metrics; never spread the original data object.
+export function publicLoadSummary(data, context) {
+  return { ...context, metrics: data.metrics, testRunDurationMs: data.state?.testRunDurationMs }
+}
+
 export function sessionValid(body, context, personId = null, requireToken = true, now = Date.now()) {
   return body?.status === 'authenticated' && typeof body.pharmacist?.id === 'string' && body.pharmacist.id.length > 0 &&
     (!personId || body.pharmacist.id === personId) && body.deviceContext?.processInstanceId === context.processInstanceId &&

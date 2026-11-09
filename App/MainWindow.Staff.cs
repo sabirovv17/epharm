@@ -22,6 +22,7 @@ public partial class MainWindow
     private Window? _staffStatusWindow;
     private volatile bool _staffEnabled;
     private bool _staffRegistrationSmsRequired = true;
+    private bool _staffKazakh;
     private DateTimeOffset _staffLastValidation;
     private volatile string _staffAuthenticationStatus = "initializing";
     public string StaffAuthenticationStatus => _staffAuthenticationStatus;
@@ -150,10 +151,10 @@ public partial class MainWindow
             return;
         }
         _staffTray = new System.Windows.Forms.NotifyIcon {
-            Icon = System.Drawing.SystemIcons.Information, Text = "Сотрудник ePharm — вход", Visible = true };
+            Icon = System.Drawing.SystemIcons.Information, Text = StaffText("Сотрудник ePharm — вход", "ePharm қызметкері — кіру"), Visible = true };
         var menu = new System.Windows.Forms.ContextMenuStrip();
-        menu.Items.Add("Вход / регистрация сотрудника", null, (_, _) => OpenStaffWindow(activate: true));
-        menu.Items.Add("Выйти из учётной записи ePharm", null, async (_, _) => await LogoutStaff());
+        menu.Items.Add(StaffText("Вход / регистрация сотрудника", "Қызметкердің кіруі / тіркелуі"), null, (_, _) => OpenStaffWindow(activate: true));
+        menu.Items.Add(StaffText("Выйти из учётной записи ePharm", "ePharm есептік жазбасынан шығу"), null, async (_, _) => await LogoutStaff());
         _staffTray.ContextMenuStrip = menu;
         _staffTray.DoubleClick += (_, _) => OpenStaffWindow(activate: true);
         Log("Вход сотрудника ePharm включён сервером; кассовые функции продолжают работать независимо.");
@@ -174,6 +175,9 @@ public partial class MainWindow
         }
         // Bind the first reliable source promptly, without treating temporary DB loss as an account switch.
         if (_staffSession.LastKnownSource != oldSource) _staffLastValidation = DateTimeOffset.MinValue;
+        // Presentation follows the CURRENT source, not the last reliable binding retained
+        // for grant security. Losing DB identity must not trap the existing filled form.
+        _staffWindow?.UpdateSourceContext(_staffSession.CurrentSource);
         RefreshStaffStatus();
         if (_staffSession.NeedsPrompt(DateTimeOffset.UtcNow))
         {
@@ -185,8 +189,15 @@ public partial class MainWindow
     private void RefreshStaffStatus()
     {
         var authenticated = _staffSession.IsAuthenticated(DateTimeOffset.UtcNow);
-        if (_staffTray != null) _staffTray.Text = authenticated ? "Сотрудник ePharm — вход подтверждён"
-            : _staffSession.BypassStatus != null ? "ePharm — вход не подтверждён, касса доступна" : "Сотрудник ePharm — требуется вход";
+        if (_staffTray != null) {
+            _staffTray.Text = authenticated ? StaffText("Сотрудник ePharm — вход подтверждён", "ePharm қызметкері — кіру расталды")
+                : _staffSession.BypassStatus != null ? StaffText("ePharm — вход не подтверждён, касса доступна", "ePharm — кіру расталмады, касса қолжетімді")
+                : StaffText("Сотрудник ePharm — требуется вход", "ePharm қызметкері — кіру қажет");
+            if (_staffTray.ContextMenuStrip is { Items.Count: >= 2 } menu) {
+                menu.Items[0].Text = StaffText("Вход / регистрация сотрудника", "Қызметкердің кіруі / тіркелуі");
+                menu.Items[1].Text = StaffText("Выйти из учётной записи ePharm", "ePharm есептік жазбасынан шығу");
+            }
+        }
         SetStaffAuthenticationStatus(_staffSession.BypassStatus ?? (authenticated ? "authenticated" :
             _staffWindow?.IsVisible == true ? "login_visible" : _staffSession.ProcessInstanceId != null ? "login_required" :
             StaffAuthDiagnostics.Normalize(_staffSession.Observation.Status)));
@@ -197,7 +208,8 @@ public partial class MainWindow
         if (!_staffEnabled || _staffClient == null || _staffStop.IsCancellationRequested) return;
         if (_staffSession.IsAuthenticated(DateTimeOffset.UtcNow))
         {
-            ShowStaffStatus("Вы уже вошли в ePharm. Для смены сотрудника завершите или отмените текущий чек, полностью закройте АРМ Кассир Стандарт-Н крестиком и запустите его снова. После запуска появится окно входа ePharm — войдите под своим ИИН.");
+            ShowStaffStatus(StaffText("Вы уже вошли в ePharm. Для смены сотрудника завершите или отмените текущий чек, полностью закройте АРМ Кассир Стандарт-Н крестиком и запустите его снова. После запуска появится окно входа ePharm — войдите под своим ИИН.",
+                "Сіз ePharm жүйесіне кірдіңіз. Қызметкерді ауыстыру үшін ағымдағы чекті аяқтаңыз немесе жойыңыз, Standard-N кассир бағдарламасын айқышпен толық жауып, қайта іске қосыңыз. ePharm кіру терезесі ашылғанда өз ЖСН-іңізбен кіріңіз."));
             return;
         }
         var context = _staffSession.Context;
@@ -209,7 +221,8 @@ public partial class MainWindow
             var window = new StaffAuthWindow(_staffClient, context.StandardNContext, PharmacistScreen(),
                 "Вход ePharm доступен. Сверка с пользователем Standard-N выполняется отдельно, когда кассовая сессия определена.",
                 requireSignIn: _staffSession.BypassStatus == null && StaffPromptPolicy.HasComparableIdentity(context.StandardNContext),
-                deviceContext: context, registrationSmsRequired: _staffRegistrationSmsRequired);
+                deviceContext: context, registrationSmsRequired: _staffRegistrationSmsRequired, kazakh: _staffKazakh);
+            window.LanguageChanged += kazakh => { _staffKazakh = kazakh; RefreshStaffStatus(); };
             window.AuthenticationStarted += () => generation = _staffWindow == window && _staffSession.ProcessInstanceId == context.ProcessInstanceId
                 ? _staffSession.Generation : -1;
             window.Authenticated += response =>
@@ -220,7 +233,8 @@ public partial class MainWindow
                 {
                     if (response.SessionToken != null) _ = RevokeOldStaffGrant(response.SessionToken);
                     if (_staffWindow == window) {
-                        window.ReleaseWork("Вход не подтверждён для текущего процесса. Форма сохранена; повторите вход после проверки Standard-N.");
+                        window.ReleaseWork("Вход не подтверждён для текущего процесса. Форма сохранена; повторите вход после проверки Standard-N.",
+                            "Ағымдағы процесс үшін кіру расталмады. Нысан сақталды; Standard-N тексерілген соң қайта кіріңіз.");
                         SetStaffAuthenticationStatus("login_visible");
                     }
                     return;
@@ -256,29 +270,33 @@ public partial class MainWindow
         if (reason is StaffPromptBypassReason.ServiceUnavailable or StaffPromptBypassReason.SmsUnavailable)
             _staffWindow?.ReleaseWork(pendingRequest ? null : backgroundCheck
                 ? "Не удалось обновить настройки входа. Форма сохранена; можно продолжить работу и повторить запрос позже."
-                : "Сервис временно недоступен. Форма сохранена. Можно продолжить работу или повторить запрос позже.");
+                : "Сервис временно недоступен. Форма сохранена. Можно продолжить работу или повторить запрос позже.",
+                pendingRequest ? null : backgroundCheck
+                    ? "Кіру параметрлерін жаңарту мүмкін болмады. Нысан сақталды; жұмысты жалғастырып, сұрауды кейін қайталауға болады."
+                    : "Сервис уақытша қолжетімсіз. Нысан сақталды. Жұмысты жалғастыруға немесе сұрауды кейін қайталауға болады.");
         else _staffWindow?.Dismiss();
         _staffStatusWindow?.Close();
         SetStaffAuthenticationStatus(status);
-        if (_staffTray != null) _staffTray.Text = "ePharm — вход не подтверждён, касса доступна";
+        if (_staffTray != null) _staffTray.Text = StaffText("ePharm — вход не подтверждён, касса доступна", "ePharm — кіру расталмады, касса қолжетімді");
         if (token != null) _ = RevokeOldStaffGrant(token);
     }
 
-    private static string ExplainStaffObservation(string status) => status switch {
-        "no_process" => "Запустите АРМ Кассир Standard-N, чтобы войти в ePharm.",
-        "no_session" => "Войдите под своим пользователем в АРМ Кассир Standard-N.",
-        "ambiguous_process" or "ambiguous_session" => "Обнаружено несколько кассовых сессий. Обратитесь к администратору для проверки текущей кассы.",
-        "database_disabled" => "Чтение кассовой сессии не настроено. Обратитесь к администратору.",
-        "database_unavailable" => "Не удалось прочитать кассовую сессию. Проверьте подключение к базе Standard-N или обратитесь к администратору.",
-        "stale_session" or "session_predates_process" => "Кассовая сессия ещё не обновилась после запуска Standard-N. Дождитесь её обновления или обратитесь к администратору.",
-        "unsupported_session_time" or "future_session_time" or "invalid_session_time" or "unsupported_process_time" => "Не удалось проверить время кассовой сессии. Администратору необходимо проверить совместимость версии Standard-N и настройки времени.",
-        _ => "Кассовая сессия пока не определена. Дождитесь запуска Standard-N или обратитесь к администратору.",
+    private string StaffText(string ru, string kk) => _staffKazakh ? kk : ru;
+    private string ExplainStaffObservation(string status) => status switch {
+        "no_process" => StaffText("Запустите АРМ Кассир Standard-N, чтобы войти в ePharm.", "ePharm жүйесіне кіру үшін Standard-N кассир бағдарламасын іске қосыңыз."),
+        "no_session" => StaffText("Войдите под своим пользователем в АРМ Кассир Standard-N.", "Standard-N кассир бағдарламасына өз есептік жазбаңызбен кіріңіз."),
+        "ambiguous_process" or "ambiguous_session" => StaffText("Обнаружено несколько кассовых сессий. Обратитесь к администратору для проверки текущей кассы.", "Бірнеше касса сессиясы анықталды. Ағымдағы кассаны тексеру үшін әкімшіге хабарласыңыз."),
+        "database_disabled" => StaffText("Чтение кассовой сессии не настроено. Обратитесь к администратору.", "Касса сессиясын оқу бапталмаған. Әкімшіге хабарласыңыз."),
+        "database_unavailable" => StaffText("Не удалось прочитать кассовую сессию. Проверьте подключение к базе Standard-N или обратитесь к администратору.", "Касса сессиясын оқу мүмкін болмады. Standard-N базасына қосылымды тексеріңіз немесе әкімшіге хабарласыңыз."),
+        "stale_session" or "session_predates_process" => StaffText("Кассовая сессия ещё не обновилась после запуска Standard-N. Дождитесь её обновления или обратитесь к администратору.", "Standard-N іске қосылғаннан кейін касса сессиясы әлі жаңартылмаған. Жаңартылуын күтіңіз немесе әкімшіге хабарласыңыз."),
+        "unsupported_session_time" or "future_session_time" or "invalid_session_time" or "unsupported_process_time" => StaffText("Не удалось проверить время кассовой сессии. Администратору необходимо проверить совместимость версии Standard-N и настройки времени.", "Касса сессиясының уақытын тексеру мүмкін болмады. Әкімші Standard-N нұсқасының үйлесімділігі мен уақыт баптауын тексеруі керек."),
+        _ => StaffText("Кассовая сессия пока не определена. Дождитесь запуска Standard-N или обратитесь к администратору.", "Касса сессиясы әлі анықталмаған. Standard-N іске қосылғанша күтіңіз немесе әкімшіге хабарласыңыз."),
     };
 
     private void ShowStaffStatus(string message)
     {
         if (_staffStatusWindow != null) { _staffStatusWindow.Close(); _staffStatusWindow = null; }
-        var window = new Window { Title = "Сотрудник ePharm", Width = 440, Height = 230, ShowActivated = false,
+        var window = new Window { Title = StaffText("Сотрудник ePharm", "ePharm қызметкері"), Width = 440, Height = 230, ShowActivated = false,
             Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(24), FontSize = 15 } };
         _staffStatusWindow = window;
         window.Closed += (_, _) => { if (_staffStatusWindow == window) _staffStatusWindow = null; };

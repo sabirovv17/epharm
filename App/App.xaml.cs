@@ -19,6 +19,7 @@ namespace CustomerDisplay;
 public partial class App : Application
 {
     private static Mutex? _instanceMutex;
+    private static bool _ownsInstanceMutex;
     private const string MutexName = "Local\\EpharmCustomerDisplay";
 
     protected override void OnStartup(StartupEventArgs e)
@@ -26,6 +27,12 @@ public partial class App : Application
         // Ставим crash guard до всего остального: если проблема случится на раннем старте,
         // разработчик увидит её в C:\Epharm\crash.log, а не "приложение раз через раз не открылось".
         CrashGuard.Install(@"C:\Epharm\crash.log");
+
+        if (!UpdateStartup.MayStart(e.Args, CrashGuard.Write))
+        {
+            Shutdown();
+            return;
+        }
 
         if (e.Args.Any(arg => string.Equals(arg, "--diagnose-standardn", StringComparison.OrdinalIgnoreCase)))
         {
@@ -36,8 +43,9 @@ public partial class App : Application
 
         try
         {
-            _instanceMutex = new Mutex(initiallyOwned: true, MutexName, out var createdNew);
-            if (!createdNew)
+            _instanceMutex = new Mutex(initiallyOwned: false, MutexName);
+            _ownsInstanceMutex = UpdateTransaction.TryAcquireInstance(_instanceMutex);
+            if (!_ownsInstanceMutex)
             {
                 CrashGuard.Write("Startup skipped: another Epharm POSM instance is already running.");
                 // Уже запущено — выходим без окна (не плодим копии киоска).
@@ -47,7 +55,9 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            CrashGuard.Write($"Startup mutex error: {ex.Message}. Continuing without single-instance guard.");
+            CrashGuard.Write($"Startup mutex error: {ex.Message}. Startup stopped to protect the active installation.");
+            Shutdown();
+            return;
         }
 
         base.OnStartup(e);
@@ -94,7 +104,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        try { _instanceMutex?.ReleaseMutex(); } catch { /* ignore */ }
+        try { if (_ownsInstanceMutex) _instanceMutex?.ReleaseMutex(); } catch { /* ignore */ }
         _instanceMutex?.Dispose();
         base.OnExit(e);
     }

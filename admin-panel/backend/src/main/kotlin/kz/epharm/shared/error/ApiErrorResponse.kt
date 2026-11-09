@@ -10,4 +10,6 @@ data class ApiErrorResponse(
     val message: String,
     val timestamp: Instant = Instant.now(),
     val fields: Map<String, String>? = null,
+    val retryAfterSeconds: Long? = null,
+    val retryAction: RetryAction? = null,
 )

@@ -14,6 +14,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
+import java.security.MessageDigest
+import java.util.HexFormat
 
 /**
  * Приём завершённого чека из лога кассы (источник №1 сверки). Сохраняет сырой pos_sale
@@ -180,21 +182,21 @@ class PosSaleService(
     }
 
     private fun validateExistingSaleIdentity(existing: PosSaleEntity, req: PosSaleRequest) {
-        if (existing.pharmacyId != req.pharmacyId ||
-            existing.sessionId != req.sessionId ||
-            existing.totalAmount != req.totalAmount ||
-            existing.sourceDocumentId != req.sourceDocumentId
-        ) {
-            log.error(
-                "pos_sale {} identity conflict: stored pharmacy/doc/total={}/{}/{}, incoming={}/{}/{}",
-                req.saleId,
-                existing.pharmacyId,
-                existing.sourceDocumentId,
-                existing.totalAmount,
-                req.pharmacyId,
-                req.sourceDocumentId,
-                req.totalAmount,
+        val changedFields = buildList {
+            if (existing.pharmacyId != req.pharmacyId) add("pharmacyId")
+            if (existing.sessionId != req.sessionId) add("sessionId")
+            if (existing.totalAmount != req.totalAmount) add("totalAmount")
+            if (existing.sourceDocumentId != req.sourceDocumentId) add("sourceDocumentId")
+        }
+        if (changedFields.isNotEmpty()) {
+            // Field names distinguish a checkout-session replay from a monetary conflict.
+            // A pseudonymous fingerprint supports authorized per-sale comparison without
+            // writing raw receipt, account, pharmacy or payload values to routine logs.
+            // This diagnostic does not authorize overwriting an already recorded sale.
+            val fingerprint = HexFormat.of().formatHex(
+                MessageDigest.getInstance("SHA-256").digest(req.saleId.toByteArray(Charsets.UTF_8)), 0, 12,
             )
+            log.error("pos_sale identity conflict: saleFingerprint={} changedFields={}", fingerprint, changedFields.joinToString(","))
             throw ResponseStatusException(HttpStatus.CONFLICT, "Sale identity conflicts with the stored sale")
         }
     }

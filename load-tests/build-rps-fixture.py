@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import stat
 import uuid
 
 
@@ -132,13 +133,25 @@ ROLLBACK;
 """
 
 
+def require_private_filesystem():
+    # chmod(0600) on native Windows does not create an owner-only ACL. Fail BEFORE
+    # creating credentials instead of silently producing a world/inherited-readable fixture.
+    if os.name == "nt" or not hasattr(os, "O_NOFOLLOW"):
+        raise RuntimeError("Private fixtures require POSIX permissions: use WSL/Linux on a private Linux filesystem (not /mnt/c).")
+
+
 def exclusive(path, text):
+    require_private_filesystem()
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    if stat.S_IMODE(os.fstat(fd).st_mode) != 0o600:
+        os.close(fd)
+        raise RuntimeError("Filesystem did not enforce mode 0600; no private credentials were written")
     with os.fdopen(fd, "w") as output:
         output.write(text)
 
 
 def main():
+    require_private_filesystem()
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-id", required=True)

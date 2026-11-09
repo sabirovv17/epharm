@@ -40,6 +40,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="scripts\apply-update.ps1" LogicalName="CustomerDisplay.apply-update.ps1" />
     <None Include="Assets\Fluent\LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\Fluent\SOURCE.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

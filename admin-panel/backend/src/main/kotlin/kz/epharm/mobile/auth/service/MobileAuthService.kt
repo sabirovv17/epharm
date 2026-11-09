@@ -78,6 +78,7 @@ class MobileAuthService(
     }
 
     @Transactional
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun requestActivationSms(rawIin: String, rawPhone: String): SmsRequestResponse {
         val identity = findActivationIdentity(rawIin)
         val phone = resolveActivationPhone(identity, rawPhone)
@@ -92,6 +93,7 @@ class MobileAuthService(
     }
 
     @Transactional
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun verifyActivationSms(rawIin: String, rawPhone: String, code: String): ActivationVerifyResponse {
         val identity = findActivationIdentity(rawIin)
         val phone = resolveActivationPhone(identity, rawPhone)
@@ -101,6 +103,7 @@ class MobileAuthService(
     }
 
     @Transactional
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun setInitialPassword(rawIin: String, rawPhone: String, password: String): MobileAuthResponse {
         // Lock before loading the account: a concurrent staff activation must not be overwritten.
         staffPhoneLock.lock(PhoneUtil.normalize(rawPhone))
@@ -129,6 +132,7 @@ class MobileAuthService(
     }
 
     @Transactional
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun requestSms(rawPhone: String): SmsRequestResponse {
         val phone = PhoneUtil.normalize(rawPhone)
         val requested = otpService.request(phone)
@@ -141,6 +145,7 @@ class MobileAuthService(
     }
 
     @Transactional
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun verifySms(rawPhone: String, code: String): VerifySmsResponse {
         val phone = PhoneUtil.normalize(rawPhone)
         otpService.verify(phone, code)
@@ -161,6 +166,7 @@ class MobileAuthService(
     }
 
     @Transactional
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun register(rawPhone: String, fio: String, iin: String): MobileAuthResponse {
         val phone = PhoneUtil.normalize(rawPhone)
         // Номер должен быть подтверждён недавно (окно из OtpService).

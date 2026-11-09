@@ -67,13 +67,17 @@ class OtpProviderConfig {
         @Value("\${app.sms.p1sms.sender:}") p1smsSender: String,
         @Value("\${app.sms.p1sms.text-template:Код входа ePharm: {code}}") p1smsTextTemplate: String,
         @Value("\${app.sms.p1sms.timeout-ms:10000}") p1smsTimeoutMs: Long,
+        @Value("\${app.sms.max-concurrent:2}") maxConcurrent: Int = 2,
+        @Value("\${spring.datasource.hikari.maximum-pool-size:10}") databasePoolSize: Int = 10,
     ): OtpProvider {
         if (devMode) {
             log.warn("OTP: включён dev-режим с фиксированным кодом; внешние SMS отключены")
             return LocalOtpProvider("dev", LoggingSmsSender())
         }
 
-        return when (val provider = providerName.trim().lowercase()) {
+        require(maxConcurrent > 0) { "SMS max-concurrent must be positive" }
+        require(databasePoolSize >= 4) { "Production OTP requires a database pool of at least 4 connections" }
+        val delegate = when (val provider = providerName.trim().lowercase()) {
             "daribar" -> {
                 requireHttpsUrl("DARIBAR_OTP_BASE_URL", daribarBaseUrl)
                 log.info("OTP: активен внешний Daribar gateway (код генерирует и проверяет провайдер)")
@@ -105,6 +109,8 @@ class OtpProviderConfig {
 
             else -> error("Unsupported OTP_PROVIDER '$provider'; expected 'daribar' or 'p1sms'")
         }
+        // Always reserve at least two connections for non-SMS work, even if a limit is misconfigured.
+        return BoundedOtpProvider(delegate, minOf(maxConcurrent, databasePoolSize - 2))
     }
 
     private fun restClient(baseUrl: String, timeoutMs: Long): RestClient {

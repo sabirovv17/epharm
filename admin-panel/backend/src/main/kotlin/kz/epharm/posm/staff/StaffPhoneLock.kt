@@ -33,7 +33,9 @@ class StaffPhoneLock(private val jdbc: JdbcTemplate,
         val key = kz.epharm.finance.merch.MerchRewardSecurity.hash("sms-shared-phone:$phone")
         val last = jdbc.query("SELECT window_start FROM posm_staff_rate_limits WHERE scope_hash=?", { rs, _ -> rs.getTimestamp(1).toInstant() }, key).singleOrNull()
         if (last != null && last.plusSeconds(60).isAfter(now)) {
-            throw AppException(ErrorCode.OTP_RESEND_TOO_SOON,"Запросите новый код через минуту",HttpStatus.TOO_MANY_REQUESTS)
+            val wait=kz.epharm.shared.error.retryAfterSeconds(now,last.plusSeconds(60))
+            throw AppException(ErrorCode.OTP_RESEND_TOO_SOON,"Повторная отправка через $wait с",HttpStatus.TOO_MANY_REQUESTS,
+                retryAfterSeconds=wait)
         }
         jdbc.update("""INSERT INTO posm_staff_rate_limits(scope_hash,window_start,attempts) VALUES (?,?,1)
             ON CONFLICT(scope_hash) DO UPDATE SET window_start=EXCLUDED.window_start,attempts=1""",key,Timestamp.from(now))

@@ -38,6 +38,7 @@ namespace CustomerDisplay
         /// </summary>
         public event Action<string>? Displayed;
         public event Action<string>? DisplayCheckFailed;
+        public event Action? Expired;
 
         public RecommendationWindow(
             Recommendation rec,
@@ -74,7 +75,7 @@ namespace CustomerDisplay
             if (autoCloseSec > 0)
             {
                 _autoClose = new DispatcherTimer { Interval = TimeSpan.FromSeconds(autoCloseSec) };
-                _autoClose.Tick += (_, _) => Close();
+                _autoClose.Tick += (_, _) => { Expired?.Invoke(); Close(); };
                 _autoClose.Start();
             }
 
@@ -84,6 +85,24 @@ namespace CustomerDisplay
             SizeChanged += OnSizeChanged;
             Closed += OnClosed;
             _topmostGuard.Tick += OnTopmostGuardTick;
+        }
+
+        public void UpdateRecommendations(IEnumerable<Recommendation> recommendations, bool freshResponse = true)
+        {
+            Dispatcher.VerifyAccess();
+            var updated = recommendations.ToList();
+            _recs.Clear();
+            _recs.AddRange(updated);
+            if (_recs.Count == 0) { Close(); return; }
+            Bind(RecommendationPopupModelBuilder.Build(_recs));
+            if (freshResponse)
+            {
+                _autoClose?.Stop();
+                _autoClose?.Start();
+            }
+            // New rows need native display evidence too, without stealing scanner focus.
+            _displayAnnounced = false;
+            Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(TryAnnounceDisplayed));
         }
 
         private void Bind(RecommendationPopupModel model)

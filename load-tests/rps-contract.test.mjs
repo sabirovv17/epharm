@@ -1,6 +1,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { localOrigin, validateFixture, failureKind, sessionValid, recommendationValid, playlistValid, registrationVuBudget } from './k6/rps-contract.mjs'
+import { localOrigin, validateFixture, failureKind, sessionValid, recommendationValid, playlistValid, registrationVuBudget, publicLoadSummary } from './k6/rps-contract.mjs'
+
+test('public summary never serializes setup grants, fixture credentials or unknown k6 fields', () => {
+  const result = publicLoadSummary({ metrics: { checks: { values: { rate: 1 } } },
+    state: { testRunDurationMs: 1000, secret: 'private' },
+    setup_data: { sessionToken: 'private-grant', password: 'private-password' }, unknown: 'private-key',
+  }, { mode: 'sessions' })
+  assert.deepEqual(result, { mode: 'sessions', metrics: { checks: { values: { rate: 1 } } }, testRunDurationMs: 1000 })
+  assert.equal(JSON.stringify(result).includes('private'), false)
+})
 
 test('only explicit local origins are accepted, never production or remote aliases', () => {
   for (const origin of ['http://127.0.0.1:18080', 'http://localhost:8080', 'http://[::1]:8080', 'http://host.docker.internal:18080']) assert.equal(localOrigin(origin), origin)

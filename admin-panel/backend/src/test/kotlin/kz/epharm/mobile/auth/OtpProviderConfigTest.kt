@@ -2,6 +2,7 @@ package kz.epharm.mobile.auth
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import kz.epharm.mobile.auth.service.LocalOtpProvider
+import kz.epharm.mobile.auth.service.BoundedOtpProvider
 import kz.epharm.mobile.auth.service.OtpProviderConfig
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -29,6 +30,15 @@ class OtpProviderConfigTest {
     fun `production daribar не требует p1sms key`() {
         val provider = provider(devMode = false, providerName = "daribar", p1smsApiKey = "")
         assertThat(provider.id).isEqualTo("daribar")
+        assertThat(provider).isInstanceOf(BoundedOtpProvider::class.java)
+    }
+
+    @Test
+    fun `invalid concurrency configuration fails fast rather than consuming the whole pool`() {
+        assertThatThrownBy { provider(false, "daribar", maxConcurrent = 0) }
+            .isInstanceOf(IllegalArgumentException::class.java).hasMessageContaining("max-concurrent")
+        assertThatThrownBy { provider(false, "daribar", databasePoolSize = 3) }
+            .isInstanceOf(IllegalArgumentException::class.java).hasMessageContaining("at least 4")
     }
 
     @Test
@@ -58,6 +68,8 @@ class OtpProviderConfigTest {
         providerName: String,
         p1smsApiKey: String = "test-key",
         daribarBaseUrl: String = "https://sms.test",
+        maxConcurrent: Int = 2,
+        databasePoolSize: Int = 10,
     ) = config.otpProvider(
         objectMapper = objectMapper,
         devMode = devMode,
@@ -70,5 +82,7 @@ class OtpProviderConfigTest {
         p1smsSender = "",
         p1smsTextTemplate = "Код входа ePharm: {code}",
         p1smsTimeoutMs = 10_000,
+        maxConcurrent = maxConcurrent,
+        databasePoolSize = databasePoolSize,
     )
 }

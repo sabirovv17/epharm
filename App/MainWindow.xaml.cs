@@ -221,6 +221,7 @@ StartLogReader();
             StartFulfillment();
             StartTaskKiosk();
             StartStaffAuthentication();
+            UpdateStartup.MarkInitializationComplete();
 
         }
 
@@ -852,6 +853,7 @@ percent = Math.Round(percent, 2, MidpointRounding.AwayFromZero); // наприм
                 _fiscalReceiptTimer?.Dispose();
                 StopFulfillment();
                 _flusher?.Dispose();
+                _pendingShownPings?.Dispose();
                 _appUpdater?.Dispose();
                 _epharm?.Dispose();
                 _standardNDb?.Dispose();
