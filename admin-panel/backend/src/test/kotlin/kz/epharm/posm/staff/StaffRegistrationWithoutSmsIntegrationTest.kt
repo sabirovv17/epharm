@@ -126,6 +126,25 @@ class StaffRegistrationWithoutSmsIntegrationTest {
         assertEquals(before,financialCounts());noSmsCalls()
     }
 
+    @Test fun `non demographic IIN supports registration device login and learner web login without SMS`() {
+        // Synthetic checksum-valid identifier; its prefix is deliberately not a birth date.
+        val iin="123456012344"
+        val result=register(request.copy(iin=iin))
+        val id=result["pharmacist"]["id"].asText()
+        val row=jdbc.queryForMap("SELECT iin,status,pharmacy_id,password_hash,phone_verification_status FROM pharmacists WHERE id=?",id)
+        assertEquals(iin,row["iin"]);assertEquals("active",row["status"])
+        assertEquals("no-sms-pharmacy",row["pharmacy_id"]);assertEquals("self_declared",row["phone_verification_status"])
+        assertTrue(encoder.matches(request.password,row["password_hash"].toString()))
+        mvc.perform(post("/api/posm/staff/device/logout").header("X-Posm-Key",key)
+            .header("X-Staff-Session",result["sessionToken"].asText())).andExpect(status().isNoContent)
+        val login=post("/api/posm/staff/device/login",StaffDeviceLoginRequest(iin,request.password,context))
+        assertEquals("authenticated",login["status"].asText());assertEquals(id,login["pharmacist"]["id"].asText())
+        val learner=post("/api/mobile/auth/login",mapOf("iin" to iin,"password" to request.password))
+        assertEquals(id,learner["pharmacist"]["id"].asText())
+        assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM pharmacists",Int::class.java))
+        noSmsCalls()
+    }
+
     @Test fun `no SMS route preserves full field validation and cannot take a pharmacy from payload`() {
         for(bad in listOf(request.copy(password="123"),request.copy(password="    "),request.copy(password="я".repeat(37)),
             request.copy(iin="000000000000"),request.copy(phone="+12345678901"),request.copy(name="  "),
