@@ -31,9 +31,82 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.CancellationException
+import java.util.concurrent.TimeoutException
+import java.util.concurrent.CompletableFuture
 
 /** Real Spring advisors/transactions/Hikari, fake physical JDBC connections: no external I/O. */
 class OtpTransactionAdmissionTest {
+    @Test fun `healthy work waits through a brief CPU burst before acquiring the existing permit`() {
+        val admission = OtpTransactionAdmissionAspect(1, 4)
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val followerStarted = CountDownLatch(1)
+        val holder = mockk<ProceedingJoinPoint>()
+        every { holder.proceed() } answers {
+            entered.countDown(); check(release.await(10, TimeUnit.SECONDS)); "holder"
+        }
+        val follower = mockk<ProceedingJoinPoint>()
+        every { follower.proceed() } returns "accepted"
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            val held = executor.submit<Any?> { admission.invoke(holder) }
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            val waiting = executor.submit<Any?> {
+                followerStarted.countDown()
+                admission.invoke(follower)
+            }
+            assertTrue(followerStarted.await(5, TimeUnit.SECONDS))
+            assertThrows(TimeoutException::class.java) { waiting.get(1100, TimeUnit.MILLISECONDS) }
+            io.mockk.verify(exactly = 0) { follower.proceed() }
+            release.countDown()
+            assertEquals("holder", held.get(5, TimeUnit.SECONDS))
+            assertEquals("accepted", waiting.get(5, TimeUnit.SECONDS))
+            io.mockk.verify(exactly = 1) { follower.proceed() }
+        } finally { release.countDown(); executor.shutdownNow() }
+    }
+
+    @Test fun `interrupted waiter preserves interrupt flag without retaining or inflating admission`() {
+        val admission = OtpTransactionAdmissionAspect(1, 4)
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val waiting = CountDownLatch(1)
+        val observed = CompletableFuture<Boolean>()
+        val holder = mockk<ProceedingJoinPoint>()
+        every { holder.proceed() } answers {
+            entered.countDown(); check(release.await(10, TimeUnit.SECONDS)); "holder"
+        }
+        val next = mockk<ProceedingJoinPoint>()
+        every { next.proceed() } returns "accepted"
+        val executor = Executors.newSingleThreadExecutor()
+        val interrupted = Thread {
+            try {
+                waiting.countDown()
+                val error = assertThrows(AppException::class.java) { admission.invoke(next) }
+                val preserved = Thread.currentThread().isInterrupted
+                Thread.interrupted() // The caller, not admission, clears cancellation before new work.
+                assertEquals(503, assertThrows(AppException::class.java) { admission.invoke(next) }.status.value(),
+                    "Interrupted waiter must not retain the nested-admission flag")
+                observed.complete(error.status.value() == 503 && preserved)
+            } catch (failure: Throwable) { observed.completeExceptionally(failure) }
+        }
+        try {
+            val held = executor.submit<Any?> { admission.invoke(holder) }
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            interrupted.start()
+            assertTrue(waiting.await(5, TimeUnit.SECONDS))
+            interrupted.interrupt()
+            assertTrue(observed.get(5, TimeUnit.SECONDS))
+            assertEquals(503, assertThrows(AppException::class.java) { admission.invoke(next) }.status.value(),
+                "Interrupted waiter must not release a permit owned by the holder")
+            io.mockk.verify(exactly = 0) { next.proceed() }
+            release.countDown()
+            assertEquals("holder", held.get(5, TimeUnit.SECONDS))
+            assertEquals("accepted", admission.invoke(next))
+        } finally {
+            release.countDown(); interrupted.interrupt(); interrupted.join(1000); executor.shutdownNow()
+        }
+    }
+
     @Test fun `fake JDBC configuration is excluded by the Boot test component scan`() {
         assertNotNull(Config::class.java.getAnnotation(TestConfiguration::class.java),
             "Synthetic JDBC beans must be explicitly marked test-only")
@@ -67,7 +140,7 @@ class OtpTransactionAdmissionTest {
         val release = CountDownLatch(1)
         val holder = mockk<ProceedingJoinPoint>()
         every { holder.proceed() } answers {
-            entered.countDown(); check(release.await(5, TimeUnit.SECONDS)); "holder"
+            entered.countDown(); check(release.await(10, TimeUnit.SECONDS)); "holder"
         }
         val executor = Executors.newSingleThreadExecutor()
         try {
@@ -91,16 +164,26 @@ class OtpTransactionAdmissionTest {
             val dataSource = context.getBean(HikariDataSource::class.java)
             val admittedCount = (poolSize - 2) / 2
             val executor = Executors.newFixedThreadPool(admittedCount)
+            val rejectedExecutor = Executors.newFixedThreadPool(20)
             try {
                 val active = (1..admittedCount).map { executor.submit<Unit> { service.call() } }
                 assertTrue(slow.entered.await(5, TimeUnit.SECONDS))
                 // Every admitted outer mobile transaction suspends for one REQUIRES_NEW OTP transaction.
                 assertEquals(poolSize - 2, dataSource.hikariPoolMXBean.activeConnections)
-                repeat(20) {
-                    val error = assertThrows(AppException::class.java) { service.call() }
+                val start = CountDownLatch(1)
+                val rejected = (1..20).map { rejectedExecutor.submit<AppException> {
+                    check(start.await(5, TimeUnit.SECONDS))
+                    assertThrows(AppException::class.java) { service.call() }
+                } }
+                val started = System.nanoTime()
+                start.countDown()
+                rejected.forEach {
+                    val error = it.get(3, TimeUnit.SECONDS)
                     assertEquals(503, error.status.value())
                     assertNull(error.retryAfterSeconds)
                 }
+                assertTrue(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started) < 3000,
+                    "Held-budget admission must stop waiting within its bounded deadline")
                 assertEquals(poolSize - 2, dataSource.hikariPoolMXBean.activeConnections, "Rejected callers must not borrow connections")
                 dataSource.connection.use {
                     dataSource.connection.use {
@@ -118,7 +201,7 @@ class OtpTransactionAdmissionTest {
                 slow.fail = false
                 service.call()
                 assertEquals(0, dataSource.hikariPoolMXBean.activeConnections)
-            } finally { slow.release.countDown(); executor.shutdownNow() }
+            } finally { slow.release.countDown(); executor.shutdownNow(); rejectedExecutor.shutdownNow() }
         }
     }
 
@@ -150,7 +233,7 @@ class OtpTransactionAdmissionTest {
         open var fail = false
         @OtpTransactionAdmission @Transactional(propagation = Propagation.REQUIRES_NEW)
         open fun call() {
-            entered.countDown(); check(release.await(5, TimeUnit.SECONDS))
+            entered.countDown(); check(release.await(10, TimeUnit.SECONDS))
             if (fail) throw IllegalStateException("synthetic failure")
         }
     }

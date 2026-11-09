@@ -11,7 +11,9 @@ All notable production changes to Epharm are recorded here. The format follows
 
 - Bound OTP transaction admission and provider concurrency independently, preserve
   registration without SMS, and return truthful retry deadlines without weakening
-  password, one-use code or staff-device checks.
+  password, one-use code or staff-device checks. Absorb short admission bursts with
+  a fair two-second wait before borrowing a database connection; sustained overload and
+  interruption still stop without leaking permits or consuming the pool reserve.
 - Serialize current POSM release publication per platform and enforce the invariant
   with additive V099. Existing duplicate current releases must be resolved before
   migration; no release history is selected or rewritten automatically.

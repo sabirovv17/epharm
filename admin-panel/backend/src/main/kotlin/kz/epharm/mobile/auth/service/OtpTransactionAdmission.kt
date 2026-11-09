@@ -11,6 +11,7 @@ import org.springframework.core.annotation.Order
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 
 /** Apply to each transactional entry point that calls an OTP provider or takes a phone lock. */
 @Target(AnnotationTarget.FUNCTION)
@@ -31,15 +32,22 @@ class OtpTransactionAdmissionAspect(
     }
     // Mobile wrappers can suspend an outer transaction for a REQUIRES_NEW OTP transaction.
     // Budget both connections and reserve at least two for heartbeat/session/other work.
-    private val permits = Semaphore(minOf(maxConcurrent, (databasePoolSize - 2) / 2))
+    private val permits = Semaphore(minOf(maxConcurrent, (databasePoolSize - 2) / 2), true)
     private val admitted = ThreadLocal<Boolean>()
 
     @Around("@annotation(kz.epharm.mobile.auth.service.OtpTransactionAdmission)")
     fun invoke(call: ProceedingJoinPoint): Any? {
         if (admitted.get() == true) return call.proceed()
-        if (!permits.tryAcquire()) throw AppException(ErrorCode.OTP_PROVIDER_UNAVAILABLE,
-            "Сервис регистрации и SMS занят. Повторите попытку позже", HttpStatus.SERVICE_UNAVAILABLE)
+        // Absorb brief CPU-bound bursts before opening a transaction, with a two-second ceiling.
+        val acquired = try { permits.tryAcquire(2, TimeUnit.SECONDS) } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw unavailable()
+        }
+        if (!acquired) throw unavailable()
         admitted.set(true)
         return try { call.proceed() } finally { admitted.remove(); permits.release() }
     }
+
+    private fun unavailable() = AppException(ErrorCode.OTP_PROVIDER_UNAVAILABLE,
+        "Сервис регистрации и SMS занят. Повторите попытку позже", HttpStatus.SERVICE_UNAVAILABLE)
 }
