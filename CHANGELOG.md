@@ -17,7 +17,7 @@ All notable production changes to Epharm are recorded here. The format follows
   migration; no release history is selected or rewritten automatically.
 - Preserve financial identity-conflict responses while replacing raw diagnostic
   payloads with safe fingerprints and changed-field names.
-- Harden the POSM recommendation, staff-window and recoverable-update candidate.
+- Prepare POSM 1.0.82 with hardened recommendations, staff windows and recoverable updates.
   Windows distribution remains gated on a separately verified signed version and
   old-client update/recovery pilot; a server deployment alone does not update cash desks.
 - Keep Linux dangling-link cleanup compatible with Unix while preserving all Windows
