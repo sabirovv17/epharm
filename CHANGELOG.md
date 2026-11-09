@@ -5,6 +5,21 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.13] - 2026-11-09
+
+### Fixed
+
+- Initial RPS registration never requests SMS. The backend always advertises the
+  SMS-free registration policy and rejects new registration OTP issuance before
+  contacting the provider, even with a historical SMS-required setting. Existing
+  genuine challenges may complete; password recovery/activation proofs stay unchanged.
+- POSM 1.0.81 hides registration SMS controls for every initial, cached and legacy
+  policy state. Unsupported registration preserves the form and permits cash work.
+  Registration still needs an authenticated device and the supported server route.
+- Preserve both password fields after local validation and HTTP errors, allowing an
+  explicit retry without re-entering them. Successful accepted authentication closes
+  the window and clears its fields; passwords never enter logs or persistent storage.
+
 ## [0.2.12] - 2026-11-09
 
 ### Fixed

@@ -230,8 +230,8 @@ class LearnerCredentialIntegrationTest {
         staff.complete(device,StaffPasswordRequest(activation.challengeId,"1234",IIN,PHONE,LEARNER_PASSWORD),"activate")
         assertTrue(TransactionTemplate(txManager).execute{vault.read("credential-person",currentHash()).password==LEARNER_PASSWORD}==true)
         val newIin="880404400014";val newPhone="+77000000014"
-        val registration=staff.requestOtp(device,StaffOtpRequest("register",newIin,newPhone))
-        assertNull(staff.complete(device,StaffPasswordRequest(registration.challengeId,"1234",newIin,newPhone,next,"Synthetic new learner"),"register")) // No invented Standard-N grant.
+        val registration=staff.deviceRegisterWithoutSms(device,StaffDeviceRegistrationWithoutSmsRequest(newIin,newPhone,next,"Synthetic new learner",StaffDeviceContext(context.processInstanceId)))
+        assertEquals("authenticated",registration.status)
         val id=jdbc.queryForObject("SELECT id FROM pharmacists WHERE iin=?",String::class.java,newIin)!!
         assertTrue(TransactionTemplate(txManager).execute{vault.read(id,currentHash(id)).password==next}==true)
         assertEquals("active",jdbc.queryForObject("SELECT status FROM pharmacists WHERE id=?",String::class.java,id))

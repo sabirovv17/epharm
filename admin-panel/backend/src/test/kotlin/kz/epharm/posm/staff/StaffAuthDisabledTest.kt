@@ -14,7 +14,7 @@ class StaffAuthDisabledTest {
         val limiter=mockk<kz.epharm.mobile.auth.service.PharmacistPasswordLoginLimiter>()
         every { devices.authenticate("device-key") } returns PosmDeviceIdentity("device","pharmacy",false)
         val controller=StaffAuthController(devices,service,false,limiter)
-        assertEquals(mapOf("enabled" to false,"protocolVersion" to 2,"nameFallbackSupported" to true,"deviceEmployeeAuthVersion" to 1,"registrationSmsRequired" to true),controller.capabilities("device-key").body)
+        assertEquals(mapOf("enabled" to false,"protocolVersion" to 2,"nameFallbackSupported" to true,"deviceEmployeeAuthVersion" to 1,"registrationSmsRequired" to false),controller.capabilities("device-key").body)
         val error=assertThrows(AppException::class.java){controller.login("device-key",StaffLoginRequest("951212500015","Password123!",StaffContext("u","s","w","p")))}
         assertEquals(503,error.status.value())
         assertEquals(503,assertThrows(AppException::class.java){
@@ -39,21 +39,22 @@ class StaffAuthDisabledTest {
         verify { limiter wasNot Called }
     }
 
-    @Test fun `registration SMS is required by default and the new route stays closed`() {
+    @Test fun `initial registration never requires SMS and delegates only after individual device authentication`() {
         val devices=mockk<PosmDeviceAuthenticationService>()
         val service=mockk<StaffAuthService>()
         val limiter=mockk<kz.epharm.mobile.auth.service.PharmacistPasswordLoginLimiter>()
         every { devices.authenticate("device-key") } returns PosmDeviceIdentity("device","pharmacy",false)
         val controller=StaffAuthController(devices,service,true,limiter)
-        assertEquals(true,(controller.capabilities("device-key").body as Map<*,*>)["registrationSmsRequired"])
-        assertEquals(503,assertThrows(AppException::class.java){
-            controller.deviceRegisterWithoutSms("device-key",StaffDeviceRegistrationWithoutSmsRequest("951212500015","+77002223344","A1!b","Test Person",StaffDeviceContext("process")))
-        }.status.value())
-        verify { service wasNot Called }
+        val request=StaffDeviceRegistrationWithoutSmsRequest("951212500015","+77002223344","A1!b","Test Person",StaffDeviceContext("process"))
+        val result=StaffDeviceSessionResponse("authenticated","synthetic-token",null,StaffPerson("synthetic-person","Test Person"),request.deviceContext)
+        every { service.deviceRegisterWithoutSms(PosmDeviceIdentity("device","pharmacy",false),request) } returns result
+        assertEquals(false,(controller.capabilities("device-key").body as Map<*,*>)["registrationSmsRequired"])
+        assertEquals(result,controller.deviceRegisterWithoutSms("device-key",request).body)
+        verify(exactly=1) { service.deviceRegisterWithoutSms(PosmDeviceIdentity("device","pharmacy",false),request) }
         verify { limiter wasNot Called }
     }
 
-    @Test fun `service also keeps no SMS registration disabled by default`() {
+    @Test fun `new registration OTP never reaches locks budgets challenges or provider`() {
         val jdbc=mockk<org.springframework.jdbc.core.JdbcTemplate>()
         val encoder=mockk<org.springframework.security.crypto.password.PasswordEncoder>()
         every { encoder.encode(any()) } returns "synthetic-dummy-hash"
@@ -62,7 +63,7 @@ class StaffAuthDisabledTest {
         val vault=mockk<kz.epharm.learnercredentials.LearnerPasswordVault>()
         val service=StaffAuthService(jdbc,encoder,provider,phoneLock,vault,false,"unused")
         assertEquals(503,assertThrows(AppException::class.java){
-            service.deviceRegisterWithoutSms(PosmDeviceIdentity("device","pharmacy",false),StaffDeviceRegistrationWithoutSmsRequest("951212500015","+77002223344","A1!b","Test Person",StaffDeviceContext("process")))
+            service.requestOtp(PosmDeviceIdentity("device","pharmacy",false),StaffOtpRequest("register","951212500015","+77002223344"))
         }.status.value())
         verify { jdbc wasNot Called }
         verify { provider wasNot Called }
