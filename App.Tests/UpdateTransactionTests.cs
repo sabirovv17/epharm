@@ -417,7 +417,8 @@ public sealed class UpdateTransactionTests : IDisposable
         Assert.SkipWhen(!OperatingSystem.IsWindows(), "Windows PowerShell/working-directory cleanup requires Windows.");
         var plan = Prepare();
         var error = await Assert.ThrowsAsync<TimeoutException>(() => RunScript(plan, "Start-Sleep -Seconds 30", timeout: TimeSpan.FromMilliseconds(100)));
-        Assert.Contains("PowerShell timed out", error.Message);
+        Assert.Contains("PowerShell timed out during command", error.Message);
+        Assert.Contains("EPHARM_TEST_STAGE=running-command", error.Message);
         AssertPrevious();
         // Windows refuses this while the owned child still holds its working directory.
         Directory.Delete(_root, true);
@@ -434,14 +435,39 @@ public sealed class UpdateTransactionTests : IDisposable
         start.ArgumentList.Add("-ExecutionPolicy"); start.ArgumentList.Add("Bypass"); start.ArgumentList.Add("-EncodedCommand");
         start.ArgumentList.Add(Convert.ToBase64String(Encoding.Unicode.GetBytes(program)));
         using var process = Process.Start(start)!;
+        var commandStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        async Task<string> ReadError()
+        {
+            var text = new StringBuilder();
+            while (await process.StandardError.ReadLineAsync() is { } line)
+            {
+                text.AppendLine(line);
+                // PowerShell can prepend CLIXML progress to the first ordinary stderr line.
+                if (line.Contains("EPHARM_TEST_STAGE=running-command", StringComparison.Ordinal)) commandStarted.TrySetResult();
+            }
+            return text.ToString();
+        }
         // Keep drains alive during test cancellation so cleanup can await actual child exit.
         var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
+        var stderr = ReadError();
+        var exited = process.WaitForExitAsync(TestContext.Current.CancellationToken);
         var budget = timeout ?? TimeSpan.FromSeconds(20);
+        var phase = "bootstrap";
+        var phaseBudget = TimeSpan.FromSeconds(60);
         try
         {
-            await process.WaitForExitAsync(TestContext.Current.CancellationToken).WaitAsync(budget, TestContext.Current.CancellationToken);
-            await Task.WhenAll(stdout, stderr).WaitAsync(TimeSpan.FromSeconds(5));
+            // Process startup and plan loading are outside the tested command's budget.
+            await Task.WhenAny(commandStarted.Task, exited).WaitAsync(phaseBudget, TestContext.Current.CancellationToken);
+            if (commandStarted.Task.IsCompleted)
+            {
+                phase = "command";
+                phaseBudget = budget;
+                await exited.WaitAsync(budget, TestContext.Current.CancellationToken);
+            }
+            else await exited; // Validation can intentionally reject the plan before the command.
+            phase = "stream-drain";
+            phaseBudget = TimeSpan.FromSeconds(5);
+            await Task.WhenAll(stdout, stderr).WaitAsync(phaseBudget);
         }
         catch (Exception failure)
         {
@@ -455,7 +481,7 @@ public sealed class UpdateTransactionTests : IDisposable
             }
             catch (Exception cleanupFailure) { throw new AggregateException("Owned PowerShell cleanup failed.", failure, cleanupFailure); }
             if (failure is TimeoutException)
-                throw new TimeoutException($"PowerShell timed out after {budget.TotalSeconds}s (PID {process.Id}). stdout: {await stdout} stderr: {await stderr}", failure);
+                throw new TimeoutException($"PowerShell timed out during {phase} after {phaseBudget.TotalSeconds}s (PID {process.Id}). stdout: {await stdout} stderr: {await stderr}", failure);
             throw;
         }
         Assert.True(process.ExitCode == expectedExit, $"PowerShell exit {process.ExitCode}: {await stdout} {await stderr}");
