@@ -25,6 +25,9 @@ namespace CustomerDisplay
         private EpharmConfig? _posmConfig;
         private EpharmApiClient? _epharm;
         private OfflineOutbox? _outbox;
+        private PendingShownPings? _pendingShownPings;
+        private List<Recommendation> _unconfirmedRecommendations = new();
+        private Models.ReceiptItem? _displayScannedItem;
         private OutboxFlusher? _flusher;
         private SaleReporter? _saleReporter;
         private ReceiptArtifactStore? _receiptArtifacts;
@@ -199,6 +202,8 @@ namespace CustomerDisplay
                     _epharm = new EpharmApiClient(_posmConfig, Log);
                     // Источник №1 сверки: гарантированная доставка чеков/результатов через outbox.
                     _outbox = new OfflineOutbox(_posmConfig.OutboxDbPath);
+                    _pendingShownPings = new PendingShownPings(
+                        _posmConfig.OutboxDbPath + ".shown-pending", _outbox.Enqueue, Log);
                     _saleReporter = new SaleReporter(_posmConfig, _outbox);
                     if (_posmConfig.ReceiptCaptureEnabled)
                     {
@@ -371,7 +376,16 @@ namespace CustomerDisplay
                     string.Join(" | ", requestLogItems));
 
                 var resp = await _epharm.RecommendAsync(request, token).ConfigureAwait(false);
-                if (resp == null) return;
+                if (resp == null)
+                {
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        if (token.IsCancellationRequested) return;
+                        if (_recoWindow != null) _unconfirmedRecommendations = _recoWindow.Recommendations.ToList();
+                        _recoWindow?.Close();
+                    });
+                    return;
+                }
                 var recommendations = resp.Recommendations ?? new List<Recommendation>();
                 var responseConflicts = resp.Conflicts ?? new List<Conflict>();
                 Log($"POSM recommend response ({reason}): recs={recommendations.Count}, conflicts={responseConflicts.Count}");
@@ -394,29 +408,18 @@ namespace CustomerDisplay
                 // catalog productId while Standard-N exposes iPartID. Stale responses remain protected by CTS.
                 token.ThrowIfCancellationRequested();
 
-                var conflicts = await Dispatcher.InvokeAsync(() => responseConflicts
-                    .Where(c => c != null && !ConflictShown(c))
-                    .ToList());
-                var recs = await Dispatcher.InvokeAsync(() => recommendations
-                    .Where(r => r.IsSubstitution)
-                    .Take(RecommendationPopupModelBuilder.MaxPerKind)
-                    .Concat(recommendations
-                        .Where(r => !r.IsSubstitution)
-                        .Take(RecommendationPopupModelBuilder.MaxPerKind))
-                    .Where(r => !RecommendationShown(r))
-                    .ToList());
-
-                if (conflicts.Count == 0 && recs.Count == 0)
-                {
-                    Log("POSM recommend: показывать нечего (нет новых рекомендаций/конфликтов)");
-                    return;
-                }
-
                 await Dispatcher.InvokeAsync(() =>
                 {
                     if (token.IsCancellationRequested) return;
+                    var conflicts = responseConflicts.Where(c => c != null && !ConflictShown(c)).ToList();
+                    var recs = RecommendationVisibility.Reconcile(
+                        _recoWindow?.Recommendations ?? _unconfirmedRecommendations, recommendations, RecommendationShown);
+                    _unconfirmedRecommendations.Clear();
+                    _displayScannedItem = scannedItem;
                     if (conflicts.Count > 0) ShowConflicts(conflicts);
-                    if (recs.Count > 0) ShowRecommendations(recs, scannedItem);
+                    if (recs.Count == 0) _recoWindow?.Close();
+                    else if (_recoWindow != null) _recoWindow.UpdateRecommendations(recs);
+                    else ShowRecommendations(recs, scannedItem);
                 });
             }
             finally
@@ -598,27 +601,24 @@ namespace CustomerDisplay
             Models.ReceiptItem? scannedItem = null)
         {
             if (recs == null || recs.Count == 0) return;
+            _displayScannedItem = scannedItem;
             BeginRecommendationNotice();
             var previous = _recoWindow;
 
-            // autoCloseSec=0 → попап НЕ закрывается по таймауту, висит до ✕. Карточка
-            // информационная: F9/Esc (принять/пропустить) убраны — факт продажи определяется
-            // по реальному чеку (источник №1 сверки), а не нажатием в окне. Поэтому ни
-            // ApplyAcceptedToCheque, ни outcome-репорт отсюда не нужны.
+            // Availability is a snapshot, not a perpetual promise. Expire after a minute;
+            // a subsequent scan can refresh it. Dismissing a card still records no sale/outcome.
             var target = PharmacistScreen();
-            var win = new RecommendationWindow(recs, 0, target);
+            var win = new RecommendationWindow(recs, 60, target);
             _recoWindow = win;
             previous?.Close();
-            var displayed = false;
+            win.Expired += () => _unconfirmedRecommendations = win.Recommendations.ToList();
             win.Displayed += diagnostics =>
             {
-                if (displayed) return;
-                displayed = true;
-                foreach (var r in recs)
+                foreach (var r in win.Recommendations.Where(r => !RecommendationShown(r)))
                 {
                     // Mark shown only after native coordinates, visibility and topmost state were
                     // verified on the pharmacist monitor. Loaded alone can be off-screen under DPI scaling.
-                    MarkRecommendationShown(r, scannedItem);
+                    MarkRecommendationShown(r, _displayScannedItem);
                     var kind = r.IsSubstitution ? "замена" : "кросс-селл";
                     Log($"POSM popup показан: {kind} → {r.RecommendName} " +
                         $"(EAN {r.RecommendBarcode ?? "—"}), бонус {r.Bonus} ₸");
@@ -703,16 +703,9 @@ namespace CustomerDisplay
         /// </summary>
         private void EnqueueShownPing(string eventId)
         {
-            if (_outbox == null || eventId.StartsWith("demo", StringComparison.OrdinalIgnoreCase)) return;
-            try
-            {
-                var payload = new OutboxShownPayload { EventId = eventId, ShownAt = DateTimeOffset.UtcNow };
-                _outbox.Enqueue("shown_" + eventId, "shown", JsonSerializer.Serialize(payload, EpharmJson.Options));
-            }
-            catch (Exception ex)
-            {
-                Log($"shown-ping enqueue error: {ex.Message}");
-            }
+            if (eventId.StartsWith("demo", StringComparison.OrdinalIgnoreCase)) return;
+            if (_pendingShownPings?.Record(eventId, DateTimeOffset.UtcNow) != true)
+                Log("shown-ping: pending buffer unavailable or full; display telemetry is not durable");
         }
 
         private bool RecommendationAppliesToCurrentCart(Recommendation rec)
@@ -735,12 +728,10 @@ namespace CustomerDisplay
             var win = _recoWindow;
             if (win == null) return;
 
-            var stale = win.Recommendations.Any(r => !ShownRecommendationAppliesToCurrentCart(r));
-            if (!stale) return;
-
-            Log("POSM popup закрыт: товар-триггер удалён из чека");
-            win.Close();
-            if (ReferenceEquals(_recoWindow, win)) _recoWindow = null;
+            var remaining = RecommendationVisibility.ForCart(win.Recommendations, ShownRecommendationAppliesToCurrentCart);
+            if (remaining.Count == win.Recommendations.Count) return;
+            Log("POSM popup обновлён: удалены только рекомендации отсутствующих товаров");
+            win.UpdateRecommendations(remaining, freshResponse: false);
         }
 
         private bool ShownRecommendationAppliesToCurrentCart(Recommendation rec)
@@ -813,6 +804,7 @@ namespace CustomerDisplay
                 _conflictWindow = null;
             }
             _shownRecommendations.Clear();
+            _unconfirmedRecommendations.Clear();
             _shownConflictSigs.Clear();
         }
 

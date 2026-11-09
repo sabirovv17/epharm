@@ -9,9 +9,11 @@ using CustomerDisplay.Models.Posm;
 
 namespace CustomerDisplay.Services;
 
-public sealed class StaffApiException(string code) : Exception("Staff authentication request failed.")
+public sealed class StaffApiException(string code, int? retryAfterSeconds = null, string? retryAction = null) : Exception("Staff authentication request failed.")
 {
     public string Code { get; } = code;
+    public int? RetryAfterSeconds { get; } = retryAfterSeconds;
+    public string? RetryAction { get; } = retryAction;
 }
 
 /// <summary>Separate optional channel: human passwords and staff grants never enter POSM logs/outbox.</summary>
@@ -123,10 +125,39 @@ public sealed class StaffAuthClient : IDisposable
                 System.Net.HttpStatusCode.Conflict => "CONFLICT",
                 _ => "UNAVAILABLE",
             };
-            throw new StaffApiException(code);
+            int? retryAfterSeconds = null;
+            if (code == "RATE_LIMITED") {
+                var retry = response.Headers.RetryAfter;
+                var seconds = retry?.Delta?.TotalSeconds ?? (retry?.Date - DateTimeOffset.UtcNow)?.TotalSeconds;
+                if (seconds is > 0 && double.IsFinite(seconds.Value))
+                    retryAfterSeconds = (int)Math.Clamp(Math.Ceiling(seconds.Value), 1, 86400);
+            }
+            var retryAction = code == "RATE_LIMITED" ? await ReadRetryAction(response, ct).ConfigureAwait(false) : null;
+            throw new StaffApiException(code, retryAfterSeconds, retryAction);
         }
         return await response.Content.ReadFromJsonAsync<T>(Json, ct).ConfigureAwait(false)
             ?? throw new StaffApiException("INVALID_RESPONSE");
+    }
+    private static async Task<string?> ReadRetryAction(HttpResponseMessage response, CancellationToken ct)
+    {
+        // Optional machine action only. Neither free-form messages nor personal body fields
+        // enter diagnostics/UI; malformed, oversized or unknown actions keep generic guidance.
+        if (response.Content.Headers.ContentLength is > 4096) return null;
+        using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        var buffer = new byte[4097]; var count = 0;
+        while (count < buffer.Length) {
+            var read = await stream.ReadAsync(buffer.AsMemory(count, buffer.Length - count), ct).ConfigureAwait(false);
+            if (read == 0) break;
+            count += read;
+        }
+        if (count > 4096) return null;
+        try {
+            using var document = JsonDocument.Parse(buffer.AsMemory(0, count));
+            return document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty("retryAction", out var action) && action.ValueKind == JsonValueKind.String &&
+                action.GetString() == "REQUEST_NEW_OTP" ? "REQUEST_NEW_OTP" : null;
+        }
+        catch (JsonException) { return null; }
     }
     public void Dispose() => _http.Dispose();
 }

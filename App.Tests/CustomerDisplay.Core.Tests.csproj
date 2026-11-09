@@ -21,6 +21,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\App\Services\UpdatePackageDownloader.cs" Link="Services\UpdatePackageDownloader.cs" />
+    <Compile Include="..\App\Services\UpdateTransaction.cs" Link="Services\UpdateTransaction.cs" />
+    <Compile Include="..\App\Services\RecommendationVisibility.cs" Link="Services\RecommendationVisibility.cs" />
+    <Compile Include="..\App\Services\PendingShownPings.cs" Link="Services\PendingShownPings.cs" />
+    <None Include="..\App\scripts\apply-update.ps1" Link="apply-update.ps1" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\Models\Posm\SaleReport.cs" Link="Models\SaleReport.cs" />
     <Compile Include="..\Models\Posm\Fulfillment.cs" Link="Models\Fulfillment.cs" />
     <Compile Include="..\Models\Posm\AppVersion.cs" Link="Models\AppVersion.cs" />

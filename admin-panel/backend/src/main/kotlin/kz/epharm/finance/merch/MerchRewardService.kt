@@ -57,6 +57,7 @@ class MerchRewardService(
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = [AppException::class])
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun requestOtp(personId: String, token: String): MerchOtpResponse {
         UnifiedAuthorityLock.acquire(jdbc)
         val claim = security.challenge(token)
@@ -87,6 +88,7 @@ class MerchRewardService(
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = [AppException::class])
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun issueGrant(personId: String, request: MerchGrantRequest): MerchGrantResponse {
         UnifiedAuthorityLock.acquire(jdbc)
         val claim = security.challenge(request.crmChallenge)

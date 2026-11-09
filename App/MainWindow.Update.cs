@@ -22,6 +22,8 @@ namespace CustomerDisplay
         private void StartUpdateChecks()
         {
             if (_epharm == null || _posmConfig == null) return;
+            // Callback runs after OnLoaded returns. Offline upstreams are allowed: local UI gate.
+            UpdateStartup.BeginReadinessProbe(Dispatcher, () => IsLoaded && _epharm != null && _posmConfig != null && _outbox != null && _heartbeat != null, Log);
             if (!_posmConfig.UpdateEnabled) { Log("Авто-обновление выключено (UpdateEnabled=false)"); return; }
             var sec = _posmConfig.UpdatePollSec;
             if (sec <= 0) { Log("Авто-обновление выключено (UpdatePollSec<=0)"); return; }

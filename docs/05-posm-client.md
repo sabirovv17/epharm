@@ -5,6 +5,45 @@ Path: `App/` and `Models/`.
 Current client is C#/WPF/.NET 10. Older Electron references are historical and no longer describe the
 implementation.
 
+## Local post-#157 audit candidate — 2026-11-09
+
+This section describes **unreleased local changes** based on main `4a6ebaf`
+(server v0.2.13 / POSM 1.0.81). It is not a deployment or workstation acceptance record.
+PR #156's IIN checksum and PR #157's permanently SMS-free registration are retained.
+
+- Failed registration preserves identity, password and confirmation, including timeout,
+  malformed responses and HTTP failures. Unknown success statuses cannot clear the form.
+  A parent-accepted valid grant closes the window and clears secrets. Explicit navigation
+  and dismissal also clear secrets; preserving a failed form does not persist it to disk.
+- Login accepts only `authenticated` and `pending`. An empty/unknown status (including the
+  registration-only `registered`) is an invalid service response, not a pending assignment;
+  the required prompt releases cash work and retains input for a manual retry.
+- Loss of comparable Standard-N identity releases an already-open required prompt without
+  discarding input or treating a previous identity as current. Grant binding remains separate.
+- Login password length/UTF-8 constraints are checked locally. Error text and parent status
+  follow RU/KK. A server-supplied retry deadline is displayed; an exhausted reset OTP asks for
+  a new code instead of claiming that waiting will revive it. Reset/activation still use OTP.
+- Newly raised form errors scroll into view after layout, without focusing the message or
+  activating the window. Timer ticks do not repeatedly scroll the user's form.
+- Recommendation refresh reconciles visible rows with the current authoritative response;
+  failed/empty refreshes cannot leave stale actionable rows. Partial cart removal drops only
+  matching trigger rows. All four matching triggers remain supported. A 60-second display
+  lifetime is not extended by partial cart updates, and manually dismissed rows do not reopen
+  on an ordinary refresh. Stock uncertainty is labelled; the original financial quote is not
+  silently repriced when balance/availability changes.
+- Actual newly displayed rows enter a bounded memory queue and a background journal/outbox
+  writer, rather than doing SQLite I/O on the WPF dispatcher. Queue capacity is 4096 and normal
+  shutdown drain is bounded to two seconds. Memory-only entries can still be lost on power loss.
+- The updater keeps signature/hash validation, adds whole-download/idle deadlines and range
+  validation, and prepares a hashed candidate/backup before writing live files. A durable
+  transaction journal and token/PID/start-time-bound startup acknowledgement support rollback
+  after failed startup. This does not prove physical power-loss recovery or old-client handover.
+
+Native evidence comes from `App.Ui.Tests`: actual WPF windows with fake HTTP, not the full
+POSM startup or live Standard-N. Updater procedures and the read-only, redacted workstation
+collector are documented in `docs/rollout/posm-update-recovery.md`. The repeat-audit results
+and unresolved production gates are recorded at the top of `PLAN.md`.
+
 ## Responsibilities
 
 The POSM client runs on a Windows cash-desk machine:

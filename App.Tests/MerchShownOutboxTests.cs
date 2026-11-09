@@ -158,7 +158,9 @@ public sealed class MerchShownOutboxTests : IDisposable
         Directory.CreateDirectory(_directory);
         File.WriteAllBytes(PathName, [0, 1, 2]);
         Directory.CreateDirectory(PathName + ".corrupt"); // rename cannot overwrite a directory
-        Assert.ThrowsAny<IOException>(() => Queue().Enqueue(Task()));
+        var error = Record.Exception(() => Queue().Enqueue(Task()));
+        Assert.True(error is IOException or UnauthorizedAccessException,
+            $"Expected platform-specific filesystem refusal, got {error?.GetType().Name ?? "no exception"}");
         Assert.Equal(new byte[] { 0, 1, 2 }, File.ReadAllBytes(PathName));
     }
 

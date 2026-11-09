@@ -155,6 +155,9 @@ app:
     # (SMS платные). 0 = выключить. Мобилка держит такой же таймер на кнопке resend.
     resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
   sms:
+    # Shared non-queuing budget across request/verify and all OTP channels.
+    max-concurrent: ${SMS_MAX_CONCURRENT:2}
+    max-concurrent-transactions: ${SMS_MAX_CONCURRENT_TRANSACTIONS:4}
     # Daribar Combined API (`swag.json`): POST /api/v2/sms + POST /api/v2/auth.
     # Секреты SMS-агрегатора находятся внутри Daribar; ePharm и мобильное приложение
     # отправляют только номер/код и никогда не получают ключ агрегатора.

@@ -41,10 +41,15 @@ class GlobalExceptionHandler {
 
     /** Доменные ошибки бизнес-слоя — статус и код задаёт сам AppException. */
     @ExceptionHandler(AppException::class)
-    fun handleApp(ex: AppException): ResponseEntity<ApiErrorResponse> =
-        ResponseEntity.status(ex.status).body(
-            ApiErrorResponse(code = ex.code, message = ex.message ?: ex.code.name),
-        )
+    fun handleApp(ex: AppException): ResponseEntity<ApiErrorResponse> {
+        val retryAction = ex.retryAction?.takeIf { ex.status == HttpStatus.TOO_MANY_REQUESTS }
+        val retryAfter = ex.retryAfterSeconds?.takeIf { it > 0 && ex.status == HttpStatus.TOO_MANY_REQUESTS && retryAction == null }
+        return ResponseEntity.status(ex.status).cacheControl(org.springframework.http.CacheControl.noStore())
+            .headers { headers -> retryAfter?.let { headers.set("Retry-After", it.toString()) } }.body(
+                ApiErrorResponse(code = ex.code, message = ex.message ?: ex.code.name,
+                    retryAfterSeconds = retryAfter, retryAction = retryAction),
+            )
+    }
 
     /** @Valid на DTO — собираем пофайловые ошибки полей. */
     @ExceptionHandler(MethodArgumentNotValidException::class)

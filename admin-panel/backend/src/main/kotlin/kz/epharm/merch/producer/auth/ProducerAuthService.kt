@@ -33,6 +33,7 @@ class ProducerAuthService(private val jdbc:JdbcTemplate,private val provider:Otp
         val attempts:Int,val expires:Instant,val consumed:Boolean)
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun requestOtp(request:ProducerSmsRequest,clientAddress:String):ProducerSmsChallenge {
         gate()
         val phone=normalize(request.phone)
@@ -60,6 +61,7 @@ class ProducerAuthService(private val jdbc:JdbcTemplate,private val provider:Otp
     }
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun verify(request:ProducerSmsVerify):ProducerAuthResponse {
         gate()
         val phone=jdbc.query("SELECT phone FROM merch_producer_challenges WHERE id=?",{rs,_->rs.getString(1)},request.challengeId).singleOrNull()?:invalidOtp()

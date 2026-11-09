@@ -3,7 +3,7 @@ import { check } from 'k6'
 import exec from 'k6/execution'
 import { SharedArray } from 'k6/data'
 import { Counter } from 'k6/metrics'
-import { localOrigin, validateFixture, failureKind, sessionValid, recommendationValid, playlistValid, registrationVuBudget } from './rps-contract.mjs'
+import { localOrigin, validateFixture, failureKind, sessionValid, recommendationValid, playlistValid, registrationVuBudget, publicLoadSummary } from './rps-contract.mjs'
 
 const origin = localOrigin(__ENV.BASE_URL)
 if (__ENV.ISOLATED_RPS_LOAD_TEST !== 'DISPOSABLE_DATABASE_NO_SMS') throw new Error('Explicit isolated-run acknowledgement required')
@@ -170,5 +170,5 @@ export function recommendation() {
   expect(response, 200, 'recommendation', recommendationValid(body(response), payload.sessionId, metadata.background))
 }
 export function handleSummary(data) {
-  return { stdout: JSON.stringify(data.metrics, null, 2), [output]: JSON.stringify({ fixture: { kind: metadata.kind, runId: metadata.runId, expectedDatabase: metadata.expectedDatabase, devices: devices.length }, mode, schedule, concurrency, maxRpsVUs, ...data }, null, 2) }
+  return { stdout: JSON.stringify(data.metrics, null, 2), [output]: JSON.stringify(publicLoadSummary(data, { fixture: { kind: metadata.kind, runId: metadata.runId, expectedDatabase: metadata.expectedDatabase, devices: devices.length }, mode, schedule, concurrency, maxRpsVUs }), null, 2) }
 }

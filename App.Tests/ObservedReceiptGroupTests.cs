@@ -78,7 +78,7 @@ public sealed class ObservedReceiptGroupTests : IDisposable
     }
 
     [Fact]
-    public void ObservedGroupSymlinkCannotReadAnotherFileOrWriteOutsideStore()
+    public void ObservedGroupReparsePointCannotReadAnotherFileOrWriteOutsideStore()
     {
         var original = Group(100);
         Assert.True(Store().SaveObservedGroup(original));
@@ -86,7 +86,14 @@ public sealed class ObservedReceiptGroupTests : IDisposable
         var outside = Path.Combine(_root, "outside.json");
         File.WriteAllText(outside, "must remain unchanged");
         File.Delete(path);
-        File.CreateSymbolicLink(path, outside);
+        if (OperatingSystem.IsWindows())
+        {
+            var externalDirectory = Path.Combine(_root, "external-directory");
+            Directory.CreateDirectory(externalDirectory);
+            // A junction at the payload path must also fail closed, before any write follows it.
+            TestDirectoryLink.Create(path, externalDirectory);
+        }
+        else File.CreateSymbolicLink(path, outside);
         Assert.Throws<InvalidDataException>(() => Store().ReadObservedGroups());
         Assert.Throws<InvalidDataException>(() => Store().SaveObservedGroup(original));
         Assert.Equal("must remain unchanged", File.ReadAllText(outside));
@@ -102,5 +109,13 @@ public sealed class ObservedReceiptGroupTests : IDisposable
         { ObservedActiveDocumentIds = new[] { id } };
     }
 
-    public void Dispose() { if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true); }
+    public void Dispose()
+    {
+        // Remove the fixture link BEFORE its sibling target: recursive Windows cleanup can
+        // otherwise encounter a dangling NTFS junction and report AccessDenied.
+        var link = Path.Combine(_root, "receipts", "observed-groups", "groups.json");
+        if (Directory.Exists(link) && (File.GetAttributes(link) & FileAttributes.ReparsePoint) != 0)
+            Directory.Delete(link);
+        if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+    }
 }

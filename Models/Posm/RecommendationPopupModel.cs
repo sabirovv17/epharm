@@ -86,7 +86,9 @@ namespace CustomerDisplay.Models.Posm
                 PartnerLabel = recommendation.PartnerLabel?.Trim() ?? "",
                 Stock = StockText(recommendation.Balance),
                 HasConfirmedStock = recommendation.Balance != null &&
-                    (recommendation.Balance.Status == "confirmed" || recommendation.Balance.Status == "estimated"),
+                    recommendation.Balance.Status == "confirmed" && recommendation.Balance.ObservedAt.HasValue &&
+                    (recommendation.Balance.PharmacyAvailableQty.HasValue || recommendation.Balance.NetworkAvailableQty.HasValue ||
+                     recommendation.Balance.WarehouseAvailableQty.HasValue),
             }).ToList();
 
             return new RecommendationPopupSection { TriggerText = sharedTrigger, Rows = rows };
@@ -118,7 +120,13 @@ namespace CustomerDisplay.Models.Posm
             if (balance.WarehouseAvailableQty.HasValue)
                 parts.Add($"склад {Qty(balance.WarehouseAvailableQty.Value)}");
             if (parts.Count == 0) return "Остаток не подтверждён";
-            var prefix = balance.Status == "stale" ? "Остаток устарел" : "Остаток";
+            var prefix = balance.Status switch
+            {
+                "stale" => "Остаток устарел",
+                "estimated" => "Расчётный остаток",
+                "confirmed" when balance.ObservedAt.HasValue => "Остаток",
+                _ => "Остаток не подтверждён",
+            };
             var observed = balance.ObservedAt.HasValue
                 ? $" · {balance.ObservedAt.Value.ToLocalTime():dd.MM HH:mm}"
                 : "";

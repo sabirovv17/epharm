@@ -29,6 +29,7 @@ internal static class Program
     private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true, WriteIndented = true };
     private static readonly List<CaseProof> Results = new();
     private static readonly List<StaffAuthWindow> Windows = new();
+    private static readonly List<RecommendationWindow> RecommendationWindows = new();
     private static string Output = Path.Combine(AppContext.BaseDirectory, "proof");
     private static bool _allowNoninteractive;
     private static bool _interactiveSession;
@@ -58,6 +59,7 @@ internal static class Program
             watchdog.Stop();
             Results.Add(new("watchdog", false, new(), "TimeoutException"));
             foreach (var window in Windows) if (window.IsVisible) window.Dismiss();
+            foreach (var window in RecommendationWindows) if (window.IsVisible) window.Close();
             WriteProof(false, "Ninety-second UI watchdog expired.");
             application.Shutdown(3);
         };
@@ -94,6 +96,25 @@ internal static class Program
                 await Run("background-capability-outage-keeps-inflight-registration-valid", BackgroundCapabilityOutage);
                 await Run("registration-rate-limit-keeps-specific-error-and-releases-work", proof => RateLimited(false, proof));
                 await Run("login-rate-limit-keeps-specific-error-and-releases-work", proof => RateLimited(true, proof));
+                await Run("existing-required-window-source-loss-retains-form-and-otp", SourceLossPreservesForm);
+                await Run("source-loss-during-login-releases-window-without-invalidating-request", SourceLossInFlight);
+                await Run("login-password-policy-is-local-and-retains-input", LocalLoginPolicy);
+                await Run("registration-unavailable-and-reset-local-errors-retain-passwords", LocalRegistrationValidation);
+                await Run("all-auth-errors-retranslate-current-state-in-ru-and-kk", AllStatusTranslations);
+                await Run("http-auth-errors-are-mode-specific-and-bilingual", ServerErrorLocalization);
+                await Run("server-retry-after-countdown-is-bilingual-and-never-replays", RetryAfterCountdown);
+                await Run("exhausted-otp-requires-new-code-without-invented-countdown-or-auto-send", ExhaustedOtp);
+                await Run("rapid-submit-is-single-request-and-parent-accepted-grant-clears-password", RapidSubmit);
+                await Run("registration-network-timeout-and-malformed-errors-retain-input", RegistrationTransportFailures);
+                await Run("registration-invalid-success-response-never-clears-form", InvalidRegistrationResponse);
+                await Run("both-login-routes-validate-success-status-without-changing-valid-flows", LoginSuccessStatuses);
+                await Run("otp-retry-action-never-prompts-sms-for-login-or-registration", NonOtpRetryAction);
+                await Run("new-registration-error-reveals-itself-without-stealing-focus", ErrorRevealsWithoutFocus);
+                await Run("recommendation-empty-or-failed-refresh-closes-existing-window", RecommendationEmptyRefresh);
+                await Run("recommendation-partial-cart-removal-keeps-other-offer-in-same-window", RecommendationPartialRemoval);
+                await Run("recommendation-stock-refresh-renders-uncertainty-with-immutable-financial-quote", RecommendationStockRefresh);
+                await Run("recommendation-cart-refresh-does-not-extend-ttl-but-fresh-response-does", RecommendationLifetime);
+                await Run("recommendation-native-display-event-sees-new-current-rows", RecommendationDisplayUpdate);
             }
             catch (Exception error)
             {
@@ -103,7 +124,8 @@ internal static class Program
             {
                 watchdog.Stop();
                 foreach (var window in Windows) if (window.IsVisible) window.Dismiss();
-                var success = Results.Count == 28 && Results.All(result => result.Passed);
+                foreach (var window in RecommendationWindows) if (window.IsVisible) window.Close();
+                var success = Results.Count == 47 && Results.All(result => result.Passed);
                 WriteProof(success, null);
                 application.Shutdown(success ? 0 : 1);
             }
@@ -126,6 +148,7 @@ internal static class Program
         finally
         {
             foreach (var window in Windows) if (window.IsVisible) window.Dismiss();
+            foreach (var window in RecommendationWindows) if (window.IsVisible) window.Close();
         }
         WriteProof(false, "In progress");
     }
@@ -162,9 +185,9 @@ internal static class Program
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     }
     private static async Task Idle() => await Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
-    private static async Task Until(Func<bool> condition)
+    private static async Task Until(Func<bool> condition, int timeoutSeconds = 10)
     {
-        var timeout = DateTimeOffset.UtcNow.AddSeconds(10);
+        var timeout = DateTimeOffset.UtcNow.AddSeconds(timeoutSeconds);
         while (!condition())
         {
             if (DateTimeOffset.UtcNow > timeout) throw new TimeoutException("Own UI test timed out.");
@@ -199,7 +222,7 @@ internal static class Program
         Click(Field<Button>(window, "_request"));
         await Until(() => handler.OtpCalls == 1 && !Busy(window));
     }
-    private static void SaveOwnWindow(StaffAuthWindow window, string name)
+    private static void SaveOwnWindow(Window window, string name)
     {
         window.UpdateLayout();
         var dpi = VisualTreeHelper.GetDpi(window);
@@ -561,7 +584,7 @@ internal static class Program
     {
         var state = DeviceState(); var context = state.Context!; var generation = state.Generation;
         using var handler = new FakeHandler { DeviceContext = context,
-            DirectFailureStatuses = [HttpStatusCode.BadRequest, HttpStatusCode.Conflict, HttpStatusCode.TooManyRequests, HttpStatusCode.ServiceUnavailable] };
+            DirectFailureStatuses = [HttpStatusCode.BadRequest, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden, HttpStatusCode.Conflict, HttpStatusCode.TooManyRequests, HttpStatusCode.ServiceUnavailable] };
         using var client = new StaffAuthClient(Config(), handler);
         var window = DeviceWindow(client, state, registrationSmsRequired: false); RegistrationFields(window);
         var accepted = false;
@@ -575,6 +598,8 @@ internal static class Program
         Field<PasswordBox>(window, "_passwordConfirmation").Password = "4567";
         Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
         Check(proof, "local-mismatch-preserves-each-entered-password", handler.TotalCalls == 0 && Field<PasswordBox>(window, "_password").Password == FixturePassword && Field<PasswordBox>(window, "_passwordConfirmation").Password == "4567");
+        Field<TextBlock>(window, "_status").BringIntoView(); await Idle();
+        SaveOwnWindow(window, "07-registration-local-error-preserved");
         Field<PasswordBox>(window, "_password").Password = "12"; Field<PasswordBox>(window, "_passwordConfirmation").Password = "12";
         Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
         Check(proof, "local-length-error-retains-passwords-without-request", handler.TotalCalls == 0 && Field<PasswordBox>(window, "_password").Password == "12" && Field<PasswordBox>(window, "_passwordConfirmation").Password == "12");
@@ -584,9 +609,10 @@ internal static class Program
             Click(Field<Button>(window, "_submit")); await Until(() => handler.WithoutSmsCalls == index + 1 && !Busy(window));
             Check(proof, $"http-{(int)handler.DirectFailureStatuses[index]}-retains-passwords-and-identity", window.IsVisible && !accepted && state.Grant == null && Field<PasswordBox>(window, "_password").Password == FixturePassword && Field<PasswordBox>(window, "_passwordConfirmation").Password == FixturePassword && Field<TextBox>(window, "_iin").Text == FixtureIin && Field<TextBox>(window, "_phone").Text == FixturePhone);
             Check(proof, $"http-{(int)handler.DirectFailureStatuses[index]}-no-automatic-retry-or-otp", handler.TotalCalls == index + 1 && handler.OtpCalls == 0 && handler.RegisterCalls == 0 && handler.DeviceRegisterCalls == 0);
+            if (index == 0) { Field<TextBlock>(window, "_status").BringIntoView(); await Idle(); SaveOwnWindow(window, "08-registration-http-error-preserved"); }
         }
         Click(Field<Button>(window, "_submit")); await Until(() => !window.IsVisible || !Busy(window));
-        Check(proof, "same-form-retry-succeeds-without-reentering-password", accepted && !window.IsVisible && state.IsAuthenticated(DateTimeOffset.UtcNow) && handler.WithoutSmsCalls == 5 && handler.DirectBodyMatched);
+        Check(proof, "same-form-retry-succeeds-without-reentering-password", accepted && !window.IsVisible && state.IsAuthenticated(DateTimeOffset.UtcNow) && handler.WithoutSmsCalls == handler.DirectFailureStatuses.Length + 1 && handler.DirectBodyMatched);
         Check(proof, "successful-close-clears-both-passwords", Field<PasswordBox>(window, "_password").Password.Length == 0 && Field<PasswordBox>(window, "_passwordConfirmation").Password.Length == 0);
     }
 
@@ -688,11 +714,427 @@ internal static class Program
         Check(proof, "password-reset-does-not-fake-an-authenticated-grant", !eventSeen && state.Grant == null && window.IsVisible);
     }
 
+    private static StaffDeviceSessionState KnownDeviceState()
+    {
+        var state = DeviceState(); var process = state.ProcessInstanceId!;
+        state.Observe(new("resolved", process), new("resolved", new StaffObservedSession(process, "DEV-USER", "DEV-SESSION", "DEV-WS", FixtureIin, "available")));
+        return state;
+    }
+    private static async Task SourceLossPreservesForm(Dictionary<string, bool> proof)
+    {
+        var state = KnownDeviceState(); var context = state.Context!; var generation = state.Generation;
+        using var handler = new FakeHandler { DeviceContext = context }; using var client = new StaffAuthClient(Config(), handler);
+        var window = DeviceWindow(client, state); RecoveryFields(window); Field<TextBox>(window, "_name").Text = "DEV synthetic employee"; await RequestOtp(window, handler);
+        Field<TextBox>(window, "_code").Text = "5445";
+        Check(proof, "same-existing-window-starts-required", window.IsVisible && window.WindowStyle == WindowStyle.None);
+        var challenge = Field<string>(window, "_challenge");
+        state.Observe(new("resolved", context.ProcessInstanceId), new("database_unavailable"));
+        // Exercise the real public presentation hook used by MainWindow.ApplyStaffObservation;
+        // no MainWindow startup, real Standard-N process or production database is simulated.
+        window.UpdateSourceContext(state.CurrentSource); await Idle();
+        Check(proof, "unknown-source-releases-existing-window", window.IsVisible && window.WindowStyle == WindowStyle.SingleBorderWindow && window.ResizeMode == ResizeMode.CanResize);
+        Check(proof, "source-loss-preserves-all-form-and-otp-input", Field<TextBox>(window, "_iin").Text == FixtureIin &&
+            Field<TextBox>(window, "_phone").Text == FixturePhone && Field<TextBox>(window, "_name").Text == "DEV synthetic employee" &&
+            Field<PasswordBox>(window, "_password").Password == FixturePassword && Field<PasswordBox>(window, "_passwordConfirmation").Password == FixturePassword &&
+            Field<TextBox>(window, "_code").Text == "5445" && Field<string>(window, "_challenge") == challenge);
+        Check(proof, "source-loss-does-not-authorize-or-change-generation", state.Grant == null && state.Generation == generation && state.LastKnownSource == context.StandardNContext);
+        SaveOwnWindow(window, "09-source-loss-preserved-form");
+        window.Close(); await Idle();
+        Check(proof, "released-window-is-closable-and-clears-secrets", !window.IsVisible && Field<PasswordBox>(window, "_password").Password.Length == 0 && Field<PasswordBox>(window, "_passwordConfirmation").Password.Length == 0);
+        Check(proof, "no-extra-http-from-source-loss", handler.TotalCalls == 1);
+    }
+    private static async Task SourceLossInFlight(Dictionary<string, bool> proof)
+    {
+        var state = KnownDeviceState(); var context = state.Context!; var generation = state.Generation;
+        StaffAuthWindow? window = null;
+        using var handler = new FakeHandler { DeviceContext = context, DeviceDelayMilliseconds = 60, BeforeDeviceReply = () => {
+            Check(proof, "real-window-request-is-pending", window!.IsRequestPending);
+            state.Observe(new("resolved", context.ProcessInstanceId), new("ambiguous_session"));
+            window.UpdateSourceContext(state.CurrentSource);
+            Check(proof, "pending-release-does-not-cancel-request-or-generation", window.IsRequestPending && window.WindowStyle != WindowStyle.None && state.Generation == generation);
+        } };
+        using var client = new StaffAuthClient(Config(), handler); window = DeviceWindow(client, state);
+        var accepted = false;
+        window.Authenticated += response => { accepted = state.Accept(generation, context, response, DateTimeOffset.UtcNow); if (accepted) window.Dismiss(); };
+        FillLogin(window); Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+        Check(proof, "current-request-can-complete-after-source-loss", accepted && state.IsAuthenticated(DateTimeOffset.UtcNow) && !window.IsVisible && handler.DeviceLoginCalls == 1);
+    }
+    private static async Task LocalLoginPolicy(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); using var handler = new FakeHandler { DeviceContext = state.Context }; using var client = new StaffAuthClient(Config(), handler);
+        var window = DeviceWindow(client, state); FillLogin(window);
+        window.Authenticated += response => { if (state.Accept(state.Generation, state.Context!, response, DateTimeOffset.UtcNow)) window.Dismiss(); };
+        foreach (var password in new[] { "123", new string('я', 37) }) {
+            Field<PasswordBox>(window, "_password").Password = password;
+            Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+            var status = Field<TextBlock>(window, "_status").Text;
+            Check(proof, password.Length == 3 ? "short-login-is-local-and-specific" : "multibyte-overflow-is-local-and-specific",
+                handler.TotalCalls == 0 && Field<PasswordBox>(window, "_password").Password == password &&
+                status.Contains(password.Length == 3 ? "4 до 128" : "72 байт", StringComparison.Ordinal) && !status.Contains("SMS", StringComparison.OrdinalIgnoreCase));
+        }
+        Field<PasswordBox>(window, "_password").Password = FixturePassword;
+        Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+        Check(proof, "four-character-login-still-reaches-server-once", handler.DeviceLoginCalls == 1 && handler.DeviceBodyMatched && Field<PasswordBox>(window, "_password").Password.Length == 0);
+    }
+    private static async Task LocalRegistrationValidation(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); using var handler = new FakeHandler { DeviceContext = state.Context }; using var client = new StaffAuthClient(Config(), handler);
+        var window = DeviceWindow(client, state, registrationSmsRequired: false); RegistrationFields(window); Field<TextBox>(window, "_name").Clear();
+        Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+        Check(proof, "missing-name-retains-both-passwords-without-http", handler.TotalCalls == 0 && PasswordsRetained(window) && Field<TextBlock>(window, "_status").Text.Contains("ФИО", StringComparison.Ordinal));
+        Field<TextBox>(window, "_name").Text = "DEV synthetic employee";
+        Field<PasswordBox>(window, "_passwordConfirmation").Password = "different";
+        Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+        Check(proof, "mismatch-retains-both-original-inputs", handler.TotalCalls == 0 && Field<PasswordBox>(window, "_password").Password == FixturePassword && Field<PasswordBox>(window, "_passwordConfirmation").Password == "different");
+        Field<PasswordBox>(window, "_passwordConfirmation").Password = FixturePassword;
+        window.SetRegistrationSmsRequired(true);
+        Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+        Check(proof, "unavailable-registration-retains-input-and-never-offers-otp", handler.TotalCalls == 0 && PasswordsRetained(window) &&
+            Field<Button>(window, "_request").Visibility == Visibility.Collapsed && Field<TextBlock>(window, "_status").Text.Contains("Регистрация без SMS пока недоступна", StringComparison.Ordinal));
+        RecoveryFields(window);
+        Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+        Check(proof, "reset-missing-sms-retains-passwords-without-http", handler.TotalCalls == 0 && PasswordsRetained(window));
+        await RequestOtp(window, handler); Field<TextBox>(window, "_code").Text = "1";
+        Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+        Check(proof, "reset-malformed-code-retains-passwords-without-completion", handler.TotalCalls == 1 && PasswordsRetained(window) && Field<TextBlock>(window, "_status").Text.Contains("4–8", StringComparison.Ordinal));
+        typeof(StaffAuthWindow).GetField("_challengeExpiresAt", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(window, DateTimeOffset.UtcNow.AddSeconds(-1));
+        Field<TextBox>(window, "_code").Text = "5445"; Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+        Check(proof, "reset-expired-code-retains-passwords-without-completion", handler.TotalCalls == 1 && PasswordsRetained(window) && Field<TextBlock>(window, "_status").Text.Contains("запросите новый SMS", StringComparison.Ordinal));
+        Field<TextBlock>(window, "_status").BringIntoView(); await Idle(); SaveOwnWindow(window, "10-local-validation-preserved-passwords");
+        Click(Field<Button>(window, "_back"));
+        Check(proof, "navigation-clears-passwords", Field<PasswordBox>(window, "_password").Password.Length == 0 && Field<PasswordBox>(window, "_passwordConfirmation").Password.Length == 0);
+    }
+    private static bool PasswordsRetained(StaffAuthWindow window) => Field<PasswordBox>(window, "_password").Password == FixturePassword && Field<PasswordBox>(window, "_passwordConfirmation").Password == FixturePassword;
+    private static async Task AllStatusTranslations(Dictionary<string, bool> proof)
+    {
+        using var handler = new FakeHandler(); using var client = new StaffAuthClient(Config(), handler);
+        var window = Window(client, Context(), false);
+        var setError = typeof(StaffAuthWindow).GetMethod("SetError", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var languageEvents = 0; window.LanguageChanged += _ => languageEvents++;
+        foreach (var code in new[] { "IIN_REQUIRED", "PHONE_REQUIRED", "SESSION_REQUIRED", "PASSWORD_REQUIRED", "PASSWORD_LENGTH", "PASSWORD_BYTES", "PASSWORD_MISMATCH", "NAME_REQUIRED", "SMS_REQUIRED", "CODE_REQUIRED", "RATE_LIMITED", "INVALID_CREDENTIALS", "FORBIDDEN", "INVALID_DATA", "CONFLICT", "INVALID_RESPONSE", "UNAVAILABLE", "REGISTRATION_UNAVAILABLE" }) {
+            Click(Field<Button>(window, "_languageRu")); setError.Invoke(window, [new StaffApiException(code)]);
+            var ru = Field<TextBlock>(window, "_status").Text;
+            Click(Field<Button>(window, "_languageKk")); var kk = Field<TextBlock>(window, "_status").Text;
+            Click(Field<Button>(window, "_languageRu"));
+            Check(proof, code + "-current-message-retranslates", !string.IsNullOrWhiteSpace(kk) && kk != ru && Field<TextBlock>(window, "_status").Text == ru);
+        }
+        Click(Field<Button>(window, "_languageKk"));
+        window.ReleaseWork("Форма сохранена.", "Нысан сақталды.");
+        Check(proof, "parent-status-uses-selected-language", window.IsKazakh && Field<TextBlock>(window, "_status").Text == "Нысан сақталды." && languageEvents == 55);
+        SaveOwnWindow(window, "11-kazakh-status"); await Idle();
+        Check(proof, "translations-never-send-requests", handler.TotalCalls == 0);
+    }
+    private static async Task ServerErrorLocalization(Dictionary<string, bool> proof)
+    {
+        foreach (var status in new[] { HttpStatusCode.BadRequest, HttpStatusCode.Unauthorized, HttpStatusCode.ServiceUnavailable }) {
+            var state = DeviceState(); using var handler = new FakeHandler { DeviceContext = state.Context, LoginFailure = status }; using var client = new StaffAuthClient(Config(), handler);
+            var window = DeviceWindow(client, state); FillLogin(window); Click(Field<Button>(window, "_languageKk"));
+            Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+            var kk = Field<TextBlock>(window, "_status").Text;
+            Click(Field<Button>(window, "_languageRu")); var ru = Field<TextBlock>(window, "_status").Text;
+            Check(proof, ((int)status) + "-real-http-error-localizes-without-sms-guidance", kk != ru && !kk.Contains("SMS", StringComparison.OrdinalIgnoreCase) && !ru.Contains("SMS", StringComparison.OrdinalIgnoreCase) && handler.TotalCalls == 1 && Field<PasswordBox>(window, "_password").Password == FixturePassword);
+            window.Dismiss();
+        }
+    }
+    private static async Task RetryAfterCountdown(Dictionary<string, bool> proof)
+    {
+        var state = KnownDeviceState(); using var handler = new FakeHandler { DeviceContext = state.Context, RateLimitedRequests = true, RetryAfterSeconds = 2 }; using var client = new StaffAuthClient(Config(), handler);
+        var window = DeviceWindow(client, state); FillLogin(window); Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+        Check(proof, "server-delay-shown-with-released-presentation", Field<TextBlock>(window, "_status").Text.Contains("Повторите через", StringComparison.Ordinal) &&
+            Field<DispatcherTimer>(window, "_statusTimer").IsEnabled && window.WindowStyle != WindowStyle.None);
+        Click(Field<Button>(window, "_languageKk"));
+        Check(proof, "same-countdown-retranslates-to-kazakh", Field<TextBlock>(window, "_status").Text.Contains("с кейін қайталаңыз", StringComparison.Ordinal));
+        await Until(() => Field<TextBlock>(window, "_status").Text.Contains("аяқталды", StringComparison.Ordinal));
+        Check(proof, "countdown-stops-without-automatic-retry", handler.TotalCalls == 1 && !Field<DispatcherTimer>(window, "_statusTimer").IsEnabled);
+    }
+    private static async Task RapidSubmit(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); using var handler = new FakeHandler { DeviceContext = state.Context, DeviceDelayMilliseconds = 150 }; using var client = new StaffAuthClient(Config(), handler);
+        var window = DeviceWindow(client, state); FillLogin(window); var events = 0;
+        window.Authenticated += response => { events++; if (state.Accept(state.Generation, state.Context!, response, DateTimeOffset.UtcNow)) window.Dismiss(); };
+        var submit = Field<Button>(window, "_submit"); Click(submit);
+        Check(proof, "pending-request-disables-submit", Busy(window) && !submit.IsEnabled);
+        for (var n = 0; n < 10; n++) submit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Until(() => !Busy(window));
+        Check(proof, "even-forced-rapid-clicks-send-one-mutation", handler.DeviceLoginCalls == 1 && events == 1 && Field<PasswordBox>(window, "_password").Password.Length == 0);
+    }
+    private static async Task ExhaustedOtp(Dictionary<string, bool> proof)
+    {
+        var state = KnownDeviceState(); using var handler = new FakeHandler { DeviceContext = state.Context,
+            RateLimitedRequests = true, RetryAction = "REQUEST_NEW_OTP" }; using var client = new StaffAuthClient(Config(), handler);
+        var window = DeviceWindow(client, state); RecoveryFields(window); await RequestOtp(window, handler);
+        Field<TextBox>(window, "_code").Text = "5445"; Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+        Check(proof, "exhausted-code-explains-new-sms-not-waiting", Field<TextBlock>(window, "_status").Text.Contains("Запросите новый SMS-код", StringComparison.Ordinal) &&
+            !Field<DispatcherTimer>(window, "_statusTimer").IsEnabled);
+        Check(proof, "exhausted-challenge-cleared-without-grant-or-auto-send", Field<TextBox>(window, "_code").Text.Length == 0 &&
+            typeof(StaffAuthWindow).GetField("_challenge", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window) == null &&
+            state.Grant == null && handler.TotalCalls == 2 && handler.OtpCalls == 1 && window.WindowStyle != WindowStyle.None);
+        Click(Field<Button>(window, "_languageKk"));
+        Check(proof, "new-code-guidance-retranslates-current-state", Field<TextBlock>(window, "_status").Text.Contains("Жаңа SMS кодын сұраңыз", StringComparison.Ordinal));
+    }
+
+    private static async Task RegistrationTransportFailures(Dictionary<string, bool> proof)
+    {
+        foreach (var failure in new[] { "network", "timeout", "malformed-json" })
+        {
+            var state = KnownDeviceState();
+            using var handler = new FakeHandler { DeviceContext = state.Context, DirectTransportFailure = failure };
+            using var client = new StaffAuthClient(Config(), handler);
+            var window = DeviceWindow(client, state, registrationSmsRequired: false); RegistrationFields(window);
+            var accepted = false; window.Authenticated += _ => accepted = true;
+            var heartbeatCount = 0;
+            var heartbeat = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            heartbeat.Tick += (_, _) => heartbeatCount++;
+            heartbeat.Start(); var elapsed = Stopwatch.StartNew();
+            try
+            {
+                Click(Field<Button>(window, "_submit"));
+                if (failure == "timeout") Check(proof, "real-fifteen-second-http-timeout-keeps-request-single-and-input-disabled",
+                    Busy(window) && !Field<Button>(window, "_submit").IsEnabled && handler.TotalCalls == 1);
+                await Until(() => !Busy(window), timeoutSeconds: 22);
+            }
+            finally { heartbeat.Stop(); elapsed.Stop(); }
+            Check(proof, failure + "-registration-keeps-all-input-after-failure",
+                window.IsVisible && Field<ComboBox>(window, "_mode").SelectedIndex == 1 && PasswordsRetained(window) &&
+                Field<TextBox>(window, "_iin").Text == FixtureIin && Field<TextBox>(window, "_phone").Text == FixturePhone &&
+                Field<TextBox>(window, "_name").Text == "DEV synthetic employee");
+            Check(proof, failure + "-does-not-authorize-replay-or-send-sms",
+                !accepted && state.Grant == null && handler.TotalCalls == 1 && handler.WithoutSmsCalls == 1 && handler.OtpCalls == 0 &&
+                Field<Button>(window, "_request").Visibility == Visibility.Collapsed);
+            Check(proof, failure + "-releases-cash-work-and-enables-manual-retry",
+                window.WindowStyle != WindowStyle.None && Field<Button>(window, "_submit").IsEnabled &&
+                Field<TextBlock>(window, "_status").Text.Contains("недоступ", StringComparison.Ordinal));
+            if (failure == "timeout") Check(proof, "real-http-timeout-is-bounded-and-dispatcher-remains-live",
+                elapsed.Elapsed >= TimeSpan.FromSeconds(14) && elapsed.Elapsed < TimeSpan.FromSeconds(22) && heartbeatCount >= 5);
+            window.Close(); await Idle();
+            Check(proof, failure + "-dismissal-clears-passwords",
+                !window.IsVisible && Field<PasswordBox>(window, "_password").Password.Length == 0 && Field<PasswordBox>(window, "_passwordConfirmation").Password.Length == 0);
+        }
+    }
+    private static async Task InvalidRegistrationResponse(Dictionary<string, bool> proof)
+    {
+        foreach (var fault in new[] { "unknown-status", "missing-status", "missing-grant" })
+        {
+            var state = DeviceState();
+            using var handler = new FakeHandler { DeviceContext = state.Context, DirectResponseFault = fault };
+            using var client = new StaffAuthClient(Config(), handler);
+            var window = DeviceWindow(client, state, registrationSmsRequired: false); RegistrationFields(window);
+            var authenticated = false; window.Authenticated += _ => authenticated = true;
+            Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+            Check(proof, fault + "-is-not-a-success-and-keeps-passwords",
+                window.IsVisible && Field<ComboBox>(window, "_mode").SelectedIndex == 1 && PasswordsRetained(window) &&
+                Field<TextBox>(window, "_iin").Text == FixtureIin && Field<TextBox>(window, "_phone").Text == FixturePhone &&
+                !authenticated && state.Grant == null);
+            Check(proof, fault + "-never-sends-sms-or-replays", handler.TotalCalls == 1 && handler.OtpCalls == 0);
+            window.Dismiss();
+        }
+    }
+    private static async Task LoginSuccessStatuses(Dictionary<string, bool> proof)
+    {
+        foreach (var deviceRoute in new[] { false, true })
+        foreach (var responseStatus in new string?[] { null, "", "unexpected", "registered", "pending", "authenticated" })
+        {
+            var deviceState = KnownDeviceState(); var deviceContext = deviceState.Context!;
+            var context = deviceRoute ? deviceContext.StandardNContext! : Context();
+            var legacyState = State(context); var legacyPolicy = new StaffPromptPolicy();
+            using var handler = new FakeHandler { DeviceContext = deviceContext, ObservedContext = context,
+                OverrideLoginResponse = responseStatus != "authenticated", LoginResponseStatus = responseStatus };
+            using var client = new StaffAuthClient(Config(), handler);
+            var window = deviceRoute ? DeviceWindow(client, deviceState) : Window(client, context, true);
+            var prefix = (deviceRoute ? "device-" : "legacy-") + (responseStatus == null ? "null" : responseStatus.Length == 0 ? "empty" : responseStatus);
+            Check(proof, prefix + "-starts-with-required-presentation", window.WindowStyle == WindowStyle.None);
+            var authenticatedEvent = false; var accepted = false; StaffPromptBypassReason? bypass = null;
+            window.BypassRequested += reason => bypass = reason;
+            window.Authenticated += response => {
+                authenticatedEvent = true;
+                accepted = deviceRoute
+                    ? deviceState.Accept(deviceState.Generation, deviceContext, response, DateTimeOffset.UtcNow)
+                    : legacyPolicy.AcceptAuthentication(legacyState, legacyState.Generation, legacyState.Observation.Session!.Key, context, response, DateTimeOffset.UtcNow);
+                if (accepted) window.Dismiss();
+            };
+            FillLogin(window); Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+            Check(proof, prefix + "-one-correct-login-request-without-sms-or-retry", handler.TotalCalls == 1 && handler.OtpCalls == 0 &&
+                (deviceRoute ? handler.DeviceLoginCalls == 1 && handler.DeviceBodyMatched : handler.LoginContextMatched));
+            if (responseStatus == "authenticated")
+            {
+                Check(proof, prefix + "-valid-grant-still-closes-and-clears-password", authenticatedEvent && accepted && !window.IsVisible &&
+                    Field<PasswordBox>(window, "_password").Password.Length == 0 && bypass == null);
+                continue;
+            }
+            Check(proof, prefix + "-no-grant-and-input-retained", !authenticatedEvent && !accepted && deviceState.Grant == null && legacyState.Grant == null &&
+                window.IsVisible && Field<TextBox>(window, "_iin").Text == FixtureIin && Field<PasswordBox>(window, "_password").Password == FixturePassword &&
+                Field<ComboBox>(window, "_mode").SelectedIndex == 0 && Field<Button>(window, "_request").Visibility == Visibility.Collapsed);
+            var message = Field<TextBlock>(window, "_status").Text;
+            if (responseStatus == "pending")
+            {
+                Check(proof, prefix + "-known-pending-flow-is-unchanged", bypass == null &&
+                    message.Contains(deviceRoute ? "Назначение аптеки" : "Профиль ожидает", StringComparison.Ordinal) &&
+                    (deviceRoute ? window.WindowStyle != WindowStyle.None : window.WindowStyle == WindowStyle.None));
+                window.Dismiss();
+            }
+            else
+            {
+                Check(proof, prefix + "-malformed-success-is-service-failure-not-pending", bypass == StaffPromptBypassReason.ServiceUnavailable &&
+                    message.Contains("Сервис временно недоступен", StringComparison.Ordinal) && !message.Contains("SMS", StringComparison.OrdinalIgnoreCase) &&
+                    !message.Contains("ожидает", StringComparison.OrdinalIgnoreCase) && !message.Contains("Назначение аптеки", StringComparison.Ordinal));
+                Check(proof, prefix + "-required-presentation-released-and-manual-retry-enabled", window.WindowStyle != WindowStyle.None &&
+                    Field<Button>(window, "_continueWithoutSignIn").Visibility == Visibility.Visible && Field<Button>(window, "_submit").IsEnabled);
+                window.Close(); await Idle();
+                Check(proof, prefix + "-ordinary-close-clears-password", !window.IsVisible && Field<PasswordBox>(window, "_password").Password.Length == 0);
+            }
+        }
+    }
+
+    private static async Task NonOtpRetryAction(Dictionary<string, bool> proof)
+    {
+        foreach (var registration in new[] { false, true })
+        {
+            var state = DeviceState();
+            using var handler = new FakeHandler { DeviceContext = state.Context, RateLimitedRequests = true, RetryAction = "REQUEST_NEW_OTP" };
+            using var client = new StaffAuthClient(Config(), handler);
+            var window = DeviceWindow(client, state, registrationSmsRequired: false);
+            if (registration) RegistrationFields(window); else FillLogin(window);
+            Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+            var message = Field<TextBlock>(window, "_status").Text;
+            Check(proof, (registration ? "registration" : "login") + "-does-not-trust-otp-action-outside-otp-flow",
+                !message.Contains("SMS", StringComparison.OrdinalIgnoreCase) && !Field<DispatcherTimer>(window, "_statusTimer").IsEnabled &&
+                handler.TotalCalls == 1 && handler.OtpCalls == 0 && state.Grant == null &&
+                Field<Button>(window, "_request").Visibility == Visibility.Collapsed);
+            if (registration) Check(proof, "registration-rate-limit-keeps-both-passwords", PasswordsRetained(window));
+            window.Dismiss();
+        }
+    }
+
+    private static async Task ErrorRevealsWithoutFocus(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); using var handler = new FakeHandler { DeviceContext = state.Context };
+        using var client = new StaffAuthClient(Config(), handler);
+        var window = DeviceWindow(client, state, registrationSmsRequired: false);
+        window.Width = 520; window.Height = 480;
+        RegistrationFields(window); Field<PasswordBox>(window, "_passwordConfirmation").Password = "different";
+        Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+        var form = Field<StackPanel>(window, "_form");
+        var scroll = Visuals<ScrollViewer>(window).Single(view => view.Content is Grid canvas && canvas.Children.Contains(form));
+        var viewport = Visuals<ScrollContentPresenter>(scroll).Single(view => ReferenceEquals(view.TemplatedParent, scroll));
+        var submit = Field<Button>(window, "_submit"); var status = Field<TextBlock>(window, "_status");
+        // Place only the button at the bottom of the viewport, reproducing the screenshot
+        // finding. There is deliberately no status BringIntoView in this regression.
+        var buttonBottom = submit.TransformToAncestor(viewport).Transform(new Point(0, submit.ActualHeight)).Y;
+        scroll.ScrollToVerticalOffset(scroll.VerticalOffset + buttonBottom - viewport.ActualHeight + 2);
+        await Idle(); window.UpdateLayout();
+        var statusBefore = status.TransformToAncestor(viewport).Transform(new Point(0, 0)).Y;
+        var submitBefore = submit.TransformToAncestor(viewport).Transform(new Point(0, 0)).Y;
+        Check(proof, "precondition-submit-visible-and-previous-error-below-fold", submitBefore >= 0 &&
+            submitBefore + submit.ActualHeight <= viewport.ActualHeight + 1 && statusBefore >= viewport.ActualHeight);
+        Field<PasswordBox>(window, "_passwordConfirmation").Password = FixturePassword;
+        Field<TextBox>(window, "_name").Clear();
+        scroll.Focusable = true; scroll.Focus(); await Idle();
+        var focusBefore = System.Windows.Input.Keyboard.FocusedElement; var activeBefore = window.IsActive;
+        var offsetBefore = scroll.VerticalOffset;
+        Click(submit); await Until(() => !Busy(window));
+        var bounds = status.TransformToAncestor(viewport).TransformBounds(new Rect(status.RenderSize));
+        Check(proof, "new-error-becomes-fully-visible-without-test-scrolling", bounds.Top >= -1 && bounds.Bottom <= viewport.ActualHeight + 1 &&
+            scroll.VerticalOffset > offsetBefore && status.Text.Contains("ФИО", StringComparison.Ordinal));
+        Check(proof, "error-reveal-keeps-existing-focus-and-window-activation", ReferenceEquals(focusBefore, System.Windows.Input.Keyboard.FocusedElement) &&
+            window.IsActive == activeBefore && !status.IsKeyboardFocusWithin);
+        Check(proof, "error-reveal-keeps-passwords-and-does-not-submit", PasswordsRetained(window) && handler.TotalCalls == 0);
+        SaveOwnWindow(window, "14-registration-error-auto-revealed");
+    }
+
+    private static Recommendation Offer(string id, int price = 1234, int bonus = 45) => new() {
+        EventId = "DEV-EVENT-" + id, RuleId = "DEV-RULE-" + id, Kind = "substitution",
+        TriggerIpartId = id, TriggerName = "DEV synthetic trigger " + id,
+        RecommendSku = "DEV-SKU-" + id, RecommendName = "DEV synthetic offer " + id,
+        RecommendPrice = price, Bonus = bonus,
+        Balance = new ProductBalance { Status = "confirmed", PharmacyAvailableQty = 10, ObservedAt = DateTimeOffset.UtcNow },
+    };
+    private static RecommendationWindow RecommendationPopup(List<Recommendation> offers, int lifetime = 0, bool show = true)
+    {
+        var window = new RecommendationWindow(offers, lifetime, _screen);
+        RecommendationWindows.Add(window);
+        if (show) window.Show();
+        return window;
+    }
+    private static IEnumerable<T> Visuals<T>(DependencyObject root) where T : DependencyObject
+    {
+        if (root is T match) yield return match;
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+            foreach (var child in Visuals<T>(VisualTreeHelper.GetChild(root, index))) yield return child;
+    }
+    private static string RowText(RecommendationWindow window, string name) =>
+        Visuals<TextBlock>(window).Single(text => text.Name == name && text.IsVisible).Text;
+    private static async Task RecommendationEmptyRefresh(Dictionary<string, bool> proof)
+    {
+        foreach (var failed in new[] { false, true }) {
+            var window = RecommendationPopup([Offer("A")]); await Idle();
+            Check(proof, (failed ? "failed" : "empty") + "-starts-with-real-visible-popup", window.IsVisible && window.Recommendations.Count == 1);
+            var refreshed = RecommendationVisibility.Reconcile(window.Recommendations, failed ? null : Array.Empty<Recommendation>(), _ => true);
+            window.UpdateRecommendations(refreshed); await Idle();
+            Check(proof, (failed ? "failed" : "empty") + "-authoritative-refresh-closes-old-offer", !window.IsVisible && window.Recommendations.Count == 0);
+        }
+    }
+    private static async Task RecommendationPartialRemoval(Dictionary<string, bool> proof)
+    {
+        var a = Offer("A"); var b = Offer("B"); var window = RecommendationPopup([a, b]); await Idle();
+        var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+        var remaining = RecommendationVisibility.ForCart(window.Recommendations, offer => offer.TriggerIpartId == "B");
+        window.UpdateRecommendations(remaining, freshResponse: false); await Idle();
+        Check(proof, "partial-removal-keeps-same-native-window-and-same-offer", window.IsVisible &&
+            new System.Windows.Interop.WindowInteropHelper(window).Handle == handle && window.Recommendations.Count == 1 && ReferenceEquals(window.Current, b));
+        var reconciled = RecommendationVisibility.Reconcile(window.Recommendations, [Offer("B")], _ => true);
+        window.UpdateRecommendations(reconciled); await Idle();
+        Check(proof, "already-shown-but-still-open-offer-is-not-suppressed", window.IsVisible && ReferenceEquals(window.Current, b) &&
+            RowText(window, "NameText") == b.RecommendName);
+        SaveOwnWindow(window, "12-recommendation-partial-removal");
+    }
+    private static async Task RecommendationStockRefresh(Dictionary<string, bool> proof)
+    {
+        var original = Offer("A"); var window = RecommendationPopup([original]); await Idle();
+        foreach (var status in new[] { "unknown", "estimated", "stale" }) {
+            var updated = Offer("A", price: 9999, bonus: 999);
+            updated.Balance = new ProductBalance { Status = status, PharmacyAvailableQty = 5,
+                ObservedAt = status == "stale" ? DateTimeOffset.UtcNow.AddDays(-30) : null };
+            window.UpdateRecommendations(RecommendationVisibility.Reconcile(window.Recommendations, [updated], _ => true)); await Idle();
+            var prefix = status switch { "estimated" => "Расчётный остаток", "stale" => "Остаток устарел", _ => "Остаток не подтверждён" };
+            Check(proof, status + "-stock-state-is-rendered-honestly", RowText(window, "StockText").StartsWith(prefix, StringComparison.Ordinal));
+            Check(proof, status + "-refresh-keeps-original-financial-quote", window.Current.RecommendPrice == 1234 && window.Current.Bonus == 45 &&
+                RowText(window, "PriceText") == "1 234 ₸" && RowText(window, "BonusText").Contains("45 ₸", StringComparison.Ordinal));
+        }
+        SaveOwnWindow(window, "13-recommendation-stale-stock");
+    }
+    private static async Task RecommendationLifetime(Dictionary<string, bool> proof)
+    {
+        var first = RecommendationPopup([Offer("A")], lifetime: 2); var firstElapsed = Stopwatch.StartNew();
+        await Task.Delay(1300);
+        first.UpdateRecommendations(RecommendationVisibility.ForCart(first.Recommendations, _ => true), freshResponse: false);
+        await Until(() => !first.IsVisible);
+        Check(proof, "cart-only-update-does-not-restart-original-two-second-ttl", firstElapsed.Elapsed < TimeSpan.FromMilliseconds(3000));
+        var second = RecommendationPopup([Offer("B")], lifetime: 2);
+        await Task.Delay(1300); second.UpdateRecommendations([Offer("B")], freshResponse: true);
+        await Task.Delay(1100);
+        Check(proof, "fresh-success-remains-visible-after-original-deadline", second.IsVisible);
+        await Until(() => !second.IsVisible);
+        Check(proof, "fresh-response-still-eventually-expires", !second.IsVisible);
+    }
+    private static async Task RecommendationDisplayUpdate(Dictionary<string, bool> proof)
+    {
+        var window = RecommendationPopup([Offer("A")], show: false);
+        var displays = new List<string[]>();
+        // Test the real native event and current rows. MainWindow's outbox wiring is not
+        // instantiated here: its constructor initializes external runtime dependencies.
+        window.Displayed += _ => displays.Add(window.Recommendations.Select(offer => offer.EventId).ToArray());
+        window.Show(); await Until(() => displays.Count > 0);
+        window.UpdateRecommendations([Offer("A"), Offer("B")]); await Until(() => displays.Count > 1);
+        Check(proof, "native-update-reannounces-current-rows-not-initial-captured-list", displays[0].SequenceEqual(["DEV-EVENT-A"]) &&
+            displays[1].SequenceEqual(["DEV-EVENT-A", "DEV-EVENT-B"]));
+        Check(proof, "popup-does-not-request-keyboard-activation", !window.ShowActivated && !window.Focusable);
+    }
+
     private static void WriteProof(bool passed, string? note)
     {
         using var process = Process.GetCurrentProcess();
         File.WriteAllText(Path.Combine(Output, "qa-proof.json"), JsonSerializer.Serialize(new {
-            scope = "DEV synthetic StaffAuthWindow only; in-process UI; fake HTTP; no backend, Standard-N, device config or SMS",
+            scope = "DEV synthetic actual StaffAuthWindow and RecommendationWindow; in-process UI; fake HTTP; real production policy helpers; no MainWindow startup, backend, Standard-N, device config or SMS",
             passed, note, createdAt = DateTimeOffset.UtcNow, interactiveSession = _interactiveSession,
             nonInteractiveOptIn = _allowNoninteractive, sessionId = process.SessionId, processId = process.Id, cases = Results,
         }, Json), Encoding.UTF8);
@@ -720,6 +1162,14 @@ internal static class Program
         public bool UnavailableLogin { get; init; }
         public bool PendingDeviceLogin { get; init; }
         public bool RateLimitedRequests { get; init; }
+        public int? RetryAfterSeconds { get; init; }
+        public string? RetryAction { get; init; }
+        public HttpStatusCode? LoginFailure { get; init; }
+        public bool OverrideLoginResponse { get; init; }
+        public string? LoginResponseStatus { get; init; }
+        public int DeviceDelayMilliseconds { get; init; }
+        public string? DirectTransportFailure { get; init; }
+        public string? DirectResponseFault { get; init; }
         public bool UnavailableOtp { get; init; }
         public int OtpFailuresBeforeSuccess { get; init; }
         public Action? BeforeOtpReply { get; init; }
@@ -754,12 +1204,24 @@ internal static class Program
                         (!registering || body.RootElement.GetProperty("phone").GetString() == FixturePhone);
                     if (direct) DirectBodyMatched = DeviceBodyMatched && body.RootElement.EnumerateObject().Select(x => x.Name).Order().SequenceEqual(
                         new[] { "deviceContext", "iin", "name", "password", "phone" });
-                    if (RateLimitedRequests) return Reply(new { code = "OTP_TOO_MANY_ATTEMPTS" }, HttpStatusCode.TooManyRequests);
+                    if (RateLimitedRequests) return LimitedReply();
+                    if (!registering && LoginFailure is { } failure) return Reply(new { code = "SYNTHETIC_FAILURE" }, failure);
+                    if (!registering && OverrideLoginResponse) return Reply(new StaffAuthResponse(LoginResponseStatus!, null, null,
+                        new StaffIdentity("DEV-PERSON", "DEV synthetic employee"), DeviceContext: device));
+                    if (direct && DirectTransportFailure == "network") throw new HttpRequestException("Synthetic offline transport.");
+                    if (direct && DirectTransportFailure == "timeout") await Task.Delay(Timeout.Infinite, ct);
+                    if (direct && DirectTransportFailure == "malformed-json") return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{invalid", Encoding.UTF8, "application/json") };
+                    if (direct && DirectResponseFault != null) return Reply(DirectResponseFault switch {
+                        "missing-status" => new { status = (string?)null },
+                        "missing-grant" => new { status = (string?)"authenticated" },
+                        _ => new { status = (string?)"unexpected" },
+                    });
                     if (direct && WithoutSmsCalls <= DirectFailureStatuses.Length) return Reply(new { code = "SYNTHETIC_ERROR" }, DirectFailureStatuses[WithoutSmsCalls - 1]);
                     if (direct && WithoutSmsCalls <= DirectFailuresBeforeSuccess) return Reply(new { code = "VALIDATION_FAILED" }, HttpStatusCode.BadRequest);
                     if (!registering && UnavailableLogin) return Reply(new { code = "UPSTREAM_UNAVAILABLE" }, HttpStatusCode.ServiceUnavailable);
                     if (!registering && PendingDeviceLogin) return Reply(new StaffAuthResponse("pending", null, null,
                         new StaffIdentity("DEV-PENDING-PERSON", "DEV pending employee"), DeviceContext: device));
+                    if (DeviceDelayMilliseconds > 0) await Task.Delay(DeviceDelayMilliseconds, ct);
                     BeforeDeviceReply?.Invoke();
                     if (registering && WrongRegistrationContext) device = device! with { ProcessInstanceId = "DEV-FOREIGN-PROCESS" };
                     return Reply(new StaffAuthResponse("authenticated", "DEV-SYNTHETIC-PROCESS-GRANT", DateTimeOffset.UtcNow.AddHours(1),
@@ -770,6 +1232,7 @@ internal static class Program
                     PasswordChangeBodyMatched = body.RootElement.GetProperty("iin").GetString() == FixtureIin &&
                         body.RootElement.GetProperty("phone").GetString() == FixturePhone && body.RootElement.GetProperty("password").GetString() == FixturePassword &&
                         body.RootElement.GetProperty("challengeId").GetString() == "DEV-FAKE-CHALLENGE" && body.RootElement.GetProperty("code").GetString() == "5445";
+                    if (RateLimitedRequests) return LimitedReply();
                     return Reply(new StaffPasswordChanged(true));
                 case "/api/posm/staff/otp/request":
                     OtpCalls++; LastOtpPurpose = body.RootElement.GetProperty("purpose").GetString();
@@ -788,10 +1251,18 @@ internal static class Program
                     LoginContextMatched = loginContext == ObservedContext && body.RootElement.GetProperty("iin").GetString() == FixtureIin &&
                         body.RootElement.GetProperty("password").GetString() == FixturePassword;
                     if (UnavailableLogin) return Reply(new { code = "UPSTREAM_UNAVAILABLE" }, HttpStatusCode.ServiceUnavailable);
+                    if (OverrideLoginResponse) return Reply(new StaffAuthResponse(LoginResponseStatus!, null, null,
+                        new StaffIdentity("DEV-PERSON", "DEV synthetic employee"), ObservedContext));
                     return Reply(new StaffAuthResponse("authenticated", "DEV-SYNTHETIC-GRANT-NOT-A-VALID-TOKEN", DateTimeOffset.UtcNow.AddHours(1), new StaffIdentity("DEV-PERSON", "DEV synthetic employee"), ObservedContext));
                 default:
                     UnexpectedCalls++; throw new InvalidOperationException("Unexpected fake route.");
             }
+        }
+        private HttpResponseMessage LimitedReply()
+        {
+            var limited = Reply(new { code = "OTP_TOO_MANY_ATTEMPTS", retryAction = RetryAction }, HttpStatusCode.TooManyRequests);
+            if (RetryAfterSeconds is { } seconds) limited.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(seconds));
+            return limited;
         }
         private static HttpResponseMessage Reply(object body, HttpStatusCode code = HttpStatusCode.OK) => new(code) {
             Content = new StringContent(JsonSerializer.Serialize(body, Json), Encoding.UTF8, "application/json"),

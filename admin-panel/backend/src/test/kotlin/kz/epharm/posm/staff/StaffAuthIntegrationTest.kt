@@ -83,6 +83,23 @@ class StaffAuthIntegrationTest {
         jdbc.update("INSERT INTO pharmacists(id,name,iin,phone,password_hash,pharmacy_id,pharmacy_name,tier,status) VALUES ('staff-person','DEMO',?,?,?,'staff-pharmacy','DEMO','Silver','active')",iin,phone,encoder.encode("Password123!"))
     }
     private fun hash(value:String)=MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString(""){"%02x".format(it)}
+
+    @Test fun `429 exposes real remaining shared account and SMS deadlines`() {
+        jdbc.update("INSERT INTO posm_staff_rate_limits(scope_hash,window_start,attempts) VALUES (?,now()-interval '290 seconds',10)",hash("login-account:$iin"))
+        val denied=mvc.perform(post("/api/posm/staff/login").header("X-Posm-Key",key).contentType("application/json")
+            .content(json.writeValueAsBytes(StaffLoginRequest(iin,"Password123!",context))))
+            .andExpect(status().isTooManyRequests).andReturn().response
+        val remaining=denied.getHeader("Retry-After")!!.toLong()
+        assertTrue(remaining in 1L..10L)
+        assertEquals(remaining,json.readTree(denied.contentAsByteArray)["retryAfterSeconds"].asLong())
+        assertEquals(11,jdbc.queryForObject("SELECT attempts FROM posm_staff_rate_limits WHERE scope_hash=?",Int::class.java,hash("login-account:$iin")))
+        jdbc.update("INSERT INTO posm_staff_rate_limits(scope_hash,window_start,attempts) VALUES (?,now()-interval '53 seconds',1)",hash("sms-shared-phone:$phone"))
+        val sms=mvc.perform(post("/api/posm/staff/otp/request").header("X-Posm-Key",key).contentType("application/json")
+            .content(json.writeValueAsBytes(StaffOtpRequest("reset",iin,phone))))
+            .andExpect(status().isTooManyRequests).andReturn().response
+        assertTrue(sms.getHeader("Retry-After")!!.toLong() in 1L..7L)
+        verify(exactly=0){provider.requestOtp(any(),any())}
+    }
     private fun post(path:String,body:Any,credential:String?=key,expected:Int=200):com.fasterxml.jackson.databind.JsonNode {
         val request=post("/api/posm/staff$path").contentType("application/json").content(json.writeValueAsBytes(body))
         credential?.let{request.header("X-Posm-Key",it)}
@@ -706,7 +723,9 @@ class StaffAuthIntegrationTest {
         }
         assertEquals(1,jdbc.queryForObject("SELECT attempts FROM posm_staff_challenges WHERE id=?",Int::class.java,UUID.fromString(id)))
         repeat(4){complete(id,code="0000",expected=400)}
-        complete(id,expected=429)
+        val exhausted=complete(id,expected=429)
+        assertEquals("REQUEST_NEW_OTP",exhausted["retryAction"].asText())
+        assertTrue(exhausted["retryAfterSeconds"]==null || exhausted["retryAfterSeconds"].isNull)
         verify(exactly=5) { provider.verifyOtp(phone,"0000") }
     }
     @Test fun `mobile and staff SMS invalidate prior phone challenges in both directions`() {

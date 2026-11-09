@@ -1,360 +1,116 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Compression;
-using System.Net;
+using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using CustomerDisplay.Config;
-using CustomerDisplay.Models.Posm;
-using CustomerDisplay.Services;
 
-namespace CustomerDisplay.Services
+namespace CustomerDisplay.Services;
+
+/// <summary>Signed, resumable updates; verified backups and an explicit local UI readiness gate.</summary>
+public sealed class AppUpdater : IDisposable
 {
-    /// <summary>
-    /// Авто-обновление POSM-клиента (Windows). Периодически спрашивает у backend текущий релиз;
-    /// если он новее установленной версии — скачивает zip, проверяет sha256, распаковывает и
-    /// применяет через внешний скрипт (apply-update.cmd): дожидается выхода приложения, копирует
-    /// файлы поверх установки и перезапускает. Так не нужно вручную пересобирать кассу.
-    ///
-    /// ВСЁ fail-safe: любая ошибка (сеть, контрольная сумма, распаковка) логируется и НЕ роняет
-    /// кассу — просто обновление не произойдёт в этот раз.
-    ///
-    /// ⚠️ Рассчитан на ОПУБЛИКОВАННУЮ сборку (dotnet publish → папка exe+dll, запуск самого exe),
-    /// а не на `dotnet run` (там процесс — dotnet.exe, перезапуск самого приложения не сработает).
-    /// </summary>
-    public sealed class AppUpdater : IDisposable
+    private readonly EpharmConfig _cfg;
+    private readonly EpharmApiClient _api;
+    private readonly Action<string> _log;
+    private readonly HttpClient _downloadHttp = new() { Timeout = TimeSpan.FromMinutes(30) };
+    private int _busy;
+
+    public AppUpdater(EpharmConfig cfg, EpharmApiClient api, Action<string> log)
     {
-        private readonly EpharmConfig _cfg;
-        private readonly EpharmApiClient _api;
-        private readonly Action<string> _log;
-        private readonly HttpClient _downloadHttp;
-        private int _busy; // защита от параллельных проверок
+        _cfg = cfg; _api = api; _log = log;
+    }
 
-        public AppUpdater(EpharmConfig cfg, EpharmApiClient api, Action<string> log)
+    public static Version CurrentVersion() => Assembly.GetEntryAssembly()?.GetName().Version ?? new Version(0, 0, 0);
+
+    public async Task<bool> CheckAndApplyAsync(CancellationToken ct = default)
+    {
+        if (Interlocked.Exchange(ref _busy, 1) == 1) return false;
+        try
         {
-            _cfg = cfg;
-            _api = api;
-            _log = log;
-            // Отдельный HttpClient с большим таймаутом — у основного клиента таймаут ~700мс
-            // (под рекомендации), для скачивания zip это мало.
-            _downloadHttp = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        }
-
-        /// <summary>Установленная версия (из сборки). Сравнивается с релизом из админки.</summary>
-        public static Version CurrentVersion()
-            => Assembly.GetEntryAssembly()?.GetName().Version ?? new Version(0, 0, 0);
-
-        /// <summary>
-        /// Проверить и при необходимости применить обновление. Возвращает true, если обновление
-        /// запущено (приложение сейчас завершится для подмены файлов).
-        /// </summary>
-        public async Task<bool> CheckAndApplyAsync(CancellationToken ct = default)
-        {
-            if (Interlocked.Exchange(ref _busy, 1) == 1) return false;
-            try
+            var install = AppContext.BaseDirectory;
+            if (File.Exists(UpdateTransaction.ActivePath(install))) return false;
+            // Never apply against dotnet.exe/development host or another process image.
+            if (!string.Equals(Path.GetFileName(Environment.ProcessPath), "CustomerDisplay.exe", StringComparison.OrdinalIgnoreCase))
+                return false;
+            var local = CurrentVersion();
+            var info = await _api.GetAppVersionAsync("win-x64", _cfg.ResolveDeviceId(), local.ToString(), ct).ConfigureAwait(false);
+            if (info == null || !info.Current || info.Platform != "win-x64" || string.IsNullOrWhiteSpace(info.Url) ||
+                !Version.TryParse(info.Version.Trim().Split('-', '+')[0], out var remote) || remote <= local) return false;
+            if (!UpdateManifestVerifier.Verify(info, _cfg.UpdateManifestPublicKeySpki))
             {
-                var local = CurrentVersion();
-                var info = await _api.GetAppVersionAsync(
-                    platform: "win-x64",
-                    deviceId: _cfg.ResolveDeviceId(),
-                    currentVersion: local.ToString(),
-                    ct: ct).ConfigureAwait(false);
-                if (info == null || !info.Current || string.IsNullOrWhiteSpace(info.Url))
-                    return false;
-
-                if (!TryParse(info.Version, out var remote))
-                {
-                    _log($"update: не распарсить версию релиза '{info.Version}' — пропуск");
-                    return false;
-                }
-                if (remote <= local)
-                {
-                    return false; // уже актуально
-                }
-
-                if (!UpdateManifestVerifier.Verify(info, _cfg.UpdateManifestPublicKeySpki))
-                {
-                    _log("update: подпись манифеста отсутствует или не прошла проверку — обновление отклонено");
-                    return false;
-                }
-
-                _log($"update: доступна версия {remote} (установлена {local}) — качаю {info.Url}");
-                var workDir = Path.Combine(Path.GetTempPath(), "epharm-update");
-                Directory.CreateDirectory(workDir);
-                var zipPath = Path.Combine(workDir, $"epharm-{remote}.zip");
-
-                var downloadUrl = RewriteHost(info.Url);
-                // Требуем https (http разрешён только локально для dev) — иначе zip можно
-                // подменить по пути (MITM), а ниже мы его распаковываем и выполняем.
-                if (!IsHttpsOrLocal(downloadUrl))
-                {
-                    _log($"update: небезопасный (не https) URL обновления отклонён: {downloadUrl}");
-                    return false;
-                }
-                if (File.Exists(zipPath) && VerifySha256(zipPath, info.Sha256))
-                {
-                    _log("update: использую уже скачанный и проверенный пакет");
-                }
-                else
-                {
-                    SafeDelete(zipPath);
-                    if (!await DownloadAsync(downloadUrl, zipPath, ct).ConfigureAwait(false))
-                        return false;
-                }
-
-                // sha256 ОБЯЗАТЕЛЕН: пустой ИЛИ несовпавший хеш → отказ. Без него подменённый
-                // или повреждённый zip распакуется и выполнится на кассе (RCE).
-                if (string.IsNullOrWhiteSpace(info.Sha256) || !VerifySha256(zipPath, info.Sha256))
-                {
-                    _log("update: sha256 отсутствует или не совпал — обновление отклонено (возможна порча/подмена)");
-                    SafeDelete(zipPath);
-                    return false;
-                }
-
-                var staging = Path.Combine(workDir, $"staging-{remote}");
-                if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
-                ZipFile.ExtractToDirectory(zipPath, staging);
-
-                // Конфигурация принадлежит конкретной аптеке и никогда не должна приходить
-                // из общего update ZIP. Это также страхует старые ошибочно собранные релизы,
-                // в которые мог попасть posm.json с чужими PharmacyId/DeviceKey.
-                SafeDelete(Path.Combine(staging, "posm.json"));
-                if (!File.Exists(Path.Combine(staging, "CustomerDisplay.exe")))
-                {
-                    _log("update: в архиве нет CustomerDisplay.exe — обновление отклонено");
-                    Directory.Delete(staging, recursive: true);
-                    SafeDelete(zipPath);
-                    return false;
-                }
-                _log($"update: распакован в {staging}");
-
-                LaunchApplyAndExit(staging);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _log($"update error (fail-safe, касса работает дальше): {ex.Message}");
+                _log("update: подпись манифеста не прошла проверку — обновление отклонено");
                 return false;
             }
-            finally
+            if (info.Sha256.Length != 64 || !info.Sha256.All(Uri.IsHexDigit)) return false;
+            if (UpdateTransaction.IsRejected(install, info.Sha256))
             {
-                Interlocked.Exchange(ref _busy, 0);
+                _log("update: запуск этого пакета был отменён с возвратом предыдущей версии; ожидается исправленный релиз");
+                return false;
             }
+            var url = RewriteHost(info.Url);
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var origin) ||
+                !(origin.Scheme == Uri.UriSchemeHttps || origin.Scheme == Uri.UriSchemeHttp && origin.IsLoopback)) return false;
+            var work = Path.Combine(Path.GetTempPath(), "epharm-update");
+            UpdateTransaction.EnsurePhysical(work);
+            Directory.CreateDirectory(work);
+            UpdateTransaction.EnsurePhysical(work);
+            var archive = Path.Combine(work, $"epharm-{remote}-{info.Sha256[..12]}.zip");
+            UpdateTransaction.EnsurePhysical(archive);
+            if (!File.Exists(archive) || !UpdateTransaction.Hash(archive).Equals(info.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                if (File.Exists(archive))
+                {
+                    UpdateTransaction.EnsurePhysical(archive);
+                    File.Delete(archive);
+                }
+                if (!await new UpdatePackageDownloader(_downloadHttp, _log).DownloadAsync(url, archive, ct).ConfigureAwait(false)) return false;
+            }
+            if (!UpdateTransaction.Hash(archive).Equals(info.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                _log("update: SHA-256 не совпал; пакет отклонён");
+                UpdateTransaction.EnsurePhysical(archive);
+                File.Delete(archive);
+                return false;
+            }
+            var plan = UpdateTransaction.Prepare(install, archive, info.Version, info.Sha256, UpdateStartup.ReadApplierScript(), candidate =>
+            {
+                var version = AssemblyName.GetAssemblyName(Path.Combine(candidate, "CustomerDisplay.dll")).Version;
+                if (version == null || version.Major != remote.Major || version.Minor != remote.Minor ||
+                    version.Build != remote.Build || Math.Max(version.Revision, 0) != Math.Max(remote.Revision, 0))
+                    throw new InvalidDataException("Candidate assembly version does not match the signed manifest.");
+            });
+            try { UpdateStartup.LaunchApplier(plan, recovery: false); }
+            catch
+            {
+                // No external writer started, so the untouched application can continue normally.
+                File.Delete(UpdateTransaction.ActivePath(install));
+                throw;
+            }
+            _log("update: кандидат и резервная копия проверены; запуск с проверкой готовности и откатом при сбое");
+            System.Windows.Application.Current.Dispatcher.Invoke(() => System.Windows.Application.Current.Shutdown());
+            return true;
         }
-
-        /// <summary>
-        /// Скачивает релиз с докачкой. Незавершённый .part сохраняется между проверками и после
-        /// обрыва интернета, поэтому касса не начинает большой пакет с нуля.
-        /// </summary>
-        private async Task<bool> DownloadAsync(string url, string destPath, CancellationToken ct)
+        catch (Exception ex)
         {
-            var partPath = destPath + ".part";
-            const int maxAttempts = 4;
-
-            for (var attempt = 1; attempt <= maxAttempts; attempt++)
-            {
-                try
-                {
-                    ct.ThrowIfCancellationRequested();
-                    var existingLength = File.Exists(partPath) ? new FileInfo(partPath).Length : 0L;
-                    using var request = new HttpRequestMessage(HttpMethod.Get, url);
-                    // The package is a public cacheable artifact. Authentication and integrity
-                    // come from the pinned manifest signature + SHA-256, so a per-device token
-                    // must never be exposed to a download origin or intermediary.
-                    if (existingLength > 0)
-                        request.Headers.Range = new RangeHeaderValue(existingLength, null);
-
-                    using var resp = await _downloadHttp.SendAsync(
-                        request,
-                        HttpCompletionOption.ResponseHeadersRead,
-                        ct).ConfigureAwait(false);
-
-                    if (resp.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable &&
-                        existingLength > 0 &&
-                        resp.Content.Headers.ContentRange?.Length == existingLength)
-                    {
-                        File.Move(partPath, destPath, overwrite: true);
-                        return true;
-                    }
-
-                    if (!resp.IsSuccessStatusCode)
-                    {
-                        _log($"update: скачивание → HTTP {(int)resp.StatusCode}, попытка {attempt}/{maxAttempts}");
-                        await RetryDelayAsync(attempt, maxAttempts, ct).ConfigureAwait(false);
-                        continue;
-                    }
-
-                    var append = existingLength > 0 && resp.StatusCode == HttpStatusCode.PartialContent;
-                    if (existingLength > 0 && !append)
-                    {
-                        _log("update: сервер не поддержал Range — начинаю пакет заново");
-                        existingLength = 0;
-                    }
-
-                    var expectedLength = resp.Content.Headers.ContentRange?.Length
-                        ?? (resp.Content.Headers.ContentLength is long contentLength
-                            ? existingLength + contentLength
-                            : (long?)null);
-
-                    await using (var src = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false))
-                    await using (var dst = new FileStream(
-                        partPath,
-                        append ? FileMode.Append : FileMode.Create,
-                        FileAccess.Write,
-                        FileShare.None,
-                        bufferSize: 128 * 1024,
-                        useAsync: true))
-                    {
-                        await src.CopyToAsync(dst, 128 * 1024, ct).ConfigureAwait(false);
-                        await dst.FlushAsync(ct).ConfigureAwait(false);
-                    }
-
-                    var downloadedLength = new FileInfo(partPath).Length;
-                    if (expectedLength.HasValue && downloadedLength != expectedLength.Value)
-                    {
-                        _log(
-                            $"update: получено {downloadedLength} из {expectedLength.Value} байт, " +
-                            $"повторяю попытку {attempt}/{maxAttempts}");
-                        await RetryDelayAsync(attempt, maxAttempts, ct).ConfigureAwait(false);
-                        continue;
-                    }
-
-                    File.Move(partPath, destPath, overwrite: true);
-                    _log($"update: пакет скачан полностью ({downloadedLength / 1024 / 1024.0:F1} МБ)");
-                    return true;
-                }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _log($"update: ошибка скачивания ({attempt}/{maxAttempts}): {ex.Message}");
-                    await RetryDelayAsync(attempt, maxAttempts, ct).ConfigureAwait(false);
-                }
-            }
-
-            _log("update: пакет пока не скачан; частичный файл сохранён для следующей проверки");
+            _log($"update error (fail-safe, касса работает дальше): {ex.Message}");
             return false;
         }
-
-        private static Task RetryDelayAsync(int attempt, int maxAttempts, CancellationToken ct)
-            => attempt >= maxAttempts
-                ? Task.CompletedTask
-                : Task.Delay(TimeSpan.FromSeconds(Math.Min(15, attempt * 3)), ct);
-
-        private static bool VerifySha256(string path, string expectedHex)
-        {
-            using var fs = File.OpenRead(path);
-            var hash = SHA256.HashData(fs);
-            var hex = Convert.ToHexString(hash);
-            return string.Equals(hex, expectedHex.Trim(), StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
-        /// https обязателен для скачивания обновления; http допускается только для
-        /// локального dev (localhost / 127.0.0.1). Защита от MITM-подмены пакета.
-        /// </summary>
-        private static bool IsHttpsOrLocal(string url)
-        {
-            try
-            {
-                var u = new Uri(url);
-                if (u.Scheme == Uri.UriSchemeHttps) return true;
-                return u.Host == "localhost" || u.Host == "127.0.0.1";
-            }
-            catch { return false; }
-        }
-
-        /// <summary>
-        /// Пишет apply-update.cmd и запускает его отделённым процессом, затем гасит приложение.
-        /// Скрипт ждёт выхода нашего PID, копирует staging поверх установки и перезапускает exe.
-        /// </summary>
-        private void LaunchApplyAndExit(string staging)
-        {
-            var exePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule!.FileName;
-            var installDir = AppContext.BaseDirectory.TrimEnd('\\');
-            var pid = Environment.ProcessId;
-            var cmdPath = Path.Combine(Path.GetTempPath(), "epharm-update", "apply-update.cmd");
-
-            var script =
-$@"@echo off
-setlocal
-rem epharm POSM auto-update applier — ждём выхода приложения и копируем файлы
-if not exist ""C:\Epharm"" mkdir ""C:\Epharm""
-set ""LOG=C:\Epharm\update.log""
-echo [%date% %time%] apply start, source={staging}>>""%LOG%""
-set PID={pid}
-:wait
-tasklist /FI ""PID eq %PID%"" 2>nul | find ""%PID%"" >nul
-if not errorlevel 1 (
-  timeout /t 1 /nobreak >nul
-  goto wait
-)
-set ATTEMPT=0
-:copy
-set /a ATTEMPT+=1
-robocopy ""{staging}"" ""{installDir}"" /E /IS /IT /R:5 /W:2 /NFL /NDL /NJH /NJS /NP >>""%LOG%"" 2>&1
-if %ERRORLEVEL% LEQ 7 goto copied
-if %ATTEMPT% GEQ 5 goto failed
-timeout /t 3 /nobreak >nul
-goto copy
-:copied
-echo [%date% %time%] apply success>>""%LOG%""
-start """" ""{exePath}""
-rem самоудаление скрипта
-(goto) 2>nul & del ""%~f0""
-:failed
-echo [%date% %time%] apply failed after %ATTEMPT% attempts>>""%LOG%""
-start """" ""{exePath}""
-exit /b 1
-";
-            File.WriteAllText(cmdPath, script);
-
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "cmd.exe",
-                Arguments = $"/c \"{cmdPath}\"",
-                WorkingDirectory = installDir,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
-            });
-
-            _log($"update: применяю обновление, перезапуск через apply-update.cmd. Закрываю приложение.");
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                System.Windows.Application.Current.Shutdown());
-        }
-
-        /// <summary>localhost/127.0.0.1 в URL → хост backend (как RewriteMediaHost для слайдов).</summary>
-        private string RewriteHost(string url)
-        {
-            try
-            {
-                var host = new Uri(_cfg.BackendBaseUrl).Host;
-                if (host == "localhost") return url;
-                return url.Replace("://localhost", "://" + host).Replace("://127.0.0.1", "://" + host);
-            }
-            catch { return url; }
-        }
-
-        private static bool TryParse(string v, out Version version)
-        {
-            // допускаем "1.2.3" и "1.2.3.4"; обрезаем возможный суффикс ("1.2.3-rc1")
-            var core = v.Trim().Split('-', '+')[0];
-            return Version.TryParse(core, out version!);
-        }
-
-        private void SafeDelete(string path)
-        {
-            try { if (File.Exists(path)) File.Delete(path); } catch { /* ignore */ }
-        }
-
-        public void Dispose() => _downloadHttp.Dispose();
+        finally { Interlocked.Exchange(ref _busy, 0); }
     }
+
+    private string RewriteHost(string url)
+    {
+        try
+        {
+            var host = new Uri(_cfg.BackendBaseUrl).Host;
+            return host == "localhost" ? url : url.Replace("://localhost", "://" + host).Replace("://127.0.0.1", "://" + host);
+        }
+        catch { return url; }
+    }
+
+    public void Dispose() => _downloadHttp.Dispose();
 }

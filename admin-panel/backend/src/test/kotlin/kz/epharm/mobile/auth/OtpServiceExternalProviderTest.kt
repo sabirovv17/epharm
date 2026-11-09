@@ -55,6 +55,19 @@ class OtpServiceExternalProviderTest {
     }
 
     @Test
+    fun `failed SMS admission removes its proof instead of accepting a previous external code`() {
+        val entity = pendingEntity().also { it.createdAt = NOW.minusSeconds(61) }
+        every { repository.findById(PHONE) } returns Optional.of(entity)
+        every { repository.save(entity) } returns entity
+        every { repository.delete(entity) } returns Unit
+        every { provider.requestOtp(PHONE, null) } throws AppException(ErrorCode.OTP_PROVIDER_UNAVAILABLE,
+            "busy", org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE)
+        assertThatThrownBy { service().request(PHONE, NOW) }.isInstanceOf(AppException::class.java)
+        verify(exactly = 1) { repository.delete(entity) }
+        verify(exactly = 0) { provider.verifyOtp(any(), any()) }
+    }
+
+    @Test
     fun `external invalid увеличивает локальный счётчик попыток`() {
         val entity = pendingEntity()
         every { repository.findById(PHONE) } returns Optional.of(entity)

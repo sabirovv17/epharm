@@ -3,6 +3,8 @@ from pathlib import Path
 import unittest
 import tempfile
 import stat
+from unittest.mock import patch
+from types import SimpleNamespace
 
 spec = importlib.util.spec_from_file_location('rps_fixture', Path(__file__).with_name('build-rps-fixture.py'))
 subject = importlib.util.module_from_spec(spec)
@@ -64,10 +66,33 @@ class RpsFixtureTest(unittest.TestCase):
     def test_private_output_is_exclusive_and_owner_only(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'fixture.private.json'
+            if subject.os.name == 'nt' or not hasattr(subject.os, 'O_NOFOLLOW'):
+                with self.assertRaisesRegex(RuntimeError, 'WSL/Linux'):
+                    subject.exclusive(path, 'synthetic-only')
+                self.assertFalse(path.exists())
+                return
             subject.exclusive(path, 'synthetic-only')
             self.assertEqual(0o600, stat.S_IMODE(path.stat().st_mode))
             with self.assertRaises(FileExistsError): subject.exclusive(path, 'replacement')
             self.assertEqual('synthetic-only', path.read_text())
+
+    def test_unsupported_private_permissions_fail_before_opening_any_file(self):
+        with patch.object(subject.os, 'name', 'nt'), patch.object(subject.os, 'open') as open_file:
+            with self.assertRaisesRegex(RuntimeError, 'POSIX permissions'):
+                subject.exclusive('must-not-be-created.json', 'private')
+            open_file.assert_not_called()
+
+    def test_filesystem_that_ignores_private_mode_never_receives_credentials(self):
+        with patch.object(subject, 'require_private_filesystem'), \
+             patch.object(subject.os, 'O_NOFOLLOW', 0, create=True), \
+             patch.object(subject.os, 'open', return_value=99), \
+             patch.object(subject.os, 'fstat', return_value=SimpleNamespace(st_mode=0o100644)), \
+             patch.object(subject.os, 'close') as close_file, \
+             patch.object(subject.os, 'fdopen') as stream:
+            with self.assertRaisesRegex(RuntimeError, 'no private credentials were written'):
+                subject.exclusive('no-credentials.json', 'private')
+            close_file.assert_called_once_with(99)
+            stream.assert_not_called()
 
 
 if __name__ == '__main__':

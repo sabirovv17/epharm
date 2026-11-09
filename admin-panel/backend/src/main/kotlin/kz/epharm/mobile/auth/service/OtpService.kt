@@ -46,6 +46,7 @@ class OtpService(
      * Уже подтверждённые строки (verified_at) кулдауном не блокируем — это новый цикл входа.
      */
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, noRollbackFor = [AppException::class])
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun request(phone: String, now: Instant = Instant.now()): RequestedOtp {
         staffPhoneLock.lock(phone)
         staffPhoneLock.limitSharedSms(phone, now)
@@ -54,11 +55,12 @@ class OtpService(
         if (existing != null && existing.verifiedAt == null && resendCooldownSeconds > 0) {
             val nextAllowedAt = existing.createdAt.plusSeconds(resendCooldownSeconds)
             if (now.isBefore(nextAllowedAt)) {
-                val waitSec = Duration.between(now, nextAllowedAt).seconds.coerceAtLeast(1)
+                val waitSec = kz.epharm.shared.error.retryAfterSeconds(now, nextAllowedAt)
                 throw AppException(
                     ErrorCode.OTP_RESEND_TOO_SOON,
                     "Код уже отправлен — повторная отправка через $waitSec с",
                     HttpStatus.TOO_MANY_REQUESTS,
+                    retryAfterSeconds = waitSec,
                 )
             }
         }
@@ -76,9 +78,16 @@ class OtpService(
         entity.attempts = 0
         entity.verifiedAt = null
         entity.createdAt = now
-        otpRepository.save(entity)
+        val saved = otpRepository.save(entity)
 
-        otpProvider.requestOtp(phone, localCode)
+        try {
+            otpProvider.requestOtp(phone, localCode)
+        } catch (error: AppException) {
+            // noRollbackFor preserves anti-spam counters, but must not preserve a proof
+            // for an SMS the provider refused (including a rejected bulkhead admission).
+            otpRepository.delete(saved)
+            throw error
+        }
         return RequestedOtp(ttlSeconds = ttlSeconds, devCode = if (devMode) localCode else null)
     }
 
@@ -91,6 +100,7 @@ class OtpService(
      * (attempts всегда оставался бы 0). С noRollbackFor инкремент коммитится, ошибка летит дальше.
      */
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, noRollbackFor = [AppException::class])
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun verify(phone: String, code: String, now: Instant = Instant.now()) {
         staffPhoneLock.lock(phone)
         val entity = otpRepository.findById(phone).orElseThrow {

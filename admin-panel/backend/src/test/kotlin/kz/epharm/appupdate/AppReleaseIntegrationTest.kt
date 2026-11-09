@@ -21,6 +21,13 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.jdbc.core.JdbcTemplate
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.springframework.dao.DataIntegrityViolationException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
@@ -55,6 +62,7 @@ class AppReleaseIntegrationTest {
     @Autowired private lateinit var objectMapper: ObjectMapper
     @Autowired private lateinit var appReleaseService: AppReleaseService
     @Autowired private lateinit var appReleaseRepository: AppReleaseRepository
+    @Autowired private lateinit var jdbc: JdbcTemplate
 
     @BeforeEach
     fun clean() = appReleaseRepository.deleteAll()
@@ -93,6 +101,35 @@ class AppReleaseIntegrationTest {
     @Test
     fun `без device-key → 401`() {
         mockMvc.perform(get("/api/posm/app/version")).andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `concurrent first publications serialize and leave exactly one current release`() {
+        val ready = CountDownLatch(2)
+        val go = CountDownLatch(1)
+        val pool = Executors.newFixedThreadPool(2)
+        try {
+            val results = listOf("1.0.0", "1.0.1").map { version -> pool.submit<String> {
+                ready.countDown(); check(go.await(5, TimeUnit.SECONDS))
+                appReleaseService.register(release(version, "https://cdn.example/$version.zip")).id
+            } }
+            assertTrue(ready.await(5, TimeUnit.SECONDS)); go.countDown()
+            assertEquals(2, results.map { it.get(15, TimeUnit.SECONDS) }.toSet().size)
+            assertEquals(2L, appReleaseRepository.count())
+            assertEquals(1, appReleaseRepository.findAllByPlatformAndIsCurrentTrue("win-x64").size)
+        } finally { go.countDown(); pool.shutdownNow() }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `database rejects a second current release even outside publication service`() {
+        appReleaseService.register(release("1.0.0", "https://cdn.example/v1.zip"))
+        assertThrows(DataIntegrityViolationException::class.java) {
+            jdbc.update("""INSERT INTO app_releases(id,platform,version,url,sha256,manifest_signature,is_current)
+                VALUES ('direct-duplicate','win-x64','2.0.0','https://cdn.example/v2.zip',?,'AQID',true)""", "b".repeat(64))
+        }
+        assertEquals("1.0.0", appReleaseService.currentFor("win-x64").version)
     }
 
     @Test

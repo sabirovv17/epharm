@@ -1,5 +1,65 @@
 # Backend
 
+## OTP admission and retry contract (local post-157 candidate)
+
+OTP/phone-lock entry points share a fair admission advisor **before** the
+transaction advisor. `SMS_MAX_CONCURRENT_TRANSACTIONS` defaults to 4, capped at
+`floor((Hikari maximum-pool-size - 2) / 2)`: mobile wrappers may retain an outer
+transaction while running a `REQUIRES_NEW` OTP transaction. The pool must contain
+at least four connections. A caller may wait at most two seconds for a permit before
+opening a transaction, so a short healthy burst does not immediately fail. An
+interrupted wait preserves the caller's interrupt flag. Nested annotated calls reuse admission; rejection is
+503 `OTP_PROVIDER_UNAVAILABLE`, without borrowing a connection or inventing a retry
+deadline. The separate shared provider-call budget `SMS_MAX_CONCURRENT` defaults
+to 2. Phone locks, durable attempt counts, invalidation and one-use proofs remain
+inside their original transactions. Cancellation/error releases in-memory permits;
+it never grants authentication or automatically retries a mutation.
+
+The released SMS-free initial registration remains SMS-free and permanently
+advertises `registrationSmsRequired=false`. Its phone-lock/BCrypt transaction also
+uses admission; overload can return 503, but cannot restore SMS registration or
+label a self-declared phone as verified. Reset/activation, genuine previously
+issued proofs and other OTP channels retain their security contracts.
+
+This bounds slow-SMS/lock-storm damage; it does not increase BCrypt CPU capacity
+or replace a production-sized load test. Admission is not a separate connection
+pool: unrelated authentication requests can still wait for a shared account-row
+lock. Account locks are intentionally preserved; cross-path contention needs an
+integration stress regression before claiming all database contention is gone.
+
+Known account/device/SMS 429 windows return matching positive integer `Retry-After`
+and optional JSON `retryAfterSeconds`, rounded up from their actual remaining
+deadline. Unknown provider availability has no invented cooldown. An exhausted
+POSM OTP proof returns `retryAction=REQUEST_NEW_OTP` with the same 429/code and no
+countdown: its attempt budget cannot recover by waiting. Clients may preserve
+entered form data but must never replay passwords/OTP, send SMS, or retry account
+mutations automatically.
+
+Release publication takes a PostgreSQL transaction advisory lock per normalized
+platform and flushes retired current rows before insertion. New V099 enforces one
+current row per platform with a partial unique index. Historical duplicates fail
+migration rather than selecting a signed release silently; resolve that condition
+explicitly before deployment. No previously applied migration is edited.
+An application rollback to the previous binary may read schema99, but publication
+of another POSM release must remain frozen until the new binary is restored: the
+previous publisher does not flush retired rows before inserting under the new index.
+
+The pool8/pool10 regression uses real Spring transactions/advisors and Hikari with
+fake physical JDBC connections, not a PostgreSQL/SMS transport. It holds the budget,
+checks bounded rejection without borrowing connections, and verifies that unrelated
+work can still use the two remaining slots. Separate regressions cover a healthy
+burst longer than one second, caller interruption, nested calls and permit cleanup.
+The fake JDBC configuration is explicitly `TestConfiguration`; Boot's real component-scan
+exclusion filter must keep it out of application and integration-test datasources.
+
+Release acceptance additionally requires full Spring/PostgreSQL16 CI on the exact
+revision and the unchanged isolated500-desk registration, login and session workloads.
+These use synthetic identities, positive recommendations/playlists and SQL financial
+checks; they never call real SMS or production. Current execution evidence is recorded
+in the release section of the root `PLAN.md` and the PR. A local CPU-limited load run
+does not certify production capacity. Production deployment and real SMS acceptance
+remain separate explicit gates.
+
 ## RPS registration availability
 
 The authenticated POSM identity is `(pharmacyId, deviceId)`, not the Windows/device

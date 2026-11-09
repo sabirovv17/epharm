@@ -61,6 +61,7 @@ class NativeTaskExecutorService(private val jdbc:JdbcTemplate,private val capabi
     }
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun requestSms(dispatch:UUID,pharmacist:String,rawToken:String):NativeExecutorSmsChallenge {
         gate()
         UnifiedAuthorityLock.acquire(jdbc)
@@ -93,6 +94,7 @@ class NativeTaskExecutorService(private val jdbc:JdbcTemplate,private val capabi
     }
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
+    @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun verifySms(dispatch:UUID,pharmacist:String,rawToken:String,request:VerifyNativeExecutorSms):NativeExecutorBinding {
         gate()
         UnifiedAuthorityLock.acquire(jdbc)

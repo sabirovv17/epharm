@@ -1,5 +1,11 @@
 # 500 cash-desk load test
 
+RPS fixture generation needs a private POSIX filesystem. Native Windows fails
+closed before creating credentials: use WSL/Linux (not `/mnt/c`) so `0600`/`0700`
+permissions are meaningful. Exclusive creation still rejects existing files and
+symlinks. RPS public summary JSON contains aggregate metrics, not k6 `setup_data`
+(which can contain live process-bound session tokens); do not upload private fixtures.
+
 The k6 model runs six independently selectable workloads against a disposable or staging stack:
 
 - 500 heartbeats per minute;
@@ -60,7 +66,9 @@ This runner has no production override. Only explicit `localhost`, `127.0.0.1`, 
 `host.docker.internal` origins are accepted, with redirects disabled. Do not forward a production
 backend to one of those addresses. Use a fresh disposable backend/database with all outbound SMS,
 catalogue, task bridges and other external integrations disabled. Enable only
-`POSM_STAFF_AUTH_ENABLED=true` and `POSM_STAFF_REGISTRATION_SMS_REQUIRED=false` for these routes;
+`POSM_STAFF_AUTH_ENABLED=true` for these routes. Initial registration is permanently
+SMS-free after #157; the legacy `POSM_STAFF_REGISTRATION_SMS_REQUIRED` setting cannot restore SMS.
+For comparisons against older rollback binaries, explicitly set that legacy flag to false;
 keep legacy shared-key enrolment disabled and provision the generated individual keys instead.
 Do not print or commit fixture passwords, keys, HTTP request bodies or staff grants.
 

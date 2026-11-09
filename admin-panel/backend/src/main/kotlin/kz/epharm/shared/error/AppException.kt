@@ -11,7 +11,11 @@ class AppException(
     message: String,
     val status: HttpStatus = HttpStatus.BAD_REQUEST,
     cause: Throwable? = null,
+    val retryAfterSeconds: Long? = null,
+    val retryAction: RetryAction? = null,
 ) : RuntimeException(message, cause)
+
+enum class RetryAction { REQUEST_NEW_OTP }
 
 /**
  * Машинные коды ошибок. Фронт может switch'ить по ним для локализации/UX.
