@@ -1,5 +1,35 @@
 # Backend
 
+## Pharmacist access recovery candidate — 2026-11-10
+
+All pharmacist password writers share the BCrypt limit of 72 UTF-8 bytes without
+trimming or truncation. Existing route minimums remain: POSM 4, HQ 6, learner/reset 8.
+Initial learner activation validates before phone locks/proof consumption, so an
+invalid new password can be corrected without spending the verified activation.
+Existing learner password verification is unchanged; older incompatible passwords
+can be replaced only through the established verified recovery flow.
+
+The account login limiter hashes the same trimmed IIN used by validation/lookup.
+Whitespace variants share the original attempt budget/window; no counter reset,
+new quota or weaker password proof is introduced. Unknown accounts, wrong passwords
+and blocked POSM accounts retain the generic invalid-credentials response.
+Password reset request, verification and completion use the same trimmed IIN;
+surrounding whitespace neither changes account lookup nor creates a new quota key.
+
+Only after a correct POSM password, an active unassigned account receives 403
+`STAFF_PHARMACY_ASSIGNMENT_REQUIRED`; a different assigned pharmacy receives 403
+`STAFF_PHARMACY_MISMATCH`. Pending accounts retain 200/pending without a grant.
+These results explain an HQ action, never activate or transfer a person, reveal
+the other pharmacy, or grant wallet access. Heartbeat `session_revalidating` and
+`pending_approval` are bounded diagnostics, not authority.
+
+Scheduled Standard-N directory replacement uses an explicit transaction for
+delete+insert+flush, including the scheduled self-call. External Firebird reads
+occur before that transaction. A failed replacement rolls back; independent
+readers keep the previous committed snapshot until the new snapshot commits.
+Repeated staff logout does not overwrite the first recorded revocation time.
+No migration or production data mutation is part of this candidate.
+
 ## OTP admission and retry contract (local post-157 candidate)
 
 OTP/phone-lock entry points share a fair admission advisor **before** the

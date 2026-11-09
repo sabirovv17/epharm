@@ -38,6 +38,8 @@ public sealed class StaffAuthDiagnosticsTests
     [InlineData("staff_bypass_sms_unavailable")]
     [InlineData("staff_bypass_sms_wait")]
     [InlineData("staff_bypass_identity_unavailable")]
+    [InlineData("session_revalidating")]
+    [InlineData("pending_approval")]
     public void BypassedSignInKeepsAFixedDiagnosticInsteadOfAuthenticated(string status)
     {
         Assert.Equal(status, StaffAuthDiagnostics.Normalize(status));

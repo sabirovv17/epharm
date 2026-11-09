@@ -106,6 +106,28 @@ class MobilePasswordResetIntegrationTest {
         assertThat(complete(token).response.status).isEqualTo(400)
     }
 
+    @Test fun `recovery canonicalizes a copied IIN consistently across all three phases`() {
+        val challenge=request(" $IIN ")
+        val verified=verify(challenge,iin="\t$IIN\t")
+        assertThat(verified.response.status).isEqualTo(200)
+        val token=body(verified)["resetToken"].asText()
+        assertThat(complete(token,iin="  $IIN  ").response.status).isEqualTo(200)
+        assertThat(complete(token,iin=IIN).response.status).isEqualTo(400)
+        assertThat(post("login",mapOf("iin" to IIN,"password" to "ResetFarm123!")).response.status).isEqualTo(200)
+        io.mockk.verify(exactly=1) { provider.requestOtp(PHONE,any()) }
+        io.mockk.verify(exactly=1) { provider.verifyOtp(PHONE,"1234") }
+    }
+
+    @Test fun `whitespace cannot reset the account recovery request quota or cause SMS replay`() {
+        val unknown="880404400014"
+        repeat(5) { index -> request(" ".repeat(index)+unknown+"\t".repeat(index)) }
+        val denied=post("password-reset/request",mapOf("iin" to " $unknown "))
+        assertThat(denied.response.status).isEqualTo(429)
+        assertThat(code(denied)).isEqualTo("OTP_RESEND_TOO_SOON")
+        assertThat(count("SELECT count(*) FROM mobile_password_reset_challenges")).isEqualTo(5)
+        io.mockk.verify(exactly=0) { provider.requestOtp(any(),any()) }
+    }
+
     @Test fun `unknown blocked and unactivated accounts have generic request shape and do not send or register`() {
         jdbc.update("UPDATE pharmacists SET status='blocked' WHERE id='u_reset'")
         val blocked=body(post("password-reset/request",mapOf("iin" to IIN)))
@@ -174,6 +196,7 @@ class MobilePasswordResetIntegrationTest {
         assertThat(complete("x".repeat(43)).response.status).isEqualTo(400)
         val token=grant()
         assertThat(complete(token,password="я".repeat(40)).response.status).isEqualTo(400)
+        assertThat(complete(token,password=" ".repeat(8)).response.status).isEqualTo(400)
         jdbc.update("UPDATE mobile_password_reset_challenges SET reset_expires_at=now()-interval '1 second'")
         assertThat(complete(token).response.status).isEqualTo(400)
         assertThat(encoder.matches("Farm123!",people.findById("u_reset").orElseThrow().passwordHash)).isTrue()

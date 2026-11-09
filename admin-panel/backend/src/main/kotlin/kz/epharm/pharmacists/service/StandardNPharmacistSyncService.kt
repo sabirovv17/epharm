@@ -7,7 +7,8 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.sql.DriverManager
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.Instant
 import java.util.Properties
 
@@ -21,6 +22,8 @@ data class StandardNSyncResult(
 @Service
 class StandardNPharmacistSyncService(
     private val repository: StandardNPharmacistRepository,
+    transactionManager: PlatformTransactionManager,
+    private val sourceConnections: StandardNDirectoryConnectionFactory,
     @Value("\${app.standardn-directory.enabled:false}") private val enabled: Boolean,
     @Value("\${app.standardn-directory.host:INKSTDN}") private val host: String,
     @Value("\${app.standardn-directory.port:3050}") private val port: Int,
@@ -30,6 +33,7 @@ class StandardNPharmacistSyncService(
     @Value("\${app.standardn-directory.password:}") private val password: String,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+    private val snapshotTransaction = TransactionTemplate(transactionManager)
 
     @Scheduled(
         fixedDelayString = "\${app.standardn-directory.sync-delay-ms:21600000}",
@@ -41,7 +45,6 @@ class StandardNPharmacistSyncService(
             .onFailure { log.error("Standard-N pharmacist directory sync failed: {}", it.message) }
     }
 
-    @Transactional
     fun sync(): StandardNSyncResult {
         check(enabled) { "Standard-N directory sync is disabled" }
         check(user.isNotBlank() && password.isNotBlank()) {
@@ -50,8 +53,12 @@ class StandardNPharmacistSyncService(
 
         val rows = readSource()
         val now = Instant.now()
-        repository.deleteAllInBatch()
-        repository.saveAll(rows.map { it.toEntity(now) })
+        // Explicit transaction also covers scheduledSync's self-call; no DB transaction is held
+        // while reading Firebird. Readers see the old complete snapshot until this one commits.
+        snapshotTransaction.executeWithoutResult {
+            repository.deleteAllInBatch()
+            repository.saveAllAndFlush(rows.map { it.toEntity(now) })
+        }
 
         val result = StandardNSyncResult(
             importedRows = rows.size,
@@ -88,7 +95,6 @@ class StandardNPharmacistSyncService(
     }
 
     private fun readSource(): List<SourceRow> {
-        Class.forName("org.firebirdsql.jdbc.FBDriver")
         val properties = Properties().apply {
             setProperty("user", user)
             setProperty("password", password)
@@ -96,7 +102,7 @@ class StandardNPharmacistSyncService(
             setProperty("connectionTimeout", "10")
         }
         val url = "jdbc:firebirdsql://$host:$port/$database"
-        DriverManager.getConnection(url, properties).use { connection ->
+        sourceConnections.open(url, properties).use { connection ->
             connection.isReadOnly = true
             connection.createStatement().use { statement ->
                 statement.queryTimeout = 30

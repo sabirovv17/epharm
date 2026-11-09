@@ -141,7 +141,6 @@ namespace CustomerDisplay
         private LibVLCSharp.Shared.LibVLC? _libVLC;
         private LibVLCSharp.Shared.MediaPlayer? _mediaPlayer;
         private LibVLCSharp.Shared.Media? _currentMedia;
-        private string StaffAuthenticationStatus => "client_disabled";
         internal IReadOnlyList<string> PlayingScreenSources => _videoSources;
         internal int ScreenStopCount => _mediaPlayer!.StopCount;
         internal int ScreenPlayCount => _mediaPlayer!.PlayCount;

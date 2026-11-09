@@ -2,6 +2,8 @@ const labels = new Map<string, string>([
   ['authenticated', 'вход подтверждён'],
   ['login_visible', 'окно входа открыто'],
   ['login_required', 'требуется вход'],
+  ['session_revalidating', 'повторно проверяем подтверждение входа'],
+  ['pending_approval', 'ожидается подтверждение и назначение аптеки в HQ'],
   ['staff_bypass_service_unavailable', 'работа разрешена без входа: сервис недоступен'],
   ['staff_bypass_sms_unavailable', 'работа разрешена без входа: SMS-сервис недоступен'],
   ['staff_bypass_sms_wait', 'работа разрешена без входа: SMS-код не получен'],

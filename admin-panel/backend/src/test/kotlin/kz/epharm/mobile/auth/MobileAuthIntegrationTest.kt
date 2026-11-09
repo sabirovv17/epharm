@@ -191,6 +191,52 @@ class MobileAuthIntegrationTest {
     // ── Вход существующего фармацевта ─────────────────────────────────────────
 
     @Test
+    fun `initial password byte limit preserves verified OTP and rejects silent BCrypt truncation`() {
+        mockMvc.perform(post("/api/mobile/auth/activation/sms/request").contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsBytes(mapOf("iin" to unactivatedIin, "phone" to unactivatedPhone))))
+            .andExpect(status().isOk)
+        mockMvc.perform(post("/api/mobile/auth/activation/sms/verify").contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsBytes(mapOf("iin" to unactivatedIin, "phone" to unactivatedPhone, "code" to "5445"))))
+            .andExpect(status().isOk)
+        val tokenCount = refreshRepository.count()
+        for (value in listOf("x".repeat(73), "я".repeat(37))) {
+            mockMvc.perform(post("/api/mobile/auth/activation/password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(mapOf("iin" to unactivatedIin, "phone" to unactivatedPhone, "password" to value))))
+                .andExpect(status().isBadRequest)
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            assertThat(pharmacistRepository.findByIin(unactivatedIin)!!.passwordHash).isNull()
+            assertThat(refreshRepository.count()).isEqualTo(tokenCount)
+        }
+        // The same verified proof remains usable; exact edge whitespace is not trimmed.
+        val exact = " " + "я".repeat(35) + " "
+        mockMvc.perform(post("/api/mobile/auth/activation/password")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsBytes(mapOf("iin" to unactivatedIin, "phone" to unactivatedPhone, "password" to exact))))
+            .andExpect(status().isOk)
+        val stored = pharmacistRepository.findByIin(unactivatedIin)!!.passwordHash!!
+        assertThat(passwordEncoder.matches(exact, stored)).isTrue
+        assertThat(passwordEncoder.matches(exact.trim(), stored)).isFalse
+    }
+
+    @Test
+    fun `whitespace variants of an IIN cannot bypass the shared password login attempt budget`() {
+        repeat(10) { index ->
+            val variant = " ".repeat(index) + "951212500015" + "\t".repeat(index)
+            mockMvc.perform(post("/api/mobile/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(mapOf("iin" to variant, "password" to "wrong"))))
+                .andExpect(status().isUnauthorized)
+        }
+        for (variant in listOf("951212500015", " 951212500015 ", "\t951212500015\t")) {
+            mockMvc.perform(post("/api/mobile/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(mapOf("iin" to variant, "password" to "Farm123!"))))
+                .andExpect(status().isTooManyRequests)
+                .andExpect(jsonPath("$.code").value("OTP_TOO_MANY_ATTEMPTS"))
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM posm_staff_rate_limits", Int::class.java)).isEqualTo(1)
+    }
+
+    @Test
     fun `первая активация привязывает созданный пароль к ИИН`() {
         mockMvc.perform(
             post("/api/mobile/auth/activation/status")

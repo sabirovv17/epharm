@@ -48,7 +48,7 @@ public sealed class StaffDeviceSessionStateTests
     }
 
     [Fact]
-    public void BackgroundFailureCannotPreserveAnExistingGrantOrPermitALateProcessReply()
+    public void ExplicitBypassClearsAnExistingGrantAndCannotPermitALateProcessReply()
     {
         var authenticated = State(); Login(authenticated); var previous = authenticated.Generation;
         authenticated.Bypass(StaffPromptBypassReason.ServiceUnavailable, preservePendingRequest: true);
@@ -74,6 +74,70 @@ public sealed class StaffDeviceSessionStateTests
         Assert.True(policy.SetSmsRequired(true)); Assert.True(policy.SmsRequired); Assert.False(policy.IsCurrent(directAttempt));
         policy.SetSmsRequired(false);
         Assert.False(policy.IsCurrent(directAttempt)); // Same boolean after rollback is not the same request generation.
+    }
+
+    [Fact]
+    public void TransportRecoverySuspendsAuthenticationAndNeverExtendsEitherDeadline()
+    {
+        var state = State(Source()); Login(state); var token = state.Grant!; var generation = state.Generation;
+        var context = state.Context!; var originalExpiry = state.ExpiresAt;
+        Assert.True(state.BeginValidation(Now)); Assert.False(state.IsAuthenticated(Now));
+        Assert.True(state.MarkTransportFailure(Now)); Assert.Equal(Now.AddMinutes(2), state.RecoveryDeadline);
+        Assert.True(state.MarkTransportFailure(Now.AddMinutes(1))); Assert.Equal(Now.AddMinutes(2), state.RecoveryDeadline);
+        Assert.True(state.ConfirmValidation(generation, token, context, Response(context) with { SessionToken = null, ExpiresAt = Now.AddHours(9) }, Now.AddMinutes(1)));
+        Assert.True(state.IsAuthenticated(Now.AddMinutes(1))); Assert.Equal(originalExpiry, state.ExpiresAt);
+        Assert.Null(state.RecoveryDeadline); Assert.Null(state.BypassStatus);
+    }
+
+    [Theory]
+    [InlineData("expired")]
+    [InlineData("process")]
+    [InlineData("cashier")]
+    [InlineData("logout")]
+    [InlineData("deadline")]
+    public void RecoveryNeverRestoresExpiredOrObsoleteProof(string invalidation)
+    {
+        var state = State(Source()); Login(state); var token = state.Grant!; var context = state.Context!; var generation = state.Generation;
+        state.MarkTransportFailure(Now); var now = Now.AddSeconds(1);
+        switch (invalidation) {
+            case "expired": now = Now.AddHours(9); break;
+            case "deadline": now = Now.AddMinutes(2); break;
+            case "process": state.Observe(new("resolved", "another-process"), new("database_unavailable")); break;
+            case "cashier": state.Observe(new("resolved", Process), Source("another-user")); break;
+            default: state.Invalidate(); break;
+        }
+        Assert.False(state.ConfirmValidation(generation, token, context, Response(context), now));
+        Assert.False(state.IsAuthenticated(now)); Assert.Null(state.Grant);
+        Assert.True(state.NeedsPrompt(now)); state.MarkPrompted(); Assert.False(state.NeedsPrompt(now));
+    }
+
+    [Fact]
+    public void CheckCannotReplaceTheAuthenticatedPersonOrRestoreAForeignResponse()
+    {
+        var state = State(); Login(state); state.MarkTransportFailure(Now);
+        var context = state.Context!;
+        Assert.False(state.ConfirmValidation(state.Generation, state.Grant!, context,
+            Response(context) with { Pharmacist = new("foreign-person", "Other") }, Now));
+        Assert.False(state.IsAuthenticated(Now));
+        Assert.False(state.ConfirmValidation(state.Generation, state.Grant!, context,
+            Response(context) with { DeviceContext = new("foreign-process") }, Now));
+    }
+
+    [Fact]
+    public void MovingTheWindowsClockBackCannotExtendRecovery()
+    {
+        var clock = new MonotonicTestTime(); var state = new StaffDeviceSessionState(clock);
+        state.Observe(new("resolved", Process), new("database_unavailable")); Login(state);
+        state.MarkTransportFailure(Now); clock.Ticks += TimeSpan.FromMinutes(2).Ticks;
+        Assert.False(state.CanValidate(Now.AddHours(-1))); Assert.Null(state.Grant);
+        Assert.True(state.NeedsPrompt(Now.AddHours(-1)));
+    }
+
+    private sealed class MonotonicTestTime : TimeProvider
+    {
+        public long Ticks;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => Ticks;
     }
 
     [Fact]

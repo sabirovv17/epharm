@@ -8,6 +8,7 @@ import type {
   PharmacyDto,
 } from '@/lib/api-types'
 import { isValidIin } from '@/lib/iin'
+import { isValidNewPharmacistPassword } from '@/lib/pharmacist-password'
 
 interface Props {
   open: boolean
@@ -62,7 +63,7 @@ export function CreatePharmacistModal({
   const normalizedPhone = useMemo(() => normalizePhone(form.phone), [form.phone])
   const phoneValid = /^\+7\d{10}$/.test(normalizedPhone)
   const iinValid = isValidIin(form.iin)
-  const passwordValid = form.password.length >= 6 && form.password.length <= 128
+  const passwordValid = isValidNewPharmacistPassword(form.password, 6)
   const valid =
     form.name.trim().length > 0 &&
     form.name.trim().length <= 255 &&
@@ -163,6 +164,8 @@ export function CreatePharmacistModal({
         <Field label="Пароль для входа">
           <Input
             type="password"
+            aria-label="Пароль для входа"
+            aria-describedby="create-pharmacist-password-help"
             value={form.password}
             minLength={6}
             maxLength={128}
@@ -170,9 +173,12 @@ export function CreatePharmacistModal({
             onChange={(event) => set({ password: event.target.value })}
             placeholder="Минимум 6 символов"
           />
+          <p id="create-pharmacist-password-help" className="mt-1 text-[11px] text-ink-500">
+            От 6 символов, не более 72 байт UTF-8; не только пробелы.
+          </p>
           {attempted && !passwordValid && (
             <div className="mt-1 text-[11px] font-semibold text-accent-danger">
-              Пароль должен содержать минимум 6 символов.
+              Проверьте длину пароля: кириллица и эмодзи занимают больше одного байта.
             </div>
           )}
         </Field>

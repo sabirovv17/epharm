@@ -1,7 +1,7 @@
 // Тесты PharmacistsPage — пустой/loading/error/полный список + block/unblock.
 
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
-import { act, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, useLocation } from 'react-router-dom'
@@ -340,6 +340,30 @@ describe('PharmacistsPage — список и actions', () => {
       expect(mutate.mock.calls[0][0].patch).not.toHaveProperty('balance')
     },
   )
+
+  it('не отправляет новый HQ-пароль за пределами BCrypt и принимает 72 байта без сокращения', async () => {
+    const mutate = vi.fn()
+    pharmacistHooks.useUpdatePharmacist.mockReturnValue({ mutate, isPending: false })
+    setPharmacists([mkPharmacist({ id: 'password-boundary' })])
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByRole('button', { name: 'Сменить пароль' }))
+    const input = screen.getByLabelText('Новый пароль')
+    const save = screen.getByRole('button', { name: 'Сохранить пароль' })
+    for (const value of ['я'.repeat(37), 'x'.repeat(73), ' '.repeat(8)]) {
+      fireEvent.change(input, { target: { value } })
+      expect(save).toBeDisabled()
+      await user.click(save)
+      expect(mutate).not.toHaveBeenCalled()
+    }
+    fireEvent.change(input, { target: { value: 'я'.repeat(36) } })
+    expect(save).toBeEnabled()
+    await user.click(save)
+    expect(mutate).toHaveBeenCalledWith(
+      { id: 'password-boundary', patch: { password: 'я'.repeat(36) } },
+      expect.any(Object),
+    )
+  })
 
   it('потеря полномочий закрывает уже открытый сброс пароля', async () => {
     const mutate = vi.fn()

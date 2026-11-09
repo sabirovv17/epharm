@@ -2,10 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { staffAuthStatusLabel } from './staffAuthStatus'
 
 describe('staffAuthStatusLabel', () => {
+  it('does not report a network outage for an ordinary session check', () => {
+    expect(staffAuthStatusLabel('session_revalidating')).toBe(
+      'Вход РПС: повторно проверяем подтверждение входа',
+    )
+  })
+
   it.each([
     'authenticated',
     'login_visible',
     'login_required',
+    'session_revalidating',
+    'pending_approval',
     'initializing',
     'local_disabled',
     'device_auth_required',

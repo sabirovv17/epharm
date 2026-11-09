@@ -5,6 +5,40 @@ Path: `App/` and `Models/`.
 Current client is C#/WPF/.NET 10. Older Electron references are historical and no longer describe the
 implementation.
 
+## Local post-#158 access-recovery candidate — 2026-11-10
+
+A temporary capability/session-check transport failure is not a logout. The
+unexpired process-bound grant is retained in memory for server revalidation only,
+for at most two minutes from the first failure, never beyond its original expiry.
+A monotonic clock also bounds recovery if the Windows wall clock moves backwards.
+While validation is pending, `IsAuthenticated` is false: retained `Grant` alone
+must never authorize a financial action. Retries do not extend the recovery deadline
+or replay login, registration, password reset or SMS. A successful fresh check may
+restore only the same generation/process/token/pharmacist, without extending expiry.
+Session-check 429 respects Retry-After inside the same recovery limit; 401/403, expiry, server disable,
+confirmed cashier/process change and explicit logout still invalidate the session.
+Recovery expiry allows one ordinary closable login prompt rather than trapping
+the cashier in a mandatory fullscreen window. Cash work remains independent.
+Known HTTP denial remains terminal even when its optional error body is truncated
+or unavailable; reading that body has the same bounded request deadline.
+
+Successful login/registration handoff awaits fresh OS process confirmation for
+at most two seconds. One uncertain read may be retried; a confirmed different
+process rejects immediately. Dismissal, cancellation or generation change cannot
+accept a late response. Rejected returned grants are revoked; form mutations are
+never automatically replayed. The form stays busy until the parent finishes.
+
+HQ distinguishes `session_revalidating` from `pending_approval`. Pending survives
+closing the optional form or a failed capability poll and does not masquerade as
+unavailable Standard-N identity.
+Post-password pharmacy-assignment errors explain HQ verification in RU/KK without
+suggesting duplicate registration. An oversized existing password points to verified
+recovery, not shortening the submitted credential.
+
+The portable suite links the real `MainWindow.Staff.cs` orchestration with fake OS,
+dispatcher, window and HTTP boundaries. Native WPF tests separately exercise the
+real form and awaited callback. Neither proves a live Standard-N/cash-desk pilot.
+
 ## Local post-#157 audit candidate — 2026-11-09
 
 This section describes **unreleased local changes** based on main `4a6ebaf`

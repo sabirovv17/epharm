@@ -82,7 +82,7 @@ class DevicePresenceServiceTest {
         assertEquals(null, svc.connected(t0.plusSeconds(7)).single().staffAuthStatus)
         assertEquals(null, StaffAuthStatus.normalize("authenticated\nprivate"))
         assertEquals(null, StaffAuthStatus.normalize("unknown"))
-        for (status in listOf("staff_bypass_service_unavailable", "staff_bypass_sms_unavailable", "staff_bypass_sms_wait", "staff_bypass_identity_unavailable")) {
+        for (status in listOf("staff_bypass_service_unavailable", "staff_bypass_sms_unavailable", "staff_bypass_sms_wait", "staff_bypass_identity_unavailable", "session_revalidating", "pending_approval")) {
             assertEquals(status, StaffAuthStatus.normalize(status))
         }
     }

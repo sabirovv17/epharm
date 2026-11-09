@@ -67,6 +67,8 @@
     <Compile Include="..\App\Services\TaskKioskClient.cs" Link="Services\TaskKioskClient.cs" />
     <Compile Include="..\App\Services\StaffSessionObservation.cs" Link="Services\StaffSessionObservation.cs" />
     <Compile Include="..\App\Services\StaffDeviceSessionState.cs" Link="Services\StaffDeviceSessionState.cs" />
+    <Compile Include="..\App\Services\StaffProcessConfirmation.cs" Link="Services\StaffProcessConfirmation.cs" />
+    <Compile Include="..\App\MainWindow.Staff.cs" Link="Staff\MainWindow.Staff.cs" />
     <Compile Include="..\App\Services\StaffPromptPolicy.cs" Link="Services\StaffPromptPolicy.cs" />
     <Compile Include="..\App\Services\StaffPasswordValidation.cs" Link="Services\StaffPasswordValidation.cs" />
     <Compile Include="..\App\Services\StaffAuthClient.cs" Link="Services\StaffAuthClient.cs" />

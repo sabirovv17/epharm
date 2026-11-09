@@ -56,6 +56,7 @@ import { proxyMedia } from '../../lib/media'
 import { useUiStore } from '@/app/store'
 import { currentLearnerTranslate, learnerTranslate, useLearnerT } from './learner-i18n'
 import type { CourseLiveRoomDto } from '@/lib/api-types'
+import { newLearnerPasswordError } from './password-policy'
 
 type Tokens = {
   accessToken: string
@@ -72,6 +73,7 @@ type Pharmacist = {
   name: string
   phone: string
   pharmacyName: string | null
+  status?: string
   city: string
   tier?: string
   balance?: number
@@ -1117,6 +1119,11 @@ export default function LearnerTrainingPage() {
       setError(t('Пароли не совпадают'))
       return
     }
+    const policyError = newLearnerPasswordError(password)
+    if (policyError) {
+      setError(t(policyError))
+      return
+    }
     setBusy(true)
     setError('')
     try {
@@ -1230,8 +1237,9 @@ export default function LearnerTrainingPage() {
       setError(t('Пароли не совпадают'))
       return
     }
-    if (new TextEncoder().encode(password).length > 72) {
-      setError('Пароль: от 8 символов и не более 72 байт UTF-8')
+    const policyError = newLearnerPasswordError(password)
+    if (policyError) {
+      setError(t(policyError))
       return
     }
     const version = recoveryVersion.current
@@ -1807,9 +1815,7 @@ export default function LearnerTrainingPage() {
               )}
               <div className="mt-7 flex items-start gap-2 border-t border-ink-100 pt-5 text-xs leading-5 text-ink-400">
                 <ShieldCheck className="mt-0.5 shrink-0 text-brand-green-600" size={16} />
-                {t(
-                  'Пароль передаётся по защищённому соединению и хранится на сервере только в виде BCrypt-хеша.',
-                )}
+                {t('Пароль передаётся по защищённому соединению. Не сообщайте его другим людям.')}
               </div>
             </div>
           </div>
@@ -1877,6 +1883,22 @@ export default function LearnerTrainingPage() {
             </div>
           </header>
 
+          {!loading && pharmacist?.status === 'pending' && (
+            <div
+              role="status"
+              aria-labelledby="learner-account-pending"
+              className="mb-4 rounded-xl border border-ink-200 bg-paper p-4 text-sm leading-6 text-ink-700"
+            >
+              <p id="learner-account-pending" className="font-bold">
+                {t('Вход выполнен. Аккаунт ожидает подтверждения HQ.')}
+              </p>
+              <p>
+                {t(
+                  'Попросите ответственного в аптеке передать запрос в HQ для проверки и назначения аптеки. Повторная регистрация не нужна. Баланс и рекомендации откроются после активации.',
+                )}
+              </p>
+            </div>
+          )}
           {error && <ErrorMessage text={error} />}
           {!loading && !selected && !taskId && portalSection === 'home' && (
             <button

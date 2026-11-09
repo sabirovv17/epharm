@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import LearnerTrainingPage from './LearnerTrainingPage'
@@ -47,6 +47,39 @@ afterEach(() => {
 })
 
 describe('learner training portal', () => {
+  it.each([
+    ['ru', 'Вход выполнен. Аккаунт ожидает подтверждения HQ.', 'Повторная регистрация не нужна.'],
+    ['kk', 'Кіру орындалды. Аккаунт HQ растауын күтуде.', 'Қайта тіркелудің қажеті жоқ.'],
+  ] as const)(
+    'explains pending approval after successful login in %s without discarding the session',
+    async (language, heading, nextStep) => {
+      useUiStore.setState({ language })
+      sessionStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+        const path = String(input)
+        if (path === '/api/mobile/auth/me')
+          return json({
+            id: 'pending-1',
+            name: 'Synthetic pending',
+            status: 'pending',
+            pharmacyName: null,
+            city: 'Алматы',
+          })
+        if (path === '/api/mobile/training')
+          return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
+        if (path === '/api/mobile/promotions') return json([])
+        if (path.startsWith('/api/mobile/me/')) return json({ code: 'USER_NOT_ACTIVE' }, 403)
+        return json({ items: [] })
+      })
+      renderPortal()
+      expect(await screen.findByText(heading)).toBeVisible()
+      expect(screen.getByRole('status', { name: heading })).toHaveTextContent(nextStep)
+      expect(localStorage.getItem('epharm.learner.tokens')).toBe(JSON.stringify(tokens))
+      expect(sessionStorage.getItem('epharm.learner.tokens')).toBeNull()
+      expect(screen.queryByRole('textbox', { name: /ИИН|ЖСН/ })).not.toBeInTheDocument()
+    },
+  )
+
   it('renders Kazakh actions and dates without mixed Russian or locale placeholders', async () => {
     useUiStore.setState({ language: 'kk' })
     localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
@@ -820,6 +853,51 @@ describe('learner training portal', () => {
     expect(screen.getByText('Сообщите руководителю и вызовите 112.')).toBeInTheDocument()
     await waitFor(() =>
       expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' }),
+    )
+  })
+
+  it('rejects oversized UTF-8 initial passwords without consuming activation and accepts the exact boundary', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/mobile/auth/activation/status')
+        return json({ passwordSet: false, phoneMasked: '+7 (***) ***-00-00' })
+      if (path === '/api/mobile/auth/activation/sms/request')
+        return json({ sent: true, phoneMasked: '+7 (***) ***-00-00', ttlSeconds: 300 })
+      if (path === '/api/mobile/auth/activation/sms/verify') return json({ verified: true })
+      return json({ code: 'VALIDATION_FAILED', message: 'Test response' }, 400)
+    })
+    renderPortal()
+    await user.type(screen.getByRole('textbox', { name: 'ИИН' }), '061007500024')
+    await user.click(screen.getByRole('button', { name: 'Продолжить' }))
+    await user.type(await screen.findByRole('textbox', { name: 'Номер телефона' }), '7070000000')
+    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+    await user.type(await screen.findByRole('textbox', { name: 'Код из SMS' }), '123456')
+    await user.click(screen.getByRole('button', { name: 'Подтвердить код' }))
+    const password = await screen.findByLabelText('Новый пароль')
+    const confirmation = screen.getByLabelText('Повторите пароль')
+    fireEvent.change(password, { target: { value: 'я'.repeat(37) } })
+    fireEvent.change(confirmation, { target: { value: 'я'.repeat(37) } })
+    await user.click(screen.getByRole('button', { name: 'Создать пароль и войти' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('72 байт')
+    expect(password).toHaveValue('я'.repeat(37))
+    expect(confirmation).toHaveValue('я'.repeat(37))
+    expect(
+      fetchMock.mock.calls.some(([path]) => String(path).endsWith('/activation/password')),
+    ).toBe(false)
+    fireEvent.change(password, { target: { value: 'я'.repeat(36) } })
+    fireEvent.change(confirmation, { target: { value: 'я'.repeat(36) } })
+    await user.click(screen.getByRole('button', { name: 'Создать пароль и войти' }))
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/mobile/auth/activation/password',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          iin: '061007500024',
+          phone: '+77070000000',
+          password: 'я'.repeat(36),
+        }),
+      }),
     )
   })
 
