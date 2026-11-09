@@ -70,7 +70,7 @@ public sealed class UpdateTransactionTests : IDisposable
             if (dangling) Assert.False(Directory.Exists(target));
             if (name.EndsWith(".tmp", StringComparison.Ordinal)) Assert.Equal(original, File.ReadAllBytes(helper));
         }
-        finally { Directory.Delete(link, recursive: false); }
+        finally { TestDirectoryLink.Remove(link); }
         AssertPrevious();
     }
 
@@ -330,7 +330,7 @@ public sealed class UpdateTransactionTests : IDisposable
             Assert.Equal("foreign-data", File.ReadAllText(sentinel));
             Assert.Equal(new[] { sentinel }, Directory.GetFiles(foreign));
         }
-        finally { Directory.Delete(logLink, recursive: false); }
+        finally { TestDirectoryLink.Remove(logLink); }
         Assert.Equal("candidate-executable", File.ReadAllText(Path.Combine(Install, "CustomerDisplay.exe")));
         Assert.Equal("candidate-assembly", File.ReadAllText(Path.Combine(Install, "CustomerDisplay.dll")));
         Assert.True(File.Exists(UpdateTransaction.ActivePath(Install)));
@@ -359,7 +359,7 @@ public sealed class UpdateTransactionTests : IDisposable
             Assert.True((File.GetAttributes(link) & FileAttributes.ReparsePoint) != 0);
             AssertPrevious();
         }
-        finally { Directory.Delete(link, recursive: false); }
+        finally { TestDirectoryLink.Remove(link); }
     }
 
     [Fact]

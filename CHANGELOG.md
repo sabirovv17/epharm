@@ -5,6 +5,24 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.14] - 2026-11-09
+
+### Fixed
+
+- Bound OTP transaction admission and provider concurrency independently, preserve
+  registration without SMS, and return truthful retry deadlines without weakening
+  password, one-use code or staff-device checks.
+- Serialize current POSM release publication per platform and enforce the invariant
+  with additive V099. Existing duplicate current releases must be resolved before
+  migration; no release history is selected or rewritten automatically.
+- Preserve financial identity-conflict responses while replacing raw diagnostic
+  payloads with safe fingerprints and changed-field names.
+- Harden the POSM recommendation, staff-window and recoverable-update candidate.
+  Windows distribution remains gated on a separately verified signed version and
+  old-client update/recovery pilot; a server deployment alone does not update cash desks.
+- Keep Linux dangling-link cleanup compatible with Unix while preserving all Windows
+  junction, reparse-path and recovery regression checks in required CI.
+
 ## [0.2.13] - 2026-11-09
 
 ### Fixed

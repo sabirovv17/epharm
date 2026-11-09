@@ -20,4 +20,15 @@ internal static class TestDirectoryLink
         }
         Assert.True((File.GetAttributes(link) & FileAttributes.ReparsePoint) != 0);
     }
+
+    internal static void Remove(string link)
+    {
+        FileAttributes attributes;
+        try { attributes = File.GetAttributes(link); }
+        catch (FileNotFoundException) { return; }
+        catch (DirectoryNotFoundException) { return; }
+        Assert.True((attributes & FileAttributes.ReparsePoint) != 0);
+        if (OperatingSystem.IsWindows()) Directory.Delete(link, recursive: false);
+        else File.Delete(link); // Unix must unlink even when the directory target is absent.
+    }
 }

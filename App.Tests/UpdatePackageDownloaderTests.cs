@@ -107,7 +107,7 @@ public sealed class UpdatePackageDownloaderTests : IDisposable
             Assert.Equal(new[] { sentinel }, Directory.GetFiles(foreign));
             Assert.True((File.GetAttributes(link) & FileAttributes.ReparsePoint) != 0);
         }
-        finally { if (Directory.Exists(link)) Directory.Delete(link, recursive: false); }
+        finally { TestDirectoryLink.Remove(link); }
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public sealed class UpdatePackageDownloaderTests : IDisposable
             Assert.True((File.GetAttributes(Destination) & FileAttributes.ReparsePoint) != 0);
             Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(Destination + ".part"));
         }
-        finally { if (Directory.Exists(Destination)) Directory.Delete(Destination, recursive: false); }
+        finally { TestDirectoryLink.Remove(Destination); }
     }
 
     public void Dispose() => Directory.Delete(_root, true);
