@@ -7,7 +7,7 @@ class IinUtilTest {
 
     @Test
     fun `валидные ИИН проходят (правильная контрольная сумма)`() {
-        // Сгенерированы по алгоритму (формат + дата + контрольная цифра).
+        // Synthetic checksum-valid identifiers; not proof of government issuance.
         listOf(
             "900115300013",
             "850615400016",
@@ -38,18 +38,31 @@ class IinUtilTest {
     }
 
     @Test
-    fun `невалидная дата рождения отклоняется`() {
-        assertThat(IinUtil.isValid("901315300013")).isFalse()    // месяц 13
-        assertThat(IinUtil.isValid("900015300013")).isFalse()    // месяц 00
-        assertThat(IinUtil.isValid("900132300013")).isFalse()    // день 32
-        assertThat(IinUtil.isValid("900229300013")).isFalse()    // 1990 не високосный → 29 фев нет
+    fun `цифры ИИН не интерпретируются как дата век или пол`() {
+        // Deliberately non-date prefix and every seventh digit, all with valid checksums.
+        listOf("123456012344", "123456112340", "123456212347", "123456312343",
+            "123456412343", "123456512346", "123456612342", "123456712349",
+            "123456812345", "123456912341")
+            .forEach { assertThat(IinUtil.isValid(it)).`as`(it).isTrue() }
     }
 
     @Test
-    fun `невалидная цифра века-пола отклоняется`() {
-        // 7-я цифра должна быть 1..6 (0/7/8/9 — не ИИН физлица).
-        assertThat(IinUtil.isValid("900115000013")).isFalse()
-        assertThat(IinUtil.isValid("900115700013")).isFalse()
+    fun `сохраняется запрет пустого идентификатора`() {
+        assertThat(IinUtil.isValid("000000000000")).isFalse()
+        assertThat(IinUtil.isValid(" 000000000000 ")).isFalse()
+    }
+
+    @Test
+    fun `второй набор весов используется только при остатке десять`() {
+        assertThat(IinUtil.isValid("123456000405")).isTrue()
+        assertThat(IinUtil.isValid("123456000400")).isFalse()
+        (0..9).forEach { assertThat(IinUtil.isValid("12345600048$it")).isFalse() }
+    }
+
+    @Test
+    fun `принимаются только цифры ASCII`() {
+        assertThat(IinUtil.isValid("１２３４５６０１２３４４")).isFalse()
+        assertThat(IinUtil.isValid("١٢٣٤٥٦٠١٢٣٤٤")).isFalse()
     }
 
     @Test

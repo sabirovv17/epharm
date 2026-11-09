@@ -8,7 +8,7 @@ import kz.epharm.shared.IinUtil
 import kotlin.reflect.KClass
 
 /**
- * Bean-validation аннотация для поля ИИН. Проверяет формат + дату рождения + контрольную сумму
+ * Bean-validation аннотация для поля ИИН. Проверяет формат и контрольную сумму
  * (см. [IinUtil]). Вешать вместе с @field:NotBlank — пустоту контролирует он, эта аннотация
  * не ругается на null/blank (чтобы сообщения не дублировались).
  *
@@ -19,7 +19,7 @@ import kotlin.reflect.KClass
 @Target(AnnotationTarget.FIELD, AnnotationTarget.VALUE_PARAMETER)
 @Retention(AnnotationRetention.RUNTIME)
 annotation class Iin(
-    val message: String = "Некорректный ИИН: нужно 12 цифр с верной датой рождения и контрольной суммой",
+    val message: String = "Некорректный ИИН: нужно 12 цифр с верной контрольной суммой",
     val groups: Array<KClass<*>> = [],
     val payload: Array<KClass<out Payload>> = [],
 )

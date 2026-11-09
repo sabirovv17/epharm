@@ -159,6 +159,13 @@ The backend is a modular monolith under package `kz.epharm`.
 
 ## API Map
 
+Shared IIN validation checks twelve ASCII digits and the two-pass checksum, and
+preserves rejection of the empty `000000000000` identifier. It does not decode a
+birth date, century or sex: see the [official explanation](https://www.gov.kz/org/migration/press/news/details/132237?lang=ru).
+This applies to staff registration/login, pharmacist administration and the learner
+web authentication API. Format validation does not prove government issuance or
+ownership; authentication, uniqueness and identity observations remain separate.
+
 POSM staff identity is an independent optional API under `/api/posm/staff`: capabilities,
 login, OTP request, registration, password reset/activation, session validation and logout.
 Every route requires a non-legacy individual `X-Posm-Key`; opaque staff grants also bind

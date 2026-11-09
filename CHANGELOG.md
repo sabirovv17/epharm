@@ -5,6 +5,18 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.12] - 2026-11-09
+
+### Fixed
+
+- Accept checksum-valid IINs without interpreting their digits as birth date, century
+  or sex in shared backend validation and the admin pharmacist form. Preserve ASCII
+  length, both checksum passes, the existing empty-identifier rejection, uniqueness,
+  authentication, passwords and pharmacy assignment. No migration or SMS change.
+- Cover SMS-free registration, RPS device login and the separate learner web login
+  with a synthetic checksum-valid identifier that has no demographic encoding.
+  Existing POSM 1.0.80 already accepts twelve digits and needs no binary update.
+
 ## [0.2.11] - 2026-11-09
 
 ### Fixed
