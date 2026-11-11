@@ -103,7 +103,8 @@ try {
 } finally { Pop-Location }
 $driverUrl = 'https://www.amyuni.com/downloads/usbmmidd_v2.zip'
 $driverZip = Join-Path $Output 'vdd.zip'
-Invoke-WebRequest -UseBasicParsing -Uri $driverUrl -OutFile $driverZip -TimeoutSec 60
+# Unmodified vendor fixture retains License.txt and the original pinned hash.
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'ci-display-pilot-assets/usbmmidd_v2.zip') -Destination $driverZip
 Assert-Hash $driverZip $driverSha
 Expand-Archive -LiteralPath $driverZip -DestinationPath (Join-Path $Output 'vdd')
 $video = Join-Path $Output 'pilot-customer-display.mp4'
@@ -130,7 +131,7 @@ if (@(Get-NetFirewallProfile | Where-Object { $_.Enabled -ne 'True' }).Count -ne
 $proofRecord = [ordered]@{
     Status='PASS'; SourceCommit=$commit; MainCiRun=$candidate.ciRun; MainArtifactId=$candidate.artifactId
     OuterSha256=$archiveSha; BridgeSha256=$bridgeSha; ManagedDllSha256=$dllSha
-    DriverUrl=$driverUrl; DriverZipSha256=$driverSha; VideoSha256=$videoSha
+    DriverUrl=$driverUrl; DriverZipSha256=$driverSha; DriverArchiveSource='Pinned unmodified official fixture; license retained'; VideoSha256=$videoSha
     FullRuntime='Prepared from exact main source; all five application files replaced with exact main CI archive bytes'
     Purpose='Temporary isolated display acceptance only; never a release or production registration'
     CapturedUtc=[DateTime]::UtcNow.ToString('o')
