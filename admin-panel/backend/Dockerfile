@@ -16,23 +16,11 @@ RUN chmod +x gradlew && ./gradlew --no-daemon clean bootJar verifyMerchandisingA
 FROM eclipse-temurin:22-jre AS runtime
 ARG RELEASE_ID=dev
 ARG RELEASE_COMMIT=unknown
-ARG UBUNTU_MIRROR=default
 LABEL org.opencontainers.image.title="Epharm backend" \
       org.opencontainers.image.version="$RELEASE_ID" \
       org.opencontainers.image.revision="$RELEASE_COMMIT"
 # curl нужен для HEALTHCHECK (в JRE-образе его нет).
-RUN case "$UBUNTU_MIRROR" in \
-      default) ;; \
-      azure) \
-        for source in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do \
-          if [ -f "$source" ]; then \
-            sed -i -E 's#https?://(archive[.]ubuntu[.]com|security[.]ubuntu[.]com)/ubuntu#https://azure.archive.ubuntu.com/ubuntu#g' "$source"; \
-          fi; \
-        done ;; \
-      *) echo "Unsupported Ubuntu mirror" >&2; exit 1 ;; \
-    esac \
-    && apt-get -o Acquire::Retries=3 -o APT::Update::Error-Mode=any update \
-    && apt-get -o Acquire::Retries=3 install -y --no-install-recommends curl \
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV RELEASE_ID="$RELEASE_ID" \
