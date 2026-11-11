@@ -789,10 +789,6 @@ jobs:
           path: ${{ runner.temp }}/PRIVATE-LAB-ONLY-recovery-9.99.1/
           if-no-files-found: error
           retention-days: 7
-      - name: Exercise genuine82 to official84 and fresh real-process recovery matrix
-        shell: powershell
-        run: |
-          ./tools/release/ci-update-recovery-pilot.ps1 -CandidateConfig ./tools/release/ci-display-candidate.json -Bench "$env:RUNNER_TEMP/epharm-display-bench" -LabArtifact "$env:RUNNER_TEMP/PRIVATE-LAB-ONLY-recovery-9.99.1" -Proof "$env:RUNNER_TEMP/display-pilot-proof/recovery"
       - name: Verify interactive desktop and actual extended displays
         shell: powershell
         run: |
@@ -801,6 +797,10 @@ jobs:
         shell: powershell
         run: |
           ./tools/release/ci-display-render.ps1 -CandidateConfig ./tools/release/ci-display-candidate.json -BridgeRoot "$env:RUNNER_TEMP/epharm-display-bench/main-bridge" -AppRoot "$env:RUNNER_TEMP/epharm-display-bench/runtime" -VideoPath "$env:RUNNER_TEMP/epharm-display-bench/pilot-customer-display.mp4" -Output "$env:RUNNER_TEMP/display-pilot-proof/render"
+      - name: Exercise genuine82 to official84 and fresh real-process recovery matrix
+        shell: powershell
+        run: |
+          ./tools/release/ci-update-recovery-pilot.ps1 -CandidateConfig ./tools/release/ci-display-candidate.json -Bench "$env:RUNNER_TEMP/epharm-display-bench" -LabArtifact "$env:RUNNER_TEMP/PRIVATE-LAB-ONLY-recovery-9.99.1" -Proof "$env:RUNNER_TEMP/display-pilot-proof/recovery"
       - name: Remove only the pilot display device
         if: always()
         shell: powershell

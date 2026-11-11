@@ -33,9 +33,9 @@ function Assert-Preserved([string]$Archive,[string]$Version){
  $cfg=Hash "$root\data\posm.json";$db=Hash "$root\data\outbox.db";$wal=if(Test-Path -LiteralPath "$root\data\outbox.db-wal"){(Get-Item -LiteralPath "$root\data\outbox.db-wal").Length}else{0}
  if($cfg -cne $script:baseline.ConfigSha256 -or $db -cne $script:baseline.OutboxSha256 -or $wal -ne 0){throw 'Config/real SQLite bytes or WAL changed'}
  if([Reflection.AssemblyName]::GetAssemblyName("$install\CustomerDisplay.dll").Version.ToString() -cne $Version){throw 'Installed assembly version mismatch'}
- Add-Type -AssemblyName System.IO.Compression.FileSystem;$z=[IO.Compression.ZipFile]::OpenRead($Archive);$proof=@()
- try{foreach($n in $names){$e=$z.GetEntry($n);if(-not $e){throw 'Missing expected bridge file'};$stream=$e.Open();$h=[Security.Cryptography.SHA256]::Create();try{$expected=([BitConverter]::ToString($h.ComputeHash($stream))).Replace('-','').ToLowerInvariant()}finally{$h.Dispose();$stream.Dispose()};$actual=Hash (Join-Path $install $n);if($actual -cne $expected){throw ('File mismatch: '+$n)};$proof+=@{Path=$n;Sha256=$actual;MatchesArchive=$true}}}finally{$z.Dispose()}
- $result=@{Version=$Version;ConfigSha256=$cfg;OutboxSha256=$db;WalLength=$wal;FiveFiles=$proof;Status='PASS'};Emit 'quiescent-preservation' $result;return $result
+ Add-Type -AssemblyName System.IO.Compression.FileSystem;$z=[IO.Compression.ZipFile]::OpenRead($Archive);$fileHashProofs=@()
+ try{foreach($n in $names){$e=$z.GetEntry($n);if(-not $e){throw 'Missing expected bridge file'};$stream=$e.Open();$h=[Security.Cryptography.SHA256]::Create();try{$expected=([BitConverter]::ToString($h.ComputeHash($stream))).Replace('-','').ToLowerInvariant()}finally{$h.Dispose();$stream.Dispose()};$actual=Hash (Join-Path $install $n);if($actual -cne $expected){throw ('File mismatch: '+$n)};$fileHashProofs+=@{Path=$n;Sha256=$actual;MatchesArchive=$true}}}finally{$z.Dispose()}
+ $result=@{Version=$Version;ConfigSha256=$cfg;OutboxSha256=$db;WalLength=$wal;FiveFiles=$fileHashProofs;Status='PASS'};Emit 'quiescent-preservation' $result;return $result
 }
 function Observe([string]$Case,[string]$Sha,[string]$Expected,[switch]$Offline,[switch]$Interrupt){
  $start=[DateTime]::UtcNow;$last='';$interrupted=$false;$offlineStopped=$false;$until=$start.AddSeconds(180)
