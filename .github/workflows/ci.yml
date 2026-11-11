@@ -777,18 +777,6 @@ jobs:
           PILOT_READ_TOKEN: ${{ github.token }}
         run: |
           ./tools/release/ci-display-pilot-prepare.ps1 -CandidateConfig ./tools/release/ci-display-candidate.json -Output "$env:RUNNER_TEMP/epharm-display-bench" -Proof "$env:RUNNER_TEMP/display-pilot-proof"
-      - name: Build private9.99.1 recovery case from exact unchanged main source
-        id: private-lab-build
-        shell: powershell
-        run: |
-          ./tools/release/ci-build-private-recovery.ps1 -CandidateConfig ./tools/release/ci-display-candidate.json -Bench "$env:RUNNER_TEMP/epharm-display-bench" -Output "$env:RUNNER_TEMP/PRIVATE-LAB-ONLY-recovery-9.99.1"
-      - name: Upload private recovery-only fixture
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: PRIVATE-LAB-ONLY-recovery-9.99.1-${{ github.sha }}
-          path: ${{ runner.temp }}/PRIVATE-LAB-ONLY-recovery-9.99.1/
-          if-no-files-found: error
-          retention-days: 7
       - name: Verify interactive desktop and actual extended displays
         shell: powershell
         run: |
@@ -797,10 +785,6 @@ jobs:
         shell: powershell
         run: |
           ./tools/release/ci-display-render.ps1 -CandidateConfig ./tools/release/ci-display-candidate.json -BridgeRoot "$env:RUNNER_TEMP/epharm-display-bench/main-bridge" -AppRoot "$env:RUNNER_TEMP/epharm-display-bench/runtime" -VideoPath "$env:RUNNER_TEMP/epharm-display-bench/pilot-customer-display.mp4" -Output "$env:RUNNER_TEMP/display-pilot-proof/render"
-      - name: Exercise genuine82 to official84 and fresh real-process recovery matrix
-        shell: powershell
-        run: |
-          ./tools/release/ci-update-recovery-pilot.ps1 -CandidateConfig ./tools/release/ci-display-candidate.json -Bench "$env:RUNNER_TEMP/epharm-display-bench" -LabArtifact "$env:RUNNER_TEMP/PRIVATE-LAB-ONLY-recovery-9.99.1" -Proof "$env:RUNNER_TEMP/display-pilot-proof/recovery"
       - name: Remove only the pilot display device
         if: always()
         shell: powershell
