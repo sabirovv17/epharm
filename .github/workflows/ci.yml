@@ -835,7 +835,6 @@ jobs:
       group: pr160-official-isolated-auth-qa
       cancel-in-progress: false
     env:
-      QA_PRIVATE_ROOT: ${{ runner.temp }}/pr160-isolated-qa
       QA_SOURCE_ROOT: ${{ github.workspace }}/source
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -854,6 +853,7 @@ jobs:
           assert re.fullmatch(r'[0-9]+',run)
           with open(os.environ['GITHUB_ENV'],'a') as output:
               output.write('CANDIDATE_COMMIT='+commit+'\nCANDIDATE_RUN_ID='+run+'\n')
+              output.write('QA_PRIVATE_ROOT='+str(pathlib.Path(os.environ['RUNNER_TEMP'])/'pr160-isolated-qa')+'\n')
           PY
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
