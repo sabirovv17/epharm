@@ -70,7 +70,7 @@ $start.UseShellExecute=$false
 $start.EnvironmentVariables.Clear()
 $allow=@{
  SystemRoot=$env:SystemRoot;WINDIR=$env:SystemRoot;SystemDrive=$env:SystemDrive;ComSpec=(Join-Path $env:SystemRoot 'System32\cmd.exe');PATH=((Join-Path $env:SystemRoot 'System32')+';'+$env:SystemRoot)
- TEMP="$root\temp";TMP="$root\temp";USERPROFILE=$env:USERPROFILE;APPDATA=$env:APPDATA;LOCALAPPDATA=$env:LOCALAPPDATA
+ TEMP="$root\temp";TMP="$root\temp";USERPROFILE="$root\profile";APPDATA="$root\profile\AppData\Roaming";LOCALAPPDATA="$root\profile\AppData\Local";PSModuleAnalysisCachePath="$root\profile\AppData\Local\Microsoft\Windows\PowerShell\ModuleAnalysisCache"
  EPHARM_POSM_CONFIG="$root\data\posm.json";EPHARM_APP_LOG="$root\evidence\customerdisplay.log";EPHARM_STANDARDN_DB_ENABLED='false';EPHARM_STAFF_AUTH_ENABLED='false';EPHARM_NO_VIDEO='true';EPHARM_DISABLE_CONSOLE_LOG='true';EPHARM_DEBUG='0'
 }
 foreach($key in $allow.Keys){$start.EnvironmentVariables[$key]=[string]$allow[$key]}

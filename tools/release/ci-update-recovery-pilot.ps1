@@ -10,7 +10,7 @@ $assets=Join-Path $PSScriptRoot 'ci-recovery-assets';$names=@('CustomerDisplay.e
 $created=[DateTime]::UtcNow;$nonce=[Guid]::NewGuid().ToString('N');$rules=@();$tasks=@();$mock=$null;$helperIdentities=@();$baseline=$null
 $summary=[ordered]@{Status='failed';SourceCommit=$c.commit;Version='1.0.84';OsRebootPerformed=$false;TrueOsRebootAcceptance='PENDING_SEPARATE_EXCLUSIVE_VM';PhysicalPowerLossTested=$false;ProductionRegistration=$false;Cases=@();CleanupErrors=@()}
 $null=New-Item -ItemType Directory -Path $Proof
-foreach($n in @('','install','data','evidence','temp','mock','profile','appdata','localappdata')){$null=New-Item -ItemType Directory -Path (Join-Path $root $n)}
+foreach($n in @('','install','data','evidence','temp','mock','profile','appdata','localappdata','profile\AppData\Local','profile\AppData\Roaming','profile\AppData\Local\Microsoft\Windows\PowerShell')){$null=New-Item -ItemType Directory -Path (Join-Path $root $n)}
 function Emit([string]$name,$value){[IO.File]::AppendAllText((Join-Path $Proof 'events.jsonl'),(([ordered]@{Event=$name;Utc=[DateTime]::UtcNow.ToString('o');Data=$value}|ConvertTo-Json -Depth 8 -Compress)+"`r`n"))}
 function Hash([string]$p){(Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant()}
 function OwnApps { @(Get-Process CustomerDisplay -ErrorAction SilentlyContinue|Where-Object {try{$_.Path -ieq "$install\CustomerDisplay.exe"}catch{$false}}) }
@@ -36,7 +36,7 @@ function Stop-OwnedApp([switch]$Force){
 }
 function Child([string]$Exe,[string]$Arguments){
  $p=New-Object Diagnostics.ProcessStartInfo;$p.FileName=$Exe;$p.Arguments=$Arguments;$p.WorkingDirectory=$root;$p.UseShellExecute=$false;$p.EnvironmentVariables.Clear()
- $allow=@{SystemRoot=$env:SystemRoot;WINDIR=$env:SystemRoot;SystemDrive=$env:SystemDrive;ComSpec=(Join-Path $env:SystemRoot 'System32\cmd.exe');PATH=((Join-Path $env:SystemRoot 'System32')+';'+$env:SystemRoot);TEMP="$root\temp";TMP="$root\temp";USERPROFILE="$root\profile";APPDATA="$root\appdata";LOCALAPPDATA="$root\localappdata";EPHARM_POSM_CONFIG="$root\data\posm.json";EPHARM_APP_LOG="$root\evidence\app.log";EPHARM_STANDARDN_DB_ENABLED='false';EPHARM_STAFF_AUTH_ENABLED='false';EPHARM_NO_VIDEO='true';EPHARM_DEBUG='0';EPHARM_DISABLE_CONSOLE_LOG='true'}
+ $allow=@{SystemRoot=$env:SystemRoot;WINDIR=$env:SystemRoot;SystemDrive=$env:SystemDrive;ComSpec=(Join-Path $env:SystemRoot 'System32\cmd.exe');PATH=((Join-Path $env:SystemRoot 'System32')+';'+$env:SystemRoot);TEMP="$root\temp";TMP="$root\temp";USERPROFILE="$root\profile";APPDATA="$root\profile\AppData\Roaming";LOCALAPPDATA="$root\profile\AppData\Local";PSModuleAnalysisCachePath="$root\profile\AppData\Local\Microsoft\Windows\PowerShell\ModuleAnalysisCache";EPHARM_POSM_CONFIG="$root\data\posm.json";EPHARM_APP_LOG="$root\evidence\app.log";EPHARM_STANDARDN_DB_ENABLED='false';EPHARM_STAFF_AUTH_ENABLED='false';EPHARM_NO_VIDEO='true';EPHARM_DEBUG='0';EPHARM_DISABLE_CONSOLE_LOG='true'}
  foreach($k in $allow.Keys){$p.EnvironmentVariables[$k]=[string]$allow[$k]}
  if(@($p.EnvironmentVariables.Keys|Where-Object {$_ -match 'TOKEN|SECRET|PASSWORD|GITHUB|ACTIONS'}).Count){throw 'Unexpected credential environment'}
  [Diagnostics.Process]::Start($p)
@@ -153,6 +153,15 @@ try{
  [IO.File]::WriteAllText("$root\inputs.json",($fixtureInputs|ConvertTo-Json -Depth 5));$env:EPHARM_RECOVERY_FIXTURE_ROOT=$root;$env:EPHARM_PILOT_OPENSSL=$openssl
  foreach($scope in @('main','lab')){& python (Join-Path $PSScriptRoot 'ci-recovery-build-cases.py') --inputs "$root\inputs.json" --scope $scope;if($LASTEXITCODE -ne 0){throw 'Private signed case preparation failed'}}
  foreach($kind in @('IPv4','IPv6')){$name='EpharmPr160Recovery-'+$nonce+'-'+$kind;$addresses=if($kind -eq 'IPv4'){@('128.0.0.0/1','0.0.0.0/2','64.0.0.0/3','96.0.0.0/4','112.0.0.0/5','120.0.0.0/6','124.0.0.0/7','126.0.0.0/8')}else{@('::/1','8000::/1')};$null=New-NetFirewallRule -Name $name -DisplayName $name -Program "$install\CustomerDisplay.exe" -Direction Outbound -Action Block -Profile Any -RemoteAddress $addresses;$rules+=$name}
+ # Windows PowerShell5.1 needs real canonical profile folders; its cache must never fall into a transaction directory.
+ $probeText="[IO.File]::WriteAllText('$root\evidence\profile-preflight.json',(@{PowerShellVersion=[string]`$PSVersionTable.PSVersion;LocalAppData=[Environment]::GetFolderPath('LocalApplicationData');CachePath=`$env:PSModuleAnalysisCachePath}|ConvertTo-Json))"
+ $probeArgs='-NoLogo -NoProfile -NonInteractive -EncodedCommand '+[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($probeText))
+ $profileProbe=Child $psExe $probeArgs
+ if(-not $profileProbe.WaitForExit(30000)){$profileProbe.Kill();$null=$profileProbe.WaitForExit(5000);throw 'Owned profile probe exceeded its deadline'}
+ if($profileProbe.ExitCode -ne 0 -or -not(Test-Path -LiteralPath "$root\evidence\profile-preflight.json")){throw 'Actual Windows PowerShell profile preflight failed'}
+ $profileProof=Get-Content -LiteralPath "$root\evidence\profile-preflight.json" -Raw|ConvertFrom-Json
+ if(-not [IO.Path]::IsPathRooted([string]$profileProof.LocalAppData) -or $profileProof.CachePath -cne "$root\profile\AppData\Local\Microsoft\Windows\PowerShell\ModuleAnalysisCache"){throw 'PowerShell cache isolation was not proven'}
+ $summary.ProfilePreflight=$profileProof;Emit 'profile-preflight' $profileProof
  $null=Assert-Preserved $baselineZip '1.0.82.0';No-Release;Start-Mock
  $sha=Activate 'main84';$null=Start-App;$r=Observe 'main84' $sha 'committed';$summary.Cases+=,$r;$null=Assert-Alive '1.0.84.0';Stop-OwnedApp;$null=Assert-Preserved $mainZip '1.0.84.0';No-Release
  foreach($case in @('lab-bad-exe','lab-locked')){

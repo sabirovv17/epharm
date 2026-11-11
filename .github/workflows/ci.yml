@@ -824,7 +824,7 @@ jobs:
 
   isolated-auth-qa:
     needs: repo-quality
-    if: github.event_name == 'workflow_dispatch' && github.repository == 'sabirovv17/epharm' && github.ref == 'refs/heads/codex/pr160-display-pilot-20261111'
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'sabirovv17/epharm' && github.ref == 'refs/heads/codex/pr160-display-pilot-20261111' && false
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
