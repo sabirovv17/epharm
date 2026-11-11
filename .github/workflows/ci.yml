@@ -367,7 +367,16 @@ jobs:
         env:
           IMAGE_NAME: epharm-ci-${{ matrix.name }}
           BUILD_CONTEXT: ${{ matrix.context }}
-        run: docker build --pull --tag "$IMAGE_NAME:${GITHUB_SHA::12}" "$BUILD_CONTEXT"
+        run: |
+          build_network=()
+          if [[ "$IMAGE_NAME" == "epharm-ci-backend" ]]; then
+            # Keep Ubuntu mirror DNS failures visible. Use the ephemeral runner's
+            # network only for backend build RUNs, never for production containers.
+            getent ahostsv4 archive.ubuntu.com
+            getent ahostsv4 security.ubuntu.com
+            build_network=(--network=host)
+          fi
+          docker build "${build_network[@]}" --pull --tag "$IMAGE_NAME:${GITHUB_SHA::12}" "$BUILD_CONTEXT"
       - name: Verify final admin image contract
         if: matrix.name == 'admin'
         run: |

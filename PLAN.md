@@ -42,6 +42,13 @@ PR #164 содержит изменения и regression-тесты. Прове
 ограничения — в [PR #164](https://github.com/sabirovv17/epharm/pull/164).
 Локальный Docker недоступен; интеграционные проверки не переносятся на production.
 
+Повторная проверка `da012c6`: локальный Windows core700/700 также прошёл. Два CI
+runner Ubuntu24.04 не разрешили Ubuntu mirrors внутри backend runtime build.
+В CI только для backend image добавлена явная проверка DNS на runner и
+`docker build --network=host`; это сеть build RUN, не production runtime.
+Dockerfile, образы-основы, healthcheck, TLS и состав проверок не ослабляются.
+Результат обхода должен подтвердиться зелёным обязательным image gate в PR.
+
 ## Выпуск PR #160 — 10–11.11.2026
 
 Новый прямой запрос пользователя разрешает необходимые проверки/исправления PR160,
