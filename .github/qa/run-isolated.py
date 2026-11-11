@@ -37,7 +37,22 @@ REPORT = {'outcome': 'INCOMPLETE', 'owner': OWNER, 'resources': [], 'phases': {}
 
 
 def command(args, *, input=None, check=True, timeout=120):
-    return subprocess.run(args, input=input, capture_output=True, text=True, check=check, timeout=timeout)
+    try:
+        return subprocess.run(args, input=input, capture_output=True, text=True, check=check, timeout=timeout)
+    except subprocess.CalledProcessError as error:
+        tool = 'subprocess'
+        if args[0] == DOCKER:
+            tool = 'docker'
+        elif args[0] == 'git':
+            tool = 'git'
+        elif args[0] == sys.executable:
+            tool = 'python'
+            scripts = {'verify-image-archive.py', 'verify-financial-transition.py', 'build-rps-fixture.py'}
+            if len(args) > 1 and pathlib.Path(args[1]).name in scripts:
+                tool = pathlib.Path(args[1]).name
+        REPORT.setdefault('failedCommand', {'stage': REPORT.get('stage', 'initialization'),
+                                           'tool': tool, 'exitCode': error.returncode})
+        raise
 
 
 def docker(*args, **kwargs):
@@ -103,9 +118,21 @@ def start_backend(which, image, env_path):
             assert health['status'] == 'ok' and health['version'] == expected['version'] and health['commit'] == expected['commit']
             REPORT['compatibility'][which] = {'health': health, 'schema99Fingerprint': schema()}
             return
-        assert inspect(BACKEND)['State']['Running'], 'Backend exited before readiness'
+        if not inspect(BACKEND)['State']['Running']:
+            record_startup_failure()
+            raise AssertionError('Backend exited before readiness')
         time.sleep(2)
+    record_startup_failure()
     raise AssertionError('Bounded readiness exceeded')
+
+
+def record_startup_failure():
+    result = docker('logs', '--tail', '200', BACKEND, check=False)
+    output = result.stdout + result.stderr
+    patterns = {'readOnlyFilesystem': r'Read-only file system', 'permissionDenied': r'Permission denied',
+                'outOfMemory': r'OutOfMemoryError', 'flywayFailure': r'FlywayException|Migration[^\n]*failed'}
+    REPORT['startupDiagnosticCounts'] = {name: len(re.findall(pattern, output, re.I))
+                                         for name, pattern in patterns.items()}
 
 
 def session_request(path, payload, desk, token=None, expected=200):
@@ -240,16 +267,22 @@ def main():
     for which, item in IDENTITIES.items():
         REPORT['stage'] = 'verify-official-' + which
         directory = pathlib.Path(item['directory'])
-        command([sys.executable, str(SOURCE / 'tools/release/verify-image-archive.py'), str(directory / 'backend.tar.gz'), 'epharm/backend:' + item['version']])
+        for filename in ('backend.tar.gz', 'app.jar', 'provenance.json'):
+            with (directory / filename).open('rb') as payload:
+                assert hashlib.file_digest(payload, 'sha256').hexdigest() == item['sha256'][filename]
+        provenance = json.loads((directory / 'provenance.json').read_text())
+        REPORT['stage'] = 'load-official-' + which
+        docker('load', '-i', str(directory / 'backend.tar.gz'), timeout=240)
+        REPORT['stage'] = 'verify-official-' + which
+        config_id = command([sys.executable, str(SOURCE / 'tools/release/verify-image-archive.py'), str(directory / 'backend.tar.gz'), 'epharm/backend:' + item['version']]).stdout.strip()
+        assert config_id == 'sha256:' + provenance['backendConfigSha256']
         command([sys.executable, str(SOURCE / 'tools/release/verify-financial-transition.py'), '--jar', str(directory / 'app.jar'), '--schema-protected', '--access-protected', '--session-protected', '--compound-protected'])
         with zipfile.ZipFile(directory / 'app.jar') as jar:
             migration_maps[which] = {name: hashlib.sha256(jar.read(name)).hexdigest() for name in jar.namelist() if re.fullmatch(r'BOOT-INF/classes/db/migration/V[0-9]+__[^/]+\.sql', name)}
-        docker('load', '-i', str(directory / 'backend.tar.gz'), timeout=240)
         image = json.loads(docker('image', 'inspect', 'epharm/backend:' + item['version']).stdout)[0]
         assert image['Os'] == 'linux' and image['Architecture'] == 'amd64'
         assert image['Config']['Labels']['org.opencontainers.image.version'] == item['version']
         assert image['Config']['Labels']['org.opencontainers.image.revision'] == item['commit']
-        provenance = json.loads((directory / 'provenance.json').read_text())
         assert image['RootFS']['Layers'] == provenance['images']['backend']['rootfs']
         # Extraction uses a labelled stopped container without a network; the app never runs here.
         identifier = docker('create', '--network', 'none', '--label', LABEL + '=' + OWNER, image['Id']).stdout.strip()
@@ -422,5 +455,6 @@ if __name__ == '__main__':
         print('Isolated QA failed: ' + type(error).__name__, file=sys.stderr)
     finally:
         cleanup()
-    print(json.dumps({'outcome': REPORT['outcome'], 'phases': {key: value['outcome'] for key, value in REPORT['phases'].items()}, 'cleanup': REPORT.get('cleanup')}))
+    print(json.dumps({'outcome': REPORT['outcome'], 'stage': REPORT.get('stage'), 'failedCommand': REPORT.get('failedCommand'),
+                      'phases': {key: value['outcome'] for key, value in REPORT['phases'].items()}, 'cleanup': REPORT.get('cleanup')}))
     raise SystemExit(0 if REPORT['outcome'] == 'PASS' else 1)

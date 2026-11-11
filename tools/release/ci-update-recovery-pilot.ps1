@@ -14,7 +14,26 @@ foreach($n in @('','install','data','evidence','temp','mock','profile','appdata'
 function Emit([string]$name,$value){[IO.File]::AppendAllText((Join-Path $Proof 'events.jsonl'),(([ordered]@{Event=$name;Utc=[DateTime]::UtcNow.ToString('o');Data=$value}|ConvertTo-Json -Depth 8 -Compress)+"`r`n"))}
 function Hash([string]$p){(Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant()}
 function OwnApps { @(Get-Process CustomerDisplay -ErrorAction SilentlyContinue|Where-Object {try{$_.Path -ieq "$install\CustomerDisplay.exe"}catch{$false}}) }
-function Stop-OwnedApp([switch]$Force){foreach($p in @(OwnApps)){if($p.StartTime.ToUniversalTime() -lt $created){throw 'Own path is occupied by an older foreign process'};$id=$p.Id;$ticks=$p.StartTime.ToUniversalTime().Ticks;$now=Get-Process -Id $id -ErrorAction Stop;if($now.Path -ine "$install\CustomerDisplay.exe" -or $now.StartTime.ToUniversalTime().Ticks -ne $ticks){throw 'App identity changed'};if(-not $Force){$null=$now.CloseMainWindow();if($now.WaitForExit(10000)){continue}};$now=Get-Process -Id $id -ErrorAction Stop;if($now.StartTime.ToUniversalTime().Ticks -ne $ticks -or $now.Path -ine "$install\CustomerDisplay.exe"){throw 'Refuse foreign process termination'};$now.Kill();$null=$now.WaitForExit(10000)}}
+function Stop-OwnedApp([switch]$Force){
+ foreach($p in @(OwnApps)){
+  if($p.StartTime.ToUniversalTime() -lt $created){throw 'Own path is occupied by an older foreign process'}
+  $id=$p.Id;$ticks=$p.StartTime.ToUniversalTime().Ticks;$now=Get-Process -Id $id -ErrorAction Stop
+  if($now.Path -ine "$install\CustomerDisplay.exe" -or $now.StartTime.ToUniversalTime().Ticks -ne $ticks){throw 'App identity changed'}
+  if(-not $Force){
+   $window=[EpharmRecoveryWindows]::Find($id)
+   if($window){
+    $now=Get-Process -Id $id -ErrorAction Stop
+    if($now.Path -ine "$install\CustomerDisplay.exe" -or $now.StartTime.ToUniversalTime().Ticks -ne $ticks){throw 'App identity changed before WM_CLOSE'}
+    [EpharmRecoveryWindows]::RequestClose($window.Handle,$id)
+    Emit 'owned-app-wm-close' @{Pid=$id;StartTicks=$ticks;WindowHandle=$window.Handle;Title=$window.Title}
+   }
+   if($now.WaitForExit(10000)){continue}
+  }
+  $now=Get-Process -Id $id -ErrorAction Stop
+  if($now.StartTime.ToUniversalTime().Ticks -ne $ticks -or $now.Path -ine "$install\CustomerDisplay.exe"){throw 'Refuse foreign process termination'}
+  $now.Kill();if(-not $now.WaitForExit(10000)){throw 'Owned app did not terminate'}
+ }
+}
 function Child([string]$Exe,[string]$Arguments){
  $p=New-Object Diagnostics.ProcessStartInfo;$p.FileName=$Exe;$p.Arguments=$Arguments;$p.WorkingDirectory=$root;$p.UseShellExecute=$false;$p.EnvironmentVariables.Clear()
  $allow=@{SystemRoot=$env:SystemRoot;WINDIR=$env:SystemRoot;SystemDrive=$env:SystemDrive;ComSpec=(Join-Path $env:SystemRoot 'System32\cmd.exe');PATH=((Join-Path $env:SystemRoot 'System32')+';'+$env:SystemRoot);TEMP="$root\temp";TMP="$root\temp";USERPROFILE="$root\profile";APPDATA="$root\appdata";LOCALAPPDATA="$root\localappdata";EPHARM_POSM_CONFIG="$root\data\posm.json";EPHARM_APP_LOG="$root\evidence\app.log";EPHARM_STANDARDN_DB_ENABLED='false';EPHARM_STAFF_AUTH_ENABLED='false';EPHARM_NO_VIDEO='true';EPHARM_DEBUG='0';EPHARM_DISABLE_CONSOLE_LOG='true'}
@@ -23,20 +42,31 @@ function Child([string]$Exe,[string]$Arguments){
  [Diagnostics.Process]::Start($p)
 }
 function Start-App { if(@(OwnApps).Count){throw 'App already running'};$p=Child "$install\CustomerDisplay.exe" '';Emit 'app-launched' @{Pid=$p.Id;StartTicks=$p.StartTime.ToUniversalTime().Ticks;SessionId=$p.SessionId};$p }
-function Assert-Alive([string]$Version){$until=[DateTime]::UtcNow.AddSeconds(60);do{$a=@(OwnApps);$heartbeat=if(Test-Path -LiteralPath "$root\evidence\heartbeat.txt"){(Get-Item -LiteralPath "$root\evidence\heartbeat.txt").LastWriteTimeUtc}else{[DateTime]::MinValue};if($a.Count -eq 1 -and $a[0].SessionId -eq [Diagnostics.Process]::GetCurrentProcess().SessionId -and $a[0].Responding -and $a[0].MainWindowHandle -ne [IntPtr]::Zero -and $heartbeat -gt $a[0].StartTime.ToUniversalTime() -and ([DateTime]::UtcNow-$heartbeat).TotalSeconds -lt 15 -and [Reflection.AssemblyName]::GetAssemblyName("$install\CustomerDisplay.dll").Version.ToString() -ceq $Version){return $a[0]};Start-Sleep -Milliseconds 250}while([DateTime]::UtcNow -lt $until);throw 'No usable visible interactive app with fresh UI heartbeat'}
+function Assert-Alive([string]$Version){
+ $until=[DateTime]::UtcNow.AddSeconds(60)
+ do{
+  $a=@(OwnApps);$heartbeat=if(Test-Path -LiteralPath "$root\evidence\heartbeat.txt"){(Get-Item -LiteralPath "$root\evidence\heartbeat.txt").LastWriteTimeUtc}else{[DateTime]::MinValue}
+  if($a.Count -eq 1 -and $a[0].SessionId -eq [Diagnostics.Process]::GetCurrentProcess().SessionId -and $heartbeat -gt $a[0].StartTime.ToUniversalTime() -and ([DateTime]::UtcNow-$heartbeat).TotalSeconds -lt 15 -and [Reflection.AssemblyName]::GetAssemblyName("$install\CustomerDisplay.dll").Version.ToString() -ceq $Version){
+   $window=[EpharmRecoveryWindows]::Find($a[0].Id)
+   if($window -and $window.Responding){$script:lastAppWindow=$window;return $a[0]}
+  }
+  Start-Sleep -Milliseconds 250
+ }while([DateTime]::UtcNow -lt $until)
+ throw 'No usable visible PID-owned app HWND with fresh UI heartbeat'
+}
 function Stop-Mock {
  if(-not $script:mock){return}
  $server=$script:mock
- try{$server.Dispose();[EpharmRecoveryLoopback]::AssertOffline()}
+ try{$server.Dispose();$script:lastOfflineProof=$server.AssertOffline()}
  finally{[IO.File]::AppendAllLines((Join-Path $Proof 'mock-http-trace.txt'),[string[]]$server.Trace.ToArray())}
  $script:mock=$null
- Emit 'owned-loopback-stopped' @{ListenerClosed=$true;ThreadJoined=$true;HttpConnectionRefused=$true}
+ Emit 'owned-loopback-stopped' @{ListenerClosed=$script:lastOfflineProof.ListenerClosed;ThreadJoined=$script:lastOfflineProof.ThreadJoined;HttpUnavailable=$script:lastOfflineProof.HttpUnavailable;FailureKind=$script:lastOfflineProof.FailureKind;SocketFailureKind=$script:lastOfflineProof.SocketFailureKind;HttpConnectionRefused=$script:lastOfflineProof.HttpConnectionRefused;ProbeMilliseconds=$script:lastOfflineProof.ProbeMilliseconds}
 }
 function Start-Mock {
  if($script:mock){throw 'Mock already running'}
  try{
   if(-not ('EpharmRecoveryLoopback' -as [type])){Add-Type -Path (Join-Path $PSScriptRoot 'ci-recovery-loopback.cs')}
-  $script:mock=New-Object EpharmRecoveryLoopback($root)
+  $script:mock=New-Object EpharmRecoveryLoopback($root);$script:lastOfflineProof=$null
   Emit 'owned-loopback-ready' @{OwnerProcessId=$PID;Origin='http://127.0.0.1:18761';ReadyIdentityVerified=$true;BackgroundThread=$true}
  }catch{
   $failure=$_.Exception.GetBaseException();$code=$failure.HResult
@@ -68,8 +98,8 @@ function Observe([string]$Case,[string]$Sha,[string]$Expected,[switch]$Offline,[
   if($s.Status -eq 'awaiting-health' -and $Offline -and -not $offlineStopped){
    if(Test-Path -LiteralPath $ready){throw 'Offline fault missed the pre-readiness window'}
    Stop-Mock
-   if(Test-Path -LiteralPath $ready){throw 'Candidate acknowledged before offline HTTP refusal was proven'}
-   $offlineStopped=$true;Emit 'mock-stopped-before-local-readiness' @{Case=$Case;BackendOffline=$true;HttpConnectionRefused=$true;ReadyAbsent=$true}
+   if(Test-Path -LiteralPath $ready){throw 'Candidate acknowledged before offline HTTP unavailability was proven'}
+   $offlineStopped=$true;Emit 'mock-stopped-before-local-readiness' @{Case=$Case;BackendOffline=$true;HttpUnavailable=$script:lastOfflineProof.HttpUnavailable;FailureKind=$script:lastOfflineProof.FailureKind;HttpConnectionRefused=$script:lastOfflineProof.HttpConnectionRefused;ReadyAbsent=$true}
   }
   if($s.Status -eq 'awaiting-health' -and $Interrupt -and -not $interrupted){
    if(Test-Path -LiteralPath $ready){throw 'Interruption missed the pre-readiness window'}
@@ -85,7 +115,7 @@ function Observe([string]$Case,[string]$Sha,[string]$Expected,[switch]$Offline,[
    if($Offline -and -not $offlineStopped){throw 'Requested offline fault was not injected before commit'}
    if($Interrupt -and -not $interrupted){throw 'Requested helper interruption was not injected before rollback'}
    $fileProof=@(foreach($f in $p.Files){$hash=Hash (Join-Path $install $f.RelativePath);$expectedHash=if($Expected -eq 'committed'){$f.NewSha256}else{$f.OldSha256};if($hash -ine $expectedHash){throw 'Terminal live files do not match transaction verdict'};@{Path=$f.RelativePath;Sha256=$hash;MatchesExpected=$true}})
-   $result=[ordered]@{Case=$Case;Id=$p.Id;PackageSha256=$Sha;Version=$p.Version;Status=$s.Status;ActiveMarkerPresent=$false;Files=$fileProof;BackendStoppedBeforeAck=$offlineStopped;HelperInterrupted=$interrupted;OsRebootPerformed=$false}
+   $result=[ordered]@{Case=$Case;Id=$p.Id;PackageSha256=$Sha;Version=$p.Version;Status=$s.Status;ActiveMarkerPresent=$false;Files=$fileProof;BackendStoppedBeforeAck=$offlineStopped;OfflineHttpUnavailable=$offlineStopped;OfflineFailureKind=if($offlineStopped){$script:lastOfflineProof.FailureKind}else{$null};HelperInterrupted=$interrupted;OsRebootPerformed=$false}
    if($Expected -eq 'committed'){$ack=Get-Content -LiteralPath $ready -Raw|ConvertFrom-Json;$ap=Get-Process -Id $ack.ProcessId -ErrorAction Stop;$elapsed=((Get-Item -LiteralPath $ready).LastWriteTimeUtc-$ap.StartTime.ToUniversalTime()).TotalSeconds;if($ack.Token -cne $p.Token -or $ack.UiTicks -lt 3 -or $ap.Path -ine "$install\CustomerDisplay.exe" -or $ap.StartTime.ToUniversalTime().Ticks -ne $ack.ProcessStartTicks -or $elapsed -lt 14){throw 'Invalid local UI readiness ACK'};$result.Ready=@{TokenMatches=$true;ProcessId=$ap.Id;ProcessStartTicks=$ack.ProcessStartTicks;UiTicks=$ack.UiTicks;ProcessToAckSeconds=$elapsed}}
    if($Expected -eq 'rolled-back' -and -not $Interrupt){$logDeadline=[DateTime]::UtcNow.AddSeconds(5);while(-not(Test-Path -LiteralPath (Join-Path $dir.FullName 'apply.log')) -and [DateTime]::UtcNow -lt $logDeadline){Start-Sleep -Milliseconds 50}}
    if($Expected -eq 'rolled-back' -and (Test-Path -LiteralPath (Join-Path $dir.FullName 'apply.log'))){$log=Get-Content -LiteralPath (Join-Path $dir.FullName 'apply.log') -Raw;$result.FailureLogPresent=$true;$reason=$log.Replace([string]$p.Token,'[redacted-local-token]');$result.FailureReason=$reason.Substring(0,[Math]::Min(4096,$reason.Length));$result.SharingViolationRecorded=($log -match 'being used|another process|sharing|cannot access|80070020|access.*denied|used by|другим процессом|используется')}
@@ -147,7 +177,7 @@ try{
  $null=Start-App;$old=Assert-Alive '1.0.84.0';$oldId=$old.Id;$oldTicks=$old.StartTime.ToUniversalTime().Ticks;Stop-OwnedApp -Force;Emit 'controlled-own-app-termination' @{Pid=$oldId;StartTicks=$oldTicks;BackendOffline=$true;RecoveryTrigger='Normal one-minute watchdog timer; no manual task run';OsRebootPerformed=$false}
  $deadline=[DateTime]::UtcNow.AddSeconds(150);do{$alive=@(OwnApps);if($alive.Count -eq 1 -and $alive[0].Id -ne $oldId -and $alive[0].StartTime.ToUniversalTime().Ticks -gt $oldTicks){break};Start-Sleep -Milliseconds 500}while([DateTime]::UtcNow -lt $deadline)
  $new=Assert-Alive '1.0.84.0';if($new.Id -eq $oldId -or $new.StartTime.ToUniversalTime().Ticks -le $oldTicks){throw 'Watchdog did not recover a genuinely new app process'}
- $summary.Watchdog=@{Status='PASS';OldPid=$oldId;OldStartTicks=$oldTicks;NewPid=$new.Id;NewStartTicks=$new.StartTime.ToUniversalTime().Ticks;NewSession=$new.SessionId;WindowHandle=$new.MainWindowHandle.ToInt64();WindowTitle=$new.MainWindowTitle;Responding=$new.Responding;HeartbeatUtc=(Get-Item -LiteralPath "$root\evidence\heartbeat.txt").LastWriteTimeUtc.ToString('o');BackendOffline=$true;ManualWatchdogTaskRun=$false;TimerInterval='PT1M';OsRebootPerformed=$false}
+ $summary.Watchdog=@{Status='PASS';OldPid=$oldId;OldStartTicks=$oldTicks;NewPid=$new.Id;NewStartTicks=$new.StartTime.ToUniversalTime().Ticks;NewSession=$new.SessionId;WindowHandle=$script:lastAppWindow.Handle;WindowTitle=$script:lastAppWindow.Title;WindowBounds=@($script:lastAppWindow.Left,$script:lastAppWindow.Top,$script:lastAppWindow.Right,$script:lastAppWindow.Bottom);Responding=$script:lastAppWindow.Responding;HeartbeatUtc=(Get-Item -LiteralPath "$root\evidence\heartbeat.txt").LastWriteTimeUtc.ToString('o');BackendOffline=$true;ManualWatchdogTaskRun=$false;TimerInterval='PT1M';OsRebootPerformed=$false}
  foreach($taskName in $tasks){$task=$folder.GetTask($taskName);$actionDefinition=$task.Definition;for($i=1;$i -le $actionDefinition.Actions.Count;$i++){$ownedAction=$actionDefinition.Actions.Item($i);if($ownedAction.Path -ine $psExe -or $ownedAction.Arguments -notlike ('*'+$root+'*')){throw 'Owned task action changed before quiescence'}};$task.Enabled=$false;try{$task.Stop(0)}catch{}};Stop-OwnedApp;$summary.FinalPreservation=Assert-Preserved $mainZip '1.0.84.0'
  & python -c "import sqlite3; c=sqlite3.connect(r'$root\data\outbox.db'); assert c.execute('pragma integrity_check').fetchone()[0]=='ok'; assert c.execute('select count(*) from outbox').fetchone()[0]==1; print('Real SQLite integrity_check=ok; synthetic row preserved')";if($LASTEXITCODE -ne 0){throw 'Real SQLite integrity check failed'}
  $summary.SqliteIntegrity='ok';$summary.AuthRecoveryEvidence='Exact-main native50 Windows CI; this fixture proves installed-process startup/update only';$summary.Status='passed';$summary.CompletedUtc=[DateTime]::UtcNow.ToString('o')
