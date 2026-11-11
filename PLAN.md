@@ -44,10 +44,13 @@ PR #164 содержит изменения и regression-тесты. Прове
 
 Повторная проверка `da012c6`: локальный Windows core700/700 также прошёл. Два CI
 runner Ubuntu24.04 не разрешили Ubuntu mirrors внутри backend runtime build.
-В CI только для backend image добавлена явная проверка DNS на runner и
-`docker build --network=host`; это сеть build RUN, не production runtime.
-Dockerfile, образы-основы, healthcheck, TLS и состав проверок не ослабляются.
-Результат обхода должен подтвердиться зелёным обязательным image gate в PR.
+Проверка на runner также вернула DNS failure, поэтому гипотеза только Docker bridge
+не подтвердилась и host-network обход удалён. Для CI backend image выбран официальный
+Azure Ubuntu mirror по HTTPS через allowlisted build argument `UBUNTU_MIRROR=azure`;
+обычный build сохраняет `default`. Noble и noble-security InRelease доступны по HTTPS;
+APT по-прежнему проверяет исходные Ubuntu подписи и теперь не игнорирует ошибки
+обновления индексов. Базовые JRE/JDK, healthcheck и состав тестов сохранены.
+Результат подтверждается обязательной сборкой образа, не обходом gate.
 
 ## Выпуск PR #160 — 10–11.11.2026
 
