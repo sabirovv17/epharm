@@ -44,6 +44,67 @@ afterEach(() => {
 })
 
 describe('Real axios administrator session epochs', () => {
+  it.each([503, 429, 'timeout'] as const)(
+    'keeps the session after a temporary refresh %s and can recover on the next request',
+    async (failure) => {
+      const forced = vi.fn()
+      const unsubscribe = onForcedLogout(forced)
+      let refreshCalls = 0
+      let temporaryError!: AxiosError
+      api.defaults.adapter = async (config) => {
+        if (config.url === '/api/admin/auth/refresh') {
+          refreshCalls++
+          if (refreshCalls === 1) {
+            temporaryError = new AxiosError(
+              'Refresh temporarily unavailable',
+              failure === 'timeout' ? 'ECONNABORTED' : undefined,
+              config,
+              undefined,
+              failure === 'timeout'
+                ? undefined
+                : { ...response(config, {}), status: failure },
+            )
+            throw temporaryError
+          }
+          return response(config, { tokens: tokens('a-renewed') })
+        }
+        if (config.headers.get('Authorization') === 'Bearer synthetic-a')
+          throw unauthorized(config)
+        return response(config, { ok: true })
+      }
+      try {
+        const error = await api.get('/api/admin/synthetic-protected').catch((error) => error)
+        expect(error).toBe(temporaryError)
+        expect(getTokens()).toEqual(tokens('a'))
+        expect(forced).not.toHaveBeenCalled()
+        expect((await api.get('/api/admin/synthetic-protected')).data).toEqual({ ok: true })
+        expect(refreshCalls).toBe(2)
+      } finally {
+        unsubscribe()
+      }
+    },
+  )
+
+  it.each([401, 403])('expires the session when refresh is denied with %i', async (status) => {
+    const forced = vi.fn()
+    const unsubscribe = onForcedLogout(forced)
+    api.defaults.adapter = async (config) => {
+      if (config.url === '/api/admin/auth/refresh')
+        throw new AxiosError('Refresh denied', undefined, config, undefined, {
+          ...response(config, {}),
+          status,
+        })
+      throw unauthorized(config)
+    }
+    try {
+      await expect(api.get('/api/admin/synthetic-protected')).rejects.toThrow()
+      expect(getTokens()).toBeNull()
+      expect(forced).toHaveBeenCalledOnce()
+    } finally {
+      unsubscribe()
+    }
+  })
+
   it('renews and retries an ordinary 401 under the same principal without cancelling it', async () => {
     const calls: { url?: string; authorization: unknown }[] = []
     let protectedCalls = 0

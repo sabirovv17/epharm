@@ -1,10 +1,14 @@
 package kz.epharm.auth.security
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import kz.epharm.auth.service.JwtService
-import kz.epharm.mobile.auth.security.PharmacistPrincipal
+import kz.epharm.mobile.auth.security.PharmacistSessionLoader
+import kz.epharm.shared.error.ApiErrorResponse
+import kz.epharm.shared.error.AppException
+import org.springframework.http.MediaType
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
@@ -23,6 +27,8 @@ import org.springframework.web.filter.OncePerRequestFilter
 class JwtAuthenticationFilter(
     private val jwtService: JwtService,
     private val adminSessionLoader: AdminSessionLoader,
+    private val pharmacistSessionLoader: PharmacistSessionLoader,
+    private val objectMapper: ObjectMapper,
 ) : OncePerRequestFilter() {
 
     override fun doFilterInternal(
@@ -36,17 +42,25 @@ class JwtAuthenticationFilter(
             val claims = jwtService.parseAccessToken(token)
             if (claims != null && SecurityContextHolder.getContext().authentication == null) {
                 val auth = if (jwtService.isPharmacistToken(claims)) {
-                    // Токен фармацевта (мобильное приложение) — PharmacistPrincipal + ROLE_PHARMACIST.
-                    val principal = PharmacistPrincipal(
-                        pharmacistId = jwtService.pharmacistIdOf(claims),
-                        name = claims["name"] as String,
-                        phone = claims["phone"] as String,
-                    )
-                    UsernamePasswordAuthenticationToken(
-                        principal,
-                        null,
-                        listOf(SimpleGrantedAuthority("ROLE_PHARMACIST")),
-                    )
+                    val current = try {
+                        pharmacistSessionLoader.load(jwtService.pharmacistIdOf(claims))
+                    } catch (ex: AppException) {
+                        // Filters run before controller advice. Preserve the account error JSON
+                        // contract and stop before any learner or other protected operation.
+                        response.status = ex.status.value()
+                        response.contentType = MediaType.APPLICATION_JSON_VALUE
+                        response.characterEncoding = "UTF-8"
+                        response.setHeader("Cache-Control", "no-store")
+                        objectMapper.writeValue(response.outputStream, ApiErrorResponse(ex.code, ex.message ?: ex.code.name))
+                        return
+                    }
+                    current?.let { principal ->
+                        UsernamePasswordAuthenticationToken(
+                            principal,
+                            null,
+                            listOf(SimpleGrantedAuthority("ROLE_PHARMACIST")),
+                        )
+                    }
                 } else {
                     adminSessionLoader.load(claims.subject, jwtService.adminSessionVersionOf(claims))?.let { principal ->
                         UsernamePasswordAuthenticationToken(

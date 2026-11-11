@@ -16,6 +16,7 @@ public partial class MainWindow
     private StandardNDbLookup? _staffLookup;
     private readonly StaffDeviceSessionState _staffSession = new();
     private readonly StaffProcessStability _staffProcessStability = new();
+    private StaffPromptThrottle _staffPromptThrottle = new();
     private readonly CancellationTokenSource _staffStop = new();
     private System.Windows.Forms.NotifyIcon? _staffTray;
     private StaffAuthWindow? _staffWindow;
@@ -171,6 +172,9 @@ public partial class MainWindow
         RefreshStaffStatus();
         if (_staffSession.NeedsPrompt(_staffClock()))
         {
+            // Consume this generation even when presentation is throttled. A changed
+            // process still invalidates authentication immediately, but must not cause
+            // repeated windows or a delayed popup while the cashier is working.
             _staffSession.MarkPrompted();
             OpenStaffWindow();
         }
@@ -201,25 +205,27 @@ public partial class MainWindow
         if (_staffSession.IsRevalidating(_staffClock()))
         {
             if (activate) ShowStaffStatus(StaffText(
-                "Связь с сервисом входа проверяется повторно. Вход пока не подтверждён; повторно вводить пароль не нужно. Касса продолжает работать. Если проверка не восстановится за две минуты, появится обычное окно входа.",
-                "Кіру сервисімен байланыс қайта тексерілуде. Кіру әзірге расталмаған; құпиясөзді қайта енгізудің қажеті жоқ. Касса жұмысын жалғастырады. Тексеру екі минут ішінде қалпына келмесе, кәдімгі кіру терезесі ашылады."));
+                "Связь с сервисом входа проверяется повторно. Вход пока не подтверждён; повторно вводить пароль не нужно. Касса продолжает работать. Если проверка не восстановится за две минуты, откройте вход через значок ePharm в трее.",
+                "Кіру сервисімен байланыс қайта тексерілуде. Кіру әзірге расталмаған; құпиясөзді қайта енгізудің қажеті жоқ. Касса жұмысын жалғастырады. Тексеру екі минут ішінде қалпына келмесе, трейдегі ePharm белгішесі арқылы кіру терезесін ашыңыз."));
             return;
         }
         if (_staffSession.IsAuthenticated(_staffClock()))
         {
-            ShowStaffStatus(StaffText("Вы уже вошли в ePharm. Для смены сотрудника завершите или отмените текущий чек, полностью закройте АРМ Кассир Стандарт-Н крестиком и запустите его снова. После запуска появится окно входа ePharm — войдите под своим ИИН.",
-                "Сіз ePharm жүйесіне кірдіңіз. Қызметкерді ауыстыру үшін ағымдағы чекті аяқтаңыз немесе жойыңыз, Standard-N кассир бағдарламасын айқышпен толық жауып, қайта іске қосыңыз. ePharm кіру терезесі ашылғанда өз ЖСН-іңізбен кіріңіз."));
+            ShowStaffStatus(StaffText("Вы уже вошли в ePharm. Для смены сотрудника завершите или отмените текущий чек, полностью закройте АРМ Кассир Стандарт-Н крестиком и запустите его снова. Войдите под своим ИИН. Если окно не открылось, выберите «Вход / регистрация сотрудника» через значок ePharm в трее.",
+                "Сіз ePharm жүйесіне кірдіңіз. Қызметкерді ауыстыру үшін ағымдағы чекті аяқтаңыз немесе жойыңыз, Standard-N кассир бағдарламасын айқышпен толық жауып, қайта іске қосыңыз. Өз ЖСН-іңізбен кіріңіз. Терезе ашылмаса, трейдегі ePharm белгішесінен «Қызметкердің кіруі / тіркелуі» тармағын таңдаңыз."));
             return;
         }
         var context = _staffSession.Context;
         if (context == null) { if (activate) ShowStaffStatus(ExplainStaffObservation(_staffSession.Observation.Status)); return; }
         if (_staffWindow == null)
         {
+            if (!activate && !_staffPromptThrottle.TryShowAutomatically()) return;
+            if (activate) _staffPromptThrottle.RecordShown();
             var generation = _staffSession.Generation;
             _staffSession.MarkPrompted();
             var window = new StaffAuthWindow(_staffClient, context.StandardNContext, PharmacistScreen(),
                 "Вход ePharm доступен. Сверка с пользователем Standard-N выполняется отдельно, когда кассовая сессия определена.",
-                requireSignIn: _staffSession.BypassStatus == null && StaffPromptPolicy.HasComparableIdentity(context.StandardNContext),
+                requireSignIn: false,
                 deviceContext: context, registrationSmsRequired: _staffRegistrationSmsRequired, kazakh: _staffKazakh);
             window.LanguageChanged += kazakh => { _staffKazakh = kazakh; RefreshStaffStatus(); };
             window.AuthenticationStarted += () => generation = _staffWindow == window && _staffSession.ProcessInstanceId == context.ProcessInstanceId
@@ -236,7 +242,7 @@ public partial class MainWindow
             window.Closed += (_, _) => {
                 if (_staffWindow != window) return;
                 _staffWindow = null;
-                // The ordinary unknown-source window is closable; closing it never creates a grant or auto-popup loop.
+                // Closing any login window never creates a grant or auto-popup loop.
                 if (_staffEnabled && !window.WasDismissed && !_staffSession.IsAuthenticated(_staffClock()) &&
                     _staffSession.BypassStatus != "pending_approval")
                     _staffSession.Bypass(StaffPromptBypassReason.IdentityUnavailable);
@@ -378,6 +384,18 @@ public partial class MainWindow
             if (response.Status != "authenticated" || response.DeviceContext != context) throw new StaffApiException("INVALID_SESSION");
             if (response.Pharmacist == null || string.IsNullOrWhiteSpace(response.Pharmacist.Id) || response.ExpiresAt == null)
                 throw new StaffApiException("INVALID_RESPONSE");
+            // HTTP can outlive the process observation that preceded it. Never
+            // restore a grant until the OS still confirms the same cashier process.
+            StaffProcessPresence currentProcess;
+            try { currentProcess = await Task.Run(_staffProcessProbe, ct).WaitAsync(TimeSpan.FromSeconds(2), ct).ConfigureAwait(false); }
+            catch (TimeoutException) { throw new StaffApiException("UNAVAILABLE"); }
+            // A single empty enumeration is uncertain; the observation loop confirms exit.
+            if (currentProcess.Status is not ("resolved" or "ambiguous_process"))
+                throw new StaffApiException("UNAVAILABLE");
+            if (currentProcess.Identity != context.ProcessInstanceId) {
+                _ = RevokeOldStaffGrant(token);
+                throw new StaffApiException("INVALID_SESSION");
+            }
             await Dispatcher.InvokeAsync(() => {
                 if (_staffSession.ConfirmValidation(generation, token, context, response, _staffClock())) {
                     _staffStatusWindow?.Close();

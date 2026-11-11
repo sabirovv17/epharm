@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { ArrowRight, CheckCircle2, LockKeyhole, ShieldCheck } from 'lucide-react'
 import { merchClaimChallenge, trustedMerchRedirect } from './claimNavigation'
 
@@ -79,6 +79,8 @@ async function post<T>(path: string, body: unknown, tokens?: Tokens): Promise<T>
 export default function MerchClaimPage() {
   const [challenge] = useState(merchClaimChallenge)
   const [tokens, setTokens] = useState<Tokens | null>(storedTokens)
+  const sessionVersion = useRef(0)
+  const invalidateSession = useCallback(() => { sessionVersion.current++ }, [])
   const [context, setContext] = useState<ClaimContext | null>(null)
   const [otp, setOtp] = useState<OtpChallenge | null>(null)
   const [retryAt, setRetryAt] = useState(0)
@@ -97,27 +99,42 @@ export default function MerchClaimPage() {
     document.body.classList.add('learner-portal')
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => {
+      invalidateSession()
       window.clearInterval(timer)
       if (!hadClass) document.body.classList.remove('learner-portal')
     }
-  }, [])
+  }, [invalidateSession])
 
-  const saveTokens = useCallback((next: Tokens | null) => {
+  const saveTokens = useCallback((next: Tokens | null, principalChange = true) => {
+    if (principalChange) invalidateSession()
     if (next) sessionStorage.setItem(TOKEN_KEY, JSON.stringify(next))
     else sessionStorage.removeItem(TOKEN_KEY)
     setTokens(next)
-  }, [])
+  }, [invalidateSession])
 
   const authorized = useCallback(async <T,>(path: string, body: unknown, active: Tokens): Promise<T> => {
-    try { return await post<T>(path, body, active) }
+    const version = sessionVersion.current
+    const assertCurrent = () => {
+      if (version !== sessionVersion.current) throw new Error('Claim session changed')
+    }
+    try {
+      const result = await post<T>(path, body, active)
+      assertCurrent()
+      return result
+    }
     catch (failure) {
+      assertCurrent()
       if (!(failure instanceof ClaimError) || failure.status !== 401) throw failure
       try {
         const renewed = await post<{ tokens: Tokens }>('/api/mobile/auth/refresh', { refreshToken: active.refreshToken })
+        assertCurrent()
         if (!validTokens(renewed?.tokens)) throw new ClaimError('Войдите в учётную запись фармацевта заново.', 401)
-        saveTokens(renewed.tokens)
-        return await post<T>(path, body, renewed.tokens)
+        saveTokens(renewed.tokens, false)
+        const result = await post<T>(path, body, renewed.tokens)
+        assertCurrent()
+        return result
       } catch (refreshFailure) {
+        assertCurrent()
         if (refreshFailure instanceof ClaimError && refreshFailure.status === 401) saveTokens(null)
         throw refreshFailure
       }
@@ -152,8 +169,10 @@ export default function MerchClaimPage() {
 
   async function login(event: FormEvent) {
     event.preventDefault()
+    const version = sessionVersion.current
     await perform(async () => {
       const result = await post<{ tokens: Tokens }>('/api/mobile/auth/login', { iin, password })
+      if (version !== sessionVersion.current) return
       if (!validTokens(result?.tokens)) throw new ClaimError(REQUEST_ERROR, 0)
       setLoading(true)
       saveTokens(result.tokens)

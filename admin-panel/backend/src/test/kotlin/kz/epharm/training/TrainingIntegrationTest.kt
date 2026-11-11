@@ -174,6 +174,34 @@ class TrainingIntegrationTest {
     }
 
     @Test
+    fun `blocking pharmacist invalidates existing learner JWT before owned assignment reads or writes`() {
+        val programId = createPublishedProgram()["id"].asText()
+        val assigned = mockMvc.perform(
+            post("/api/admin/training/assignments")
+                .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"programId":"$programId","pharmacistIds":["ph_training"],"format":"online","duplicatePolicy":"skip"}"""),
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val assignmentId = objectMapper.readTree(assigned)["assignments"][0]["id"].asText()
+        mockMvc.perform(get("/api/mobile/training/assignments/$assignmentId").header("Authorization", pharmacistBearer))
+            .andExpect(status().isOk)
+        val before = assignmentRepository.findById(UUID.fromString(assignmentId)).orElseThrow().status
+        val person = pharmacistRepository.findById("ph_training").orElseThrow()
+        person.status = PharmacistStatus.blocked
+        pharmacistRepository.saveAndFlush(person)
+
+        for (path in listOf("/api/mobile/training", "/api/mobile/training/assignments/$assignmentId", "/api/mobile/auth/me")) {
+            mockMvc.perform(get(path).header("Authorization", pharmacistBearer))
+                .andExpect(status().isForbidden).andExpect(jsonPath("$.code").value("USER_NOT_ACTIVE"))
+        }
+        mockMvc.perform(post("/api/mobile/training/assignments/$assignmentId/start").header("Authorization", pharmacistBearer))
+            .andExpect(status().isForbidden).andExpect(jsonPath("$.code").value("USER_NOT_ACTIVE"))
+        assertEquals(before, assignmentRepository.findById(UUID.fromString(assignmentId)).orElseThrow().status)
+        assertTrue(certificateRepository.findAll().isEmpty())
+        assertTrue(rewardRepository.findAll().isEmpty())
+    }
+
+    @Test
     fun `pharmacist quiz hides answers scores attempts and unlocks course only after pass`() {
         courseLessonRepository.deleteAll()
         courseLessonRepository.save(

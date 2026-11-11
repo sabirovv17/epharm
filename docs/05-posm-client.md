@@ -5,6 +5,25 @@ Path: `App/` and `Models/`.
 Current client is C#/WPF/.NET 10. Older Electron references are historical and no longer describe the
 implementation.
 
+## Nonblocking staff login candidate — 2026-11-11
+
+Staff sign-in is an ordinary closable/minimizable window, including when Standard-N
+provides an exact identity. It is never topmost, fullscreen or automatically activated.
+Continue without sign-in remains available during validation and pending requests;
+closing cancels the request, never grants authentication, and clears secrets on close.
+Validation failures preserve the open form for an explicit retry.
+
+Automatic presentation has a two-minute monotonic budget independent of process/session
+generations. A suppressed generation is consumed, not queued for a delayed popup. The
+tray always permits explicit reopening; a genuinely new session after the budget can
+offer one ordinary window. Process/cashier changes still invalidate the grant immediately;
+the throttle is not a debounce of authorization or a way to transfer a grant.
+
+Successful background session checks re-read the OS process before restoring verified
+state. A changed process invalidates/revokes the old token; an uncertain or timed-out
+read retains only unverified proof under the existing bounded recovery deadline.
+Native WPF and synthetic orchestration tests do not replace a real Standard-N pilot.
+
 ## Local post-#158 access-recovery candidate — 2026-11-10
 
 A temporary capability/session-check transport failure is not a logout. The

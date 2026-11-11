@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MerchClaimPage from './MerchClaimPage'
 import { captureMerchClaimNavigation } from './claimNavigation'
@@ -23,6 +23,53 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks() })
 
 describe('merch executor claim', () => {
+  it('cannot restore an account from an abandoned claim page refresh', async () => {
+    sessionStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+    let finish!: (response: Response) => void
+    const pending = new Promise<Response>((resolve) => { finish = resolve })
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) =>
+      String(input) === '/api/mobile/auth/refresh' ? pending : json({}, 401))
+    const view = render(<MerchClaimPage />)
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/mobile/auth/refresh', expect.anything()))
+    view.unmount()
+    sessionStorage.removeItem('epharm.learner.tokens')
+    await act(async () => {
+      finish(json({ tokens: { accessToken: 'old-renewed-access', refreshToken: 'old-renewed-refresh' } }))
+    })
+    expect(sessionStorage.getItem('epharm.learner.tokens')).toBeNull()
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([200, 401])('ignores an old refresh HTTP %i after signing into another account', async (status) => {
+    const user = userEvent.setup()
+    sessionStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+    const next = { accessToken: 'next-account-access', refreshToken: 'next-account-refresh' }
+    let finish!: (response: Response) => void
+    const pending = new Promise<Response>((resolve) => { finish = resolve })
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      if (String(input) === '/api/mobile/auth/refresh') return pending
+      if (String(input) === '/api/mobile/auth/login') return json({ tokens: next })
+      if (new Headers(init?.headers).get('Authorization') === `Bearer ${tokens.accessToken}`)
+        return json({ code: 'UNAUTHORIZED' }, 401)
+      return json({ ...context(), taskTitle: 'Задание нового аккаунта' })
+    })
+    render(<MerchClaimPage />)
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/mobile/auth/refresh', expect.anything()))
+    await user.click(screen.getByRole('button', { name: 'Войти под другой учётной записью' }))
+    await user.type(screen.getByLabelText('ИИН'), '000101500022')
+    await user.type(screen.getByLabelText('Пароль'), 'Synthetic-password!')
+    await user.click(screen.getByRole('button', { name: 'Войти', exact: true }))
+    await screen.findByText('Задание нового аккаунта')
+    await act(async () => {
+      finish(json(status === 200
+        ? { tokens: { accessToken: 'old-renewed-access', refreshToken: 'old-renewed-refresh' } }
+        : { code: 'UNAUTHORIZED' }, status))
+    })
+    expect(JSON.parse(sessionStorage.getItem('epharm.learner.tokens') || 'null')).toEqual(next)
+    expect(screen.getByText('Задание нового аккаунта')).toBeInTheDocument()
+    expect(screen.queryByLabelText('ИИН')).not.toBeInTheDocument()
+  })
+
   it('does not call APIs or request SMS without a valid QR challenge', () => {
     window.history.replaceState({}, '', '/learn/merch/claim')
     captureMerchClaimNavigation()

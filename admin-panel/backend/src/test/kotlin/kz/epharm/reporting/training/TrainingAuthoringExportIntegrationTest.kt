@@ -160,8 +160,14 @@ class TrainingAuthoringExportIntegrationTest {
         jdbc.update("update admin_users set role='CATEGORY_LEAD' where id=?",admin.id)
         mvc.perform(request("courses")).andExpect(status().isForbidden)
         mvc.perform(request("programs")).andExpect(status().isForbidden)
-        mvc.perform(get("/api/admin/training/exports/courses.xlsx").header("Authorization","Bearer ${jwt.issuePharmacistToken("synthetic-person","Synthetic","+77000000001")}"))
-            .andExpect(status().isForbidden)
+        jdbc.update("""insert into pharmacists(id,name,iin,phone,city,tier,status,joined_at)
+            values('synthetic-person','Synthetic','900101400097','+77000000001','','Silver','active',current_date)""")
+        try {
+            mvc.perform(get("/api/admin/training/exports/courses.xlsx").header("Authorization","Bearer ${jwt.issuePharmacistToken("synthetic-person","Synthetic","+77000000001")}"))
+                .andExpect(status().isForbidden)
+        } finally {
+            jdbc.update("delete from pharmacists where id='synthetic-person'")
+        }
     }
 
     @Test fun `over budget lesson selection fails explicitly without a truncated workbook or altering the content`() {

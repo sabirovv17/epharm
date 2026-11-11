@@ -63,6 +63,7 @@ class AuthErrorContractTest {
     @Autowired private lateinit var mockMvc: MockMvc
     @Autowired private lateinit var jwtService: JwtService
     @Autowired private lateinit var admins: AdminUserRepository
+    @Autowired private lateinit var pharmacists: kz.epharm.pharmacists.repository.PharmacistRepository
 
     @Test
     fun `неизвестный публичный API-маршрут возвращает 404 JSON вместо 500`() {
@@ -88,6 +89,9 @@ class AuthErrorContractTest {
     fun `pharmacist-токен на admin-эндпоинте → 403 + JSON {code,message}`() {
         // Роль PHARMACIST не входит в ADMIN_ROLES → аутентифицирован, но нет доступа →
         // ApiAccessDeniedHandler, а не пустой 403.
+        pharmacists.saveAndFlush(kz.epharm.pharmacists.entity.PharmacistEntity(
+            id = "u_rx", name = "Фарм Тестов", phone = "+77005556677", iin = "900101400099", statusRaw = "active",
+        ))
         val token = jwtService.issuePharmacistToken("u_rx", "Фарм Тестов", "+77005556677")
         mockMvc.perform(
             get("/api/admin/catalog/products").header("Authorization", "Bearer $token"),

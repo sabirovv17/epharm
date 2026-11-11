@@ -12,8 +12,8 @@ can explicitly pass `--allow-noninteractive`; the JSON then records the actual
 visible window on a real cashier's desktop. The existing Windows/Standard-N
 pilot is still required before enabling the production staff feature.
 
-Forty-seven cases exercise the actual `StaffAuthWindow` and `RecommendationWindow`
-assemblies through their own in-process controls. They include protected close,
+Fifty-one cases exercise the actual `StaffAuthWindow` and `RecommendationWindow`
+assemblies through their own in-process controls. They include nonblocking close,
 parent-accepted grants, rejected foreign/stale contexts, fail-open cash work, source
 loss on an existing filled window, single-flight submits, local login password policy,
 current-status RU/KK switching, server-provided retry deadlines and exhausted reset OTP.
@@ -43,7 +43,7 @@ focus theft, window activation or lost passwords. Countdown ticks do not trigger
 product error-reveal path.
 A 90-second WPF watchdog closes test windows and returns exit code 3 on timeout.
 
-Exit code 0 means all 47 cases passed; 1 is a test failure; 2 is a missing
+Exit code 0 means all 51 cases passed; 1 is a test failure; 2 is a missing
 interactive session or invalid arguments. Output defaults to `proof` beside the
 executable and includes `qa-proof.json` and fourteen renders of its own WPF content.
 Error screenshots scroll the form to the actual status; they do not imply all fields
@@ -56,3 +56,9 @@ fake `HttpMessageHandler` intercept every request; no sockets, DNS, real SMS,
 account creation, Windows hooks or external UI automation are used. Only fixture
 credentials enter the test process; proof contains boolean assertions, no
 passwords, grants or request bodies. Generated output must remain untracked.
+
+The nonblocking-login regressions verify that comparable Standard-N identity does
+not enable fullscreen/topmost/forced activation, that a synthetic cashier textbox
+retains keyboard focus, and that minimize/close/continue work after local validation,
+HTTP 401/409 and during a pending registration. They preserve existing grant,
+late-response, single-flight and password-retention checks.
