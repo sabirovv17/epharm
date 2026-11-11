@@ -43,6 +43,7 @@ jobs:
           | xargs -0 shellcheck --severity=warning
 
   ops-contract:
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' }}
     name: ops / config contracts
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -165,6 +166,7 @@ jobs:
           PY
 
   p0-config:
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' }}
     name: P0 / config policy
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -173,6 +175,7 @@ jobs:
       - run: ./tools/check-p0-config.sh
 
   pim-etl:
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' }}
     name: pim / ETL safety tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -187,6 +190,7 @@ jobs:
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
 
   admin:
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' }}
     name: admin / lint, typecheck, test and build
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -208,6 +212,7 @@ jobs:
       - run: npm run build
 
   storefront:
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' }}
     name: storefront / lint, test and build
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -230,6 +235,7 @@ jobs:
       - run: npm run build
 
   backend:
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' }}
     name: backend / unit, integration and build
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -276,6 +282,7 @@ jobs:
           retention-days: 7
 
   admin-e2e:
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' }}
     name: admin / browser e2e against backend
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -348,6 +355,7 @@ jobs:
           docker compose down --volumes --remove-orphans
 
   containers:
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' }}
     name: container / ${{ matrix.name }} production build
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -410,7 +418,7 @@ jobs:
   mobile-android:
     name: mobile / analyze, test and Android build
     # The owner paused the unused mobile app; opt back in explicitly when work resumes.
-    if: vars.MOBILE_APP_CI_ENABLED == 'true'
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' && (vars.MOBILE_APP_CI_ENABLED == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -438,7 +446,7 @@ jobs:
 
   mobile-ios:
     name: mobile / iOS simulator build
-    if: vars.MOBILE_APP_CI_ENABLED == 'true'
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' && (vars.MOBILE_APP_CI_ENABLED == 'true') }}
     runs-on: macos-15
     timeout-minutes: 45
     steps:
@@ -462,6 +470,7 @@ jobs:
         run: ./tools/mobile-release-check.sh
 
   posm-core:
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' }}
     name: posm / core tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -473,6 +482,7 @@ jobs:
       - run: dotnet test App.Tests/CustomerDisplay.Core.Tests.csproj -c Release
 
   posm-windows:
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' }}
     name: posm / Windows production build
     runs-on: windows-latest
     timeout-minutes: 30
@@ -578,6 +588,7 @@ jobs:
           retention-days: 14
 
   codeql:
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' }}
     name: security / CodeQL (${{ matrix.language }})
     runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.timeout_minutes }}
@@ -631,7 +642,7 @@ jobs:
 
   dependency-review:
     name: security / dependency review
-    if: github.event_name == 'pull_request'
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' && (github.event_name == 'pull_request') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -644,7 +655,7 @@ jobs:
 
   commitlint:
     name: repo / PR title
-    if: github.event_name == 'pull_request'
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' && (github.event_name == 'pull_request') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -663,7 +674,7 @@ jobs:
 
   p0-gate:
     name: P0 / merge gate
-    if: always()
+    if: ${{ github.ref != 'refs/heads/codex/pr160-display-pilot-20261111' && (always()) }}
     needs:
       - repo-quality
       - ops-contract
@@ -728,3 +739,85 @@ jobs:
             test "$DEPENDENCY_REVIEW" = skipped
             test "$COMMITLINT" = skipped
           fi
+
+  # PRIVATE TEMP BRANCH ONLY. Never merge or use as release publication workflow.
+  display-pilot:
+    needs: repo-quality
+    name: lab / exact main84 actual Windows displays and recovery fixture
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/pr160-display-pilot-20261111'
+    runs-on: windows-2022
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Check exact main ancestry and private parameter flow
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $c=(Get-Content -LiteralPath ./tools/release/ci-display-candidate.json -Raw|ConvertFrom-Json).main
+          if($c.version -cne '1.0.84' -or $c.commit -cnotmatch '^[a-f0-9]{40}$'){throw 'Final merged main84 identity is required'}
+          git merge-base --is-ancestor $c.commit HEAD
+          if($LASTEXITCODE -ne 0){throw 'Final main source is not an ancestor of this isolated lab checkout'}
+          foreach($file in @(Get-ChildItem -LiteralPath ./tools/release -File -Filter ci-*.ps1)){
+            $tokens=$null;$parseErrors=$null
+            $null=[Management.Automation.Language.Parser]::ParseFile($file.FullName,[ref]$tokens,[ref]$parseErrors)
+            if(@($parseErrors).Count){throw ('PowerShell parse errors in '+$file.Name+': '+($parseErrors.Message -join '; '))}
+          }
+      - name: Prepare exact official main84 Windows runtime and isolated fixtures
+        shell: powershell
+        env:
+          PILOT_READ_TOKEN: ${{ github.token }}
+        run: |
+          ./tools/release/ci-display-pilot-prepare.ps1 -CandidateConfig ./tools/release/ci-display-candidate.json -Output "$env:RUNNER_TEMP/epharm-display-bench" -Proof "$env:RUNNER_TEMP/display-pilot-proof"
+      - name: Build private9.99.1 recovery case from exact unchanged main source
+        id: private-lab-build
+        shell: powershell
+        run: |
+          ./tools/release/ci-build-private-recovery.ps1 -CandidateConfig ./tools/release/ci-display-candidate.json -Bench "$env:RUNNER_TEMP/epharm-display-bench" -Output "$env:RUNNER_TEMP/PRIVATE-LAB-ONLY-recovery-9.99.1"
+      - name: Upload private recovery-only fixture
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: PRIVATE-LAB-ONLY-recovery-9.99.1-${{ github.sha }}
+          path: ${{ runner.temp }}/PRIVATE-LAB-ONLY-recovery-9.99.1/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Exercise genuine82 to official84 and fresh real-process recovery matrix
+        shell: powershell
+        run: |
+          ./tools/release/ci-update-recovery-pilot.ps1 -CandidateConfig ./tools/release/ci-display-candidate.json -Bench "$env:RUNNER_TEMP/epharm-display-bench" -LabArtifact "$env:RUNNER_TEMP/PRIVATE-LAB-ONLY-recovery-9.99.1" -Proof "$env:RUNNER_TEMP/display-pilot-proof/recovery"
+      - name: Verify interactive desktop and actual extended displays
+        shell: powershell
+        run: |
+          ./tools/release/ci-display-topology.ps1 -Mode Setup -Output "$env:RUNNER_TEMP/display-pilot-proof/topology" -DriverRoot "$env:RUNNER_TEMP/epharm-display-bench/vdd/usbmmidd_v2"
+      - name: Show exact official84 popup and moving video on separate displays
+        shell: powershell
+        run: |
+          ./tools/release/ci-display-render.ps1 -CandidateConfig ./tools/release/ci-display-candidate.json -BridgeRoot "$env:RUNNER_TEMP/epharm-display-bench/main-bridge" -AppRoot "$env:RUNNER_TEMP/epharm-display-bench/runtime" -VideoPath "$env:RUNNER_TEMP/epharm-display-bench/pilot-customer-display.mp4" -Output "$env:RUNNER_TEMP/display-pilot-proof/render"
+      - name: Remove only the pilot display device
+        if: always()
+        shell: powershell
+        run: |
+          if(Test-Path -LiteralPath "$env:RUNNER_TEMP/display-pilot-proof/topology"){
+            ./tools/release/ci-display-topology.ps1 -Mode Cleanup -Output "$env:RUNNER_TEMP/display-pilot-proof/topology" -DriverRoot "$env:RUNNER_TEMP/epharm-display-bench/vdd/usbmmidd_v2"
+          }
+      - name: Restore temporary runner firewall settings
+        if: always()
+        shell: powershell
+        run: |
+          ./tools/release/ci-display-pilot-prepare.ps1 -CandidateConfig ./tools/release/ci-display-candidate.json -Mode Cleanup -Output "$env:RUNNER_TEMP/epharm-display-bench" -Proof "$env:RUNNER_TEMP/display-pilot-proof"
+      - name: Upload sanitized pilot proof
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: display-pilot-proof-${{ github.sha }}
+          path: ${{ runner.temp }}/display-pilot-proof/
+          if-no-files-found: error
+          retention-days: 7
