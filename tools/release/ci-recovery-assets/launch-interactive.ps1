@@ -1,4 +1,4 @@
-$ErrorActionPreference='Stop'
+﻿$ErrorActionPreference='Stop'
 $root='C:\epharm-pr160-pilot'
 # Remove known inherited Epharm variables without reading or printing their values.
 foreach($key in @(

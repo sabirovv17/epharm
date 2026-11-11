@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$CandidateConfig,[Parameter(Mandatory=$true)][string]$Bench,[Parameter(Mandatory=$true)][string]$LabArtifact,[Parameter(Mandatory=$true)][string]$Proof)
+﻿param([Parameter(Mandatory=$true)][string]$CandidateConfig,[Parameter(Mandatory=$true)][string]$Bench,[Parameter(Mandatory=$true)][string]$LabArtifact,[Parameter(Mandatory=$true)][string]$Proof)
 $ErrorActionPreference='Stop'
 $root='C:\epharm-pr160-pilot';$install="$root\install";$control="$install\.epharm-update";$psExe=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $c=(Get-Content -LiteralPath $CandidateConfig -Raw|ConvertFrom-Json).main

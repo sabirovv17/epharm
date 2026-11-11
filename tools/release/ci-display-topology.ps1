@@ -1,4 +1,4 @@
-#requires -version 5.1
+﻿#requires -version 5.1
 <#
 Ephemeral hosted Windows x64 ONLY. Run with powershell.exe -NoProfile -STA -File.
 Setup leaves its owned device for the app pilot. Always call Cleanup with the SAME Output.

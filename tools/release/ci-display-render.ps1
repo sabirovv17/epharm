@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$CandidateConfig,
     [Parameter(Mandatory=$true)][string]$BridgeRoot,

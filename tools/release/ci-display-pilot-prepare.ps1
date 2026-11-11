@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory=$true)][string]$CandidateConfig,
     [Parameter(Mandatory=$true)][string]$Output,
     [Parameter(Mandatory=$true)][string]$Proof,

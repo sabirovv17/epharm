@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$CandidateConfig,[Parameter(Mandatory=$true)][string]$Bench,[Parameter(Mandatory=$true)][string]$Output)
+﻿param([Parameter(Mandatory=$true)][string]$CandidateConfig,[Parameter(Mandatory=$true)][string]$Bench,[Parameter(Mandatory=$true)][string]$Output)
 $ErrorActionPreference='Stop'
 $c=(Get-Content -LiteralPath $CandidateConfig -Raw|ConvertFrom-Json).main
 if($c.version -cne '1.0.84' -or $c.commit -cnotmatch '^[a-f0-9]{40}$'){throw 'Final merged main84 identity is required'}
