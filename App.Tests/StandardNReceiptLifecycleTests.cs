@@ -10,6 +10,12 @@ using Xunit;
 
 namespace CustomerDisplay.Core.Tests
 {
+    // Deliberately blocked ThreadPool probes must not compete with other blocking fixtures
+    // for the two-second start budget. Each test still exercises real concurrent work.
+    [CollectionDefinition(DisableParallelization = true)]
+    public sealed class StandardNReceiptLifecycleCollection { }
+
+    [Collection<StandardNReceiptLifecycleCollection>]
     public sealed class StandardNReceiptLifecycleTests
     {
         [Fact]
