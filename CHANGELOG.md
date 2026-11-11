@@ -5,6 +5,25 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.15] - 2026-11-11
+
+### Fixed
+
+- Recover a retained POSM staff grant after temporary transport errors only within
+  a bounded two-minute verification window. Pending checks do not authenticate the
+  employee; definitive refusals, expiry, changed process/cashier and closed forms
+  remain terminal. Successful login waits for fresh process proof without replaying
+  credentials, and Retry-After cannot extend the recovery deadline.
+- Apply the shared 72-byte UTF-8 BCrypt boundary to new pharmacist passwords in
+  HQ, learner and POSM flows before consuming recovery proofs. Preserve exact
+  password bytes and canonicalize IIN lookup and quota keys consistently.
+- Replace scheduled Standard-N directory snapshots in one PostgreSQL transaction
+  after reading Firebird, preserving the old snapshot on an insert failure.
+- Explain pending or mismatched pharmacy assignments after a correct password
+  without granting access or activating employees; preserve the first logout time.
+- Prepare signed POSM 1.0.84 as a separate immutable client release. Client
+  publication remains gated on exact-main Windows acceptance and artifact checks.
+
 ## [0.2.14] - 2026-11-09
 
 ### Fixed

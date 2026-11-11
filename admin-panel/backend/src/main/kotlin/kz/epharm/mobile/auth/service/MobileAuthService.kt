@@ -105,6 +105,8 @@ class MobileAuthService(
     @Transactional
     @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun setInitialPassword(rawIin: String, rawPhone: String, password: String): MobileAuthResponse {
+        // Validate before taking locks or consuming a proof: POSM must accept the same credential.
+        kz.epharm.shared.validation.PharmacistPasswordPolicy.requireValid(password, 8)
         // Lock before loading the account: a concurrent staff activation must not be overwritten.
         staffPhoneLock.lock(PhoneUtil.normalize(rawPhone))
         val identity = findActivationIdentity(rawIin,lock=true)

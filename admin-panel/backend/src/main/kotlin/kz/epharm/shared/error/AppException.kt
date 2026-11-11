@@ -50,4 +50,7 @@ enum class ErrorCode {
     // Внешний провайдер принял SMS-запрос, но временно недоступен на этапе проверки кода.
     OTP_PROVIDER_UNAVAILABLE,
     PHARMACIST_BLOCKED,
+    // POSM assignment diagnostics are disclosed only after successful employee password proof.
+    STAFF_PHARMACY_ASSIGNMENT_REQUIRED,
+    STAFF_PHARMACY_MISMATCH,
 }

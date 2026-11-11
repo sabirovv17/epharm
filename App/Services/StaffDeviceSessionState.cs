@@ -50,12 +50,19 @@ public sealed class StaffRegistrationPolicy
 /// <summary>Own employee login survives unreadable source data; only a real process or known cashier switch clears it.</summary>
 public sealed class StaffDeviceSessionState
 {
+    private readonly TimeProvider _time;
+    private long? _recoveryStarted;
+    private string? _pharmacistId;
+    public StaffDeviceSessionState(TimeProvider? time = null) => _time = time ?? TimeProvider.System;
     public string? ProcessInstanceId { get; private set; }
     public StaffSessionObservation Observation { get; private set; } = new("initializing");
     public StaffAuthContext? LastKnownSource { get; private set; }
     public long Generation { get; private set; }
     public string? Grant { get; private set; }
     public DateTimeOffset? ExpiresAt { get; private set; }
+    public bool VerificationPending { get; private set; }
+    public bool RecoveryExpired { get; private set; }
+    public DateTimeOffset? RecoveryDeadline { get; private set; }
     public bool Prompted { get; private set; }
     public string? BypassStatus { get; private set; }
     public StaffDeviceContext? Context => ProcessInstanceId == null ? null : new(ProcessInstanceId, CurrentSource);
@@ -91,18 +98,64 @@ public sealed class StaffDeviceSessionState
             sent.StandardNContext != null && (sent.StandardNContext.ProcessInstanceId != ProcessInstanceId ||
                 LastKnownSource != null && !SameCashier(sent.StandardNContext, LastKnownSource))) return false;
         Grant = response.SessionToken; ExpiresAt = expires; Prompted = true; BypassStatus = null;
+        _pharmacistId = response.Pharmacist.Id;
+        VerificationPending = false; RecoveryDeadline = null; _recoveryStarted = null; RecoveryExpired = false;
         return true;
     }
-    public bool IsAuthenticated(DateTimeOffset now)
+    // A retained token is only evidence to send back to the server, never authentication
+    // while a check is pending. Transport retries cannot extend either deadline.
+    public bool CanValidate(DateTimeOffset now)
     {
-        if (Grant != null && ExpiresAt > now) return true;
-        if (Grant != null) Invalidate();
-        return false;
+        if (Grant == null) return false;
+        if (ExpiresAt <= now) { Invalidate(); return false; }
+        if (RecoveryDeadline <= now || _recoveryStarted is { } started && _time.GetElapsedTime(started) >= TimeSpan.FromMinutes(2)) {
+            Invalidate();
+            // One ordinary, closable prompt after recovery expires; never a fullscreen
+            // interruption or an endless prompt loop while the network remains down.
+            BypassStatus = "staff_bypass_service_unavailable";
+            RecoveryExpired = true;
+            return false;
+        }
+        return true;
     }
-    public bool NeedsPrompt(DateTimeOffset now) => ProcessInstanceId != null && !Prompted && !IsAuthenticated(now);
-    public void MarkPrompted() => Prompted = true;
-    public void ClearGrant() { Grant = null; ExpiresAt = null; }
-    public void Invalidate() { Generation++; ClearGrant(); Prompted = false; BypassStatus = null; }
+    public bool IsAuthenticated(DateTimeOffset now) => CanValidate(now) && !VerificationPending;
+    public bool IsRevalidating(DateTimeOffset now) => CanValidate(now) && VerificationPending;
+    public bool BeginValidation(DateTimeOffset now)
+    {
+        if (!CanValidate(now)) return false;
+        VerificationPending = true; BypassStatus = "session_revalidating";
+        return true;
+    }
+    public bool MarkTransportFailure(DateTimeOffset now)
+    {
+        if (!BeginValidation(now)) return false;
+        RecoveryDeadline ??= now.AddMinutes(2);
+        _recoveryStarted ??= _time.GetTimestamp();
+        return true;
+    }
+    public bool ConfirmValidation(long generation, string token, StaffDeviceContext sent, StaffAuthResponse response, DateTimeOffset now)
+    {
+        if (Generation != generation || Grant != token || !CanValidate(now) || ProcessInstanceId != sent.ProcessInstanceId ||
+            response.Status != "authenticated" || response.DeviceContext != sent || response.Pharmacist == null ||
+            string.IsNullOrWhiteSpace(response.Pharmacist.Id) || response.Pharmacist.Id != _pharmacistId ||
+            response.ExpiresAt is not { } expires || expires <= now ||
+            sent.StandardNContext != null && LastKnownSource != null && !SameCashier(sent.StandardNContext, LastKnownSource)) return false;
+        if (expires < ExpiresAt) ExpiresAt = expires; // A check cannot silently extend a grant.
+        VerificationPending = false; RecoveryDeadline = null; _recoveryStarted = null; BypassStatus = null;
+        return true;
+    }
+    public void AwaitAssignment()
+    {
+        Invalidate(); Prompted = true; BypassStatus = "pending_approval";
+    }
+    public void AllowServiceRecoveryPrompt()
+    {
+        if (Grant == null && BypassStatus == "staff_bypass_service_unavailable") Prompted = false;
+    }
+    public bool NeedsPrompt(DateTimeOffset now) => !IsAuthenticated(now) && ProcessInstanceId != null && !Prompted;
+    public void MarkPrompted() { Prompted = true; RecoveryExpired = false; }
+    public void ClearGrant() { Grant = null; _pharmacistId = null; ExpiresAt = null; VerificationPending = false; RecoveryDeadline = null; _recoveryStarted = null; }
+    public void Invalidate() { Generation++; ClearGrant(); Prompted = false; BypassStatus = null; RecoveryExpired = false; }
     public string Bypass(StaffPromptBypassReason reason, bool preservePendingRequest = false)
     {
         // A failed background poll must not cancel an independently pending login/registration response.

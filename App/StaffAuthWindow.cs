@@ -71,6 +71,10 @@ public sealed class StaffAuthWindow : Window
     private readonly DispatcherTimer _statusTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     public event Action? AuthenticationStarted;
     public event Action<StaffAuthResponse>? Authenticated;
+    // The parent may need bounded fresh process confirmation. Await it while the
+    // original form is busy; never fire-and-forget an async authentication handler.
+    public Func<StaffAuthResponse, Task>? AuthenticationCompletion { get; set; }
+    public event Action? AssignmentPending;
     public event Action<StaffPromptBypassReason>? BypassRequested;
     public event Action<bool>? LanguageChanged;
     public bool IsKazakh => _kazakh;
@@ -155,6 +159,7 @@ public sealed class StaffAuthWindow : Window
 
     public bool WasDismissed => _dismissAllowed;
     public bool IsRequestPending => _busy;
+    public CancellationToken ClosedToken => _stop.Token;
     public void Dismiss() { _dismissAllowed = true; Close(); }
 
     /// <summary>Fail-open releases presentation, not the filled form or an outstanding SMS challenge.</summary>
@@ -484,7 +489,7 @@ public sealed class StaffAuthWindow : Window
             if (result.Status == "authenticated") {
                 if (_deviceContext != null && result.DeviceContext != _deviceContext) throw new StaffApiException("INVALID_RESPONSE");
                 SetStatus("Подтверждаем вход ePharm…", "ePharm жүйесіне кіруді растап жатырмыз…");
-                Authenticated?.Invoke(result);
+                await CompleteAuthentication(result);
                 return;
             }
             if (_deviceContext != null)
@@ -492,6 +497,7 @@ public sealed class StaffAuthWindow : Window
                     "Бұл профильдің дәріханаға тағайындалуы әлі расталмаған. Әкімшіге хабарласыңыз; Standard-N жұмысын жалғастырады.");
             else SetStatus("Профиль ожидает подтверждения назначения администратором. Вход пока не разрешён.",
                 "Профиль тағайындауды әкімшінің растауын күтуде. Кіруге әзірше рұқсат жоқ.");
+            AssignmentPending?.Invoke();
             if (_deviceContext != null) ReleaseWork();
             return;
         }
@@ -503,7 +509,7 @@ public sealed class StaffAuthWindow : Window
             AuthenticationStarted?.Invoke();
             var registered = await _client.DeviceRegisterWithoutSmsAsync(_iin.Text.Trim(), _phone.Text.Trim(), _name.Text.Trim(), password, _deviceContext!, _stop.Token);
             _stop.Token.ThrowIfCancellationRequested();
-            if (!await DiscardChangedRegistration(policyGeneration, registered)) CompleteRegistration(registered);
+            if (!await DiscardChangedRegistration(policyGeneration, registered)) await CompleteRegistration(registered);
             return;
         }
         if (_challenge == null || _challengeExpiresAt <= DateTimeOffset.UtcNow || _challengeIin != _iin.Text.Trim() || _challengePhone != _phone.Text.Trim()) throw new StaffApiException("SMS_REQUIRED");
@@ -513,7 +519,7 @@ public sealed class StaffAuthWindow : Window
         if (_context == null) SetStatus("Пароль сохранён. " + _sessionRequiredMessage, "Құпиясөз сақталды. " + _sessionRequiredMessageKk);
         else SetStatus("Пароль сохранён. Теперь войдите с новым паролем.", "Құпиясөз сақталды. Енді жаңа құпиясөзбен кіріңіз.");
     }
-    private void CompleteRegistration(StaffRegistrationResponse registered)
+    private async Task CompleteRegistration(StaffRegistrationResponse registered)
     {
         if (registered.Status is not ("authenticated" or "registered" or "pending")) throw new StaffApiException("INVALID_RESPONSE");
         ClearChallenge(); _code.Clear();
@@ -522,7 +528,7 @@ public sealed class StaffAuthWindow : Window
             registered.Pharmacist != null && !string.IsNullOrWhiteSpace(registered.SessionToken) &&
             registered.ExpiresAt > DateTimeOffset.UtcNow)
         {
-            Authenticated?.Invoke(new StaffAuthResponse(registered.Status, registered.SessionToken,
+            await CompleteAuthentication(new StaffAuthResponse(registered.Status, registered.SessionToken,
                 registered.ExpiresAt, registered.Pharmacist, _context, registered.DeviceContext));
             return;
         }
@@ -537,6 +543,13 @@ public sealed class StaffAuthWindow : Window
         else SetStatus("Профиль создан. Войдите по ИИН и паролю после определения кассовой сессии.",
             "Профиль жасалды. Касса сессиясы анықталған соң ЖСН және құпиясөз арқылы кіріңіз.");
         if (_deviceContext != null && registered.Status is ("pending" or "registered")) ReleaseWork();
+        if (registered.Status == "pending") AssignmentPending?.Invoke();
+    }
+
+    private async Task CompleteAuthentication(StaffAuthResponse response)
+    {
+        if (AuthenticationCompletion is { } complete) await complete(response);
+        else Authenticated?.Invoke(response); // Legacy embedding/tests retain their synchronous contract.
     }
 
     private async Task<bool> DiscardChangedRegistration(long generation, StaffRegistrationResponse response)
@@ -566,6 +579,9 @@ public sealed class StaffAuthWindow : Window
                 if (ex.Code is "UNAVAILABLE" or "INVALID_RESPONSE")
                     ReleaseForServiceFailure(smsOperation);
                 else if (ex.Code is "RATE_LIMITED" or "REGISTRATION_UNAVAILABLE") ReleaseWork();
+                else if (ex.Code is "STAFF_PHARMACY_ASSIGNMENT_REQUIRED" or "STAFF_PHARMACY_MISMATCH") {
+                    AssignmentPending?.Invoke(); ReleaseWork();
+                }
                 if (_mode.SelectedIndex == 0 && StaffAuthDiagnostics.OfferRecovery(ex.Code)) {
                     ClearChallenge(); _code.Clear();
                     _recoveryGuidance.Visibility = Visibility.Visible;
@@ -639,12 +655,15 @@ public sealed class StaffAuthWindow : Window
         "SESSION_REQUIRED" => T("Сначала войдите в Standard-N и дождитесь определения текущей кассовой сессии. Регистрация без SMS доступна на обновлённой кассе; восстановление пароля доступно независимо.", "Алдымен Standard-N жүйесіне кіріп, ағымдағы касса сессиясы анықталғанша күтіңіз. SMS-сіз тіркелу жаңартылған кассада қолжетімді; құпиясөзді бөлек қалпына келтіруге болады."),
         "PASSWORD_REQUIRED" => T("Введите пароль. Нужно не менее 4 символов.", "Құпиясөз енгізіңіз. Кемінде 4 таңба болуы керек."),
         "PASSWORD_LENGTH" => T("Пароль должен содержать от 4 до 128 символов.", "Құпиясөз 4–128 таңбадан тұруы керек."),
+        "PASSWORD_BYTES" when _mode.SelectedIndex == 0 => T("Этот пароль превышает ограничение 72 байта UTF-8. Не сокращайте существующий пароль: выберите «Забыли пароль?» и восстановите пароль по привязанному телефону.", "Бұл құпиясөз UTF-8 форматындағы 72 байт шегінен асады. Бар құпиясөзді қысқартпаңыз: «Құпиясөзді ұмыттыңыз ба?» арқылы тіркелген телефонмен қалпына келтіріңіз."),
         "PASSWORD_BYTES" => T("Пароль слишком длинный: допускается не более 72 байт UTF-8. Сократите пароль, особенно если он содержит кириллицу или эмодзи.", "Құпиясөз тым ұзын: UTF-8 форматында 72 байттан аспауы керек. Әсіресе кириллица немесе эмодзи болса, құпиясөзді қысқартыңыз."),
         "PASSWORD_MISMATCH" => T("Пароли не совпадают. Проверьте новый пароль и его подтверждение.", "Құпиясөздер сәйкес емес. Жаңа құпиясөз бен растауын тексеріңіз."),
         "NAME_REQUIRED" => T("Введите полное ФИО.", "Толық аты-жөніңізді енгізіңіз."),
         "SMS_REQUIRED" => T("Сначала запросите новый SMS-код для указанных данных.", "Алдымен көрсетілген деректерге жаңа SMS кодын сұраңыз."),
         "CODE_REQUIRED" => T("Введите код из SMS: 4–8 цифр.", "SMS кодын енгізіңіз: 4–8 цифр."),
         "RATE_LIMITED" => T("Слишком много попыток. Подождите перед повтором.", "Әрекет тым көп. Қайталау алдында күтіңіз."),
+        "STAFF_PHARMACY_ASSIGNMENT_REQUIRED" => T("Учётная запись ещё не привязана к аптеке. Обратитесь в HQ для проверки и назначения аптеки. Повторная регистрация не нужна.", "Есептік жазба дәріханаға әлі бекітілмеген. Дәріхананы тексеріп, тағайындау үшін HQ-ға хабарласыңыз. Қайта тіркелудің қажеті жоқ."),
+        "STAFF_PHARMACY_MISMATCH" => T("Учётная запись закреплена за другой аптекой. Обратитесь в HQ для проверки привязки. Повторная регистрация не нужна.", "Есептік жазба басқа дәріханаға бекітілген. Байланысты тексеру үшін HQ-ға хабарласыңыз. Қайта тіркелудің қажеті жоқ."),
         "INVALID_CREDENTIALS" or "FORBIDDEN" => T("Не удалось войти. Проверьте ИИН и пароль или обратитесь к администратору.", "Кіру мүмкін болмады. ЖСН мен құпиясөзді тексеріңіз немесе әкімшіге хабарласыңыз."),
         "INVALID_DATA" when _mode.SelectedIndex == 0 => T("Проверьте ИИН и пароль.", "ЖСН мен құпиясөзді тексеріңіз."),
         "INVALID_DATA" when RegistrationWithoutSms => T("Проверьте ИИН и данные регистрации. Если профиль уже существует, перейдите ко входу.", "ЖСН мен тіркелу деректерін тексеріңіз. Профиль бар болса, кіруге өтіңіз."),

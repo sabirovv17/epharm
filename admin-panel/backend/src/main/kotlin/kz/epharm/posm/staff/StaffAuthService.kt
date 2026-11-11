@@ -43,7 +43,7 @@ class StaffAuthService(
             credentialVault.capture(person.id,person.password!!,request.password)
             return StaffSessionResponse("pending",null,null,StaffPerson(person.id,person.name),request.context)
         }
-        if (person.status!="active" || person.pharmacy!=device.pharmacyId) unauthorized()
+        requirePharmacyAssignment(person,device)
         credentialVault.capture(person.id,person.password!!,request.password)
         return grant(device,person,request.context,request.iin)
     }
@@ -186,7 +186,7 @@ class StaffAuthService(
 
     @Transactional
     fun logout(device: PosmDeviceIdentity, token: String?) {
-        if(!token.isNullOrBlank() && token.length in 32..128) jdbc.update("UPDATE posm_staff_sessions SET revoked_at=now() WHERE token_hash=? AND device_id=? AND pharmacy_id=?",hash(token),device.deviceId,device.pharmacyId)
+        if(!token.isNullOrBlank() && token.length in 32..128) jdbc.update("UPDATE posm_staff_sessions SET revoked_at=now() WHERE token_hash=? AND device_id=? AND pharmacy_id=? AND revoked_at IS NULL",hash(token),device.deviceId,device.pharmacyId)
     }
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
@@ -197,7 +197,7 @@ class StaffAuthService(
             credentialVault.capture(person.id,person.password!!,request.password)
             return StaffDeviceSessionResponse("pending",null,null,StaffPerson(person.id,person.name),request.deviceContext)
         }
-        if(person.status!="active" || person.pharmacy!=device.pharmacyId) unauthorized()
+        requirePharmacyAssignment(person,device)
         credentialVault.capture(person.id,person.password!!,request.password)
         return deviceGrant(device,person,request.deviceContext)
     }
@@ -279,7 +279,7 @@ class StaffAuthService(
     @Transactional
     fun deviceLogout(device:PosmDeviceIdentity,token:String?) {
         if(!token.isNullOrBlank() && token.length in 32..128) jdbc.update("""UPDATE posm_device_staff_sessions SET revoked_at=now()
-            WHERE token_hash=? AND device_id=? AND pharmacy_id=?""",hash(token),device.deviceId,device.pharmacyId)
+            WHERE token_hash=? AND device_id=? AND pharmacy_id=? AND revoked_at IS NULL""",hash(token),device.deviceId,device.pharmacyId)
     }
 
     private fun verifyPassword(device:PosmDeviceIdentity,iin:String,value:String):Person {
@@ -289,6 +289,20 @@ class StaffAuthService(
         val matches=encoder.matches(value,person?.password ?: dummyHash)
         if(!matches || person==null || person.password.isNullOrBlank() || person.status=="blocked") unauthorized()
         return person
+    }
+    /** Called only after password proof. Never disclose assignment details to an unproved caller. */
+    private fun requirePharmacyAssignment(person:Person,device:PosmDeviceIdentity) {
+        if(person.status!="active") unauthorized()
+        if(person.pharmacy.isNullOrBlank()) throw AppException(
+            ErrorCode.STAFF_PHARMACY_ASSIGNMENT_REQUIRED,
+            "Учётная запись ещё не привязана к аптеке. Обратитесь в HQ для проверки и назначения аптеки. Повторная регистрация не нужна.",
+            HttpStatus.FORBIDDEN,
+        )
+        if(person.pharmacy!=device.pharmacyId) throw AppException(
+            ErrorCode.STAFF_PHARMACY_MISMATCH,
+            "Учётная запись закреплена за другой аптекой. Обратитесь в HQ для проверки привязки. Повторная регистрация не нужна.",
+            HttpStatus.FORBIDDEN,
+        )
     }
     private fun revokeDeviceGrants(device:PosmDeviceIdentity,process:String) {
         // Pharmacy ZIP credentials can be shared by several terminals; replacing one process must not log out another.
@@ -329,7 +343,7 @@ class StaffAuthService(
             retryAfterSeconds=attempt.retryAfterSeconds)
     }
     private fun phone(raw:String):String=PhoneUtil.normalize(raw).also { if(!Regex("\\+7[0-9]{10}").matches(it)) invalid() }
-    private fun password(value:String,min:Int) { if(value.isBlank() || value.length !in min..128 || value.toByteArray(Charsets.UTF_8).size>72) invalid() }
+    private fun password(value:String,min:Int) = kz.epharm.shared.validation.PharmacistPasswordPolicy.requireValid(value,min)
     private fun validateContext(context: StaffContext) { if(!StaffIinObservation.valid(context)) invalid() }
     private fun randomToken()=ByteArray(32).also(random::nextBytes).let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
     private fun hash(value:String)=MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }

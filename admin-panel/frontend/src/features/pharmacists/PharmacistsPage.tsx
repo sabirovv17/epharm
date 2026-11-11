@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ReportDownloadButton from '@/features/reports/ReportDownloadButton'
 import { useAdministrativeCapabilities } from '@/app/useAdministrativeCapabilities'
+import { isValidNewPharmacistPassword } from '@/lib/pharmacist-password'
 import {
   Button,
   Empty,
@@ -649,9 +650,12 @@ export default function PharmacistsPage() {
               </Button>
               <Button
                 variant="primary"
-                disabled={updatePharmacist.isPending || passwordValue.length < 6}
+                disabled={
+                  updatePharmacist.isPending || !isValidNewPharmacistPassword(passwordValue, 6)
+                }
                 onClick={() => {
-                  if (!canManageCredentials) return
+                  if (!canManageCredentials || !isValidNewPharmacistPassword(passwordValue, 6))
+                    return
                   setPasswordError(null)
                   updatePharmacist.mutate(
                     { id: passwordTarget.id, patch: { password: passwordValue } },
@@ -690,6 +694,9 @@ export default function PharmacistsPage() {
                 autoFocus
               />
             </Field>
+            <p className="text-[11px] leading-5 text-ink-500">
+              От 6 символов, не более 72 байт UTF-8; не только пробелы.
+            </p>
             <p className="text-[11px] leading-5 text-ink-500">
               Передайте пароль фармацевту безопасным способом. В интерфейсе он больше не
               отображается.

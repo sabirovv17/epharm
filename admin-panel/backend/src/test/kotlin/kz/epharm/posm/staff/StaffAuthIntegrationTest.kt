@@ -264,7 +264,7 @@ class StaffAuthIntegrationTest {
 
     @Test fun `device auth is individual device and pharmacy scoped including another device at the same pharmacy`() {
         deviceLogin(credential=null,expected=401);deviceLogin(credential="dev-posm-key",expected=401)
-        deviceLogin(credential=key2,expected=401)
+        deviceLogin(credential=key2,expected=403)
         val otherKey="staff-same-pharmacy-device-secret-000000003"
         jdbc.update("INSERT INTO fulfillment_devices(id,device_id,pharmacy_id,secret_sha256,secret_hint) VALUES (?,'staff-same-device','staff-pharmacy',?,'test') ON CONFLICT(device_id,pharmacy_id) DO UPDATE SET secret_sha256=excluded.secret_sha256,active=true",UUID.randomUUID(),hash(otherKey))
         val token=deviceLogin()["sessionToken"].asText()
@@ -329,8 +329,49 @@ class StaffAuthIntegrationTest {
         assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_device_staff_sessions",Int::class.java))
         jdbc.update("UPDATE pharmacists SET status='blocked' WHERE id='staff-person'");deviceLogin(expected=401)
         jdbc.update("UPDATE pharmacists SET status='active',pharmacy_id='staff-other' WHERE id='staff-person'")
-        deviceLogin(expected=401)
+        assertEquals("STAFF_PHARMACY_MISMATCH",deviceLogin(expected=403)["code"].asText())
         assertEquals("staff-other",jdbc.queryForObject("SELECT pharmacy_id FROM pharmacists WHERE id='staff-person'",String::class.java))
+    }
+
+    @Test fun `assignment diagnostics require correct password and never activate transfer or issue a grant`() {
+        val before=financialCounts()
+        for ((assignment,code) in listOf(null to "STAFF_PHARMACY_ASSIGNMENT_REQUIRED","staff-other" to "STAFF_PHARMACY_MISMATCH")) {
+            jdbc.update("UPDATE pharmacists SET status='active',pharmacy_id=? WHERE id='staff-person'",assignment)
+            for (route in listOf("/login","/device/login")) {
+                fun body(password:String):Any=if(route=="/login") StaffLoginRequest(iin,password,context)
+                    else StaffDeviceLoginRequest(iin,password,deviceContext)
+                assertEquals("INVALID_CREDENTIALS",post(route,body("wrong"),expected=401)["code"].asText())
+                val response=post(route,body("Password123!"),expected=403)
+                assertEquals(code,response["code"].asText())
+                assertTrue(response["message"].asText().contains("HQ"))
+                assertFalse(response.toString().contains(iin));assertFalse(response.toString().contains(phone))
+                assertFalse(response.has("sessionToken"));assertFalse(response.has("pharmacist"))
+            }
+            assertEquals(assignment,jdbc.queryForMap("SELECT pharmacy_id FROM pharmacists WHERE id='staff-person'")["pharmacy_id"])
+        }
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_staff_sessions",Int::class.java))
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM posm_device_staff_sessions",Int::class.java))
+        assertEquals(before,financialCounts())
+    }
+
+    @Test fun `delayed repeated logout preserves first revocation timestamp and cannot revoke replacement`() {
+        for ((loginRoute,logoutRoute,table) in listOf(
+            Triple("/device/login","/device/logout","posm_device_staff_sessions"),
+            Triple("/login","/logout","posm_staff_sessions"))) {
+            val body:Any=if(loginRoute=="/login") StaffLoginRequest(iin,"Password123!",context)
+                else StaffDeviceLoginRequest(iin,"Password123!",deviceContext)
+            val old=post(loginRoute,body)["sessionToken"].asText()
+            val replacement=post(loginRoute,body)["sessionToken"].asText()
+            // Pin an earlier revocation without sleeps, modelling a delayed logout request.
+            jdbc.update("UPDATE $table SET revoked_at=created_at+interval '1 microsecond' WHERE token_hash=?",hash(old))
+            val first=jdbc.queryForObject("SELECT revoked_at FROM $table WHERE token_hash=?",java.sql.Timestamp::class.java,hash(old))
+            repeat(2) {
+                mvc.perform(post("/api/posm/staff$logoutRoute").header("X-Posm-Key",key).header("X-Staff-Session",old))
+                    .andExpect(status().isNoContent)
+            }
+            assertEquals(first,jdbc.queryForObject("SELECT revoked_at FROM $table WHERE token_hash=?",java.sql.Timestamp::class.java,hash(old)))
+            if(loginRoute=="/login") checkedSession(replacement,context) else deviceSession(replacement)
+        }
     }
 
     @Test fun `simultaneous device and strict logins leave only one employee grant on the device`() {
@@ -487,7 +528,7 @@ class StaffAuthIntegrationTest {
         }
         post("/login",StaffLoginRequest("880404400014","Password123!",named),expected=401)
         post("/login",StaffLoginRequest(iin,"wrong",named),expected=401)
-        post("/login",StaffLoginRequest(iin,"Password123!",named),credential=key2,expected=401)
+        post("/login",StaffLoginRequest(iin,"Password123!",named),credential=key2,expected=403)
         jdbc.update("UPDATE pharmacists SET status='blocked' WHERE id='staff-person'")
         post("/login",StaffLoginRequest(iin,"Password123!",named),expected=401)
     }
@@ -657,7 +698,7 @@ class StaffAuthIntegrationTest {
         login(expected=401,password="wrongPass")
         post("/login",StaffLoginRequest(iin,"Password123!",context),null,401)
         post("/login",StaffLoginRequest(iin,"Password123!",context),"dev-posm-key",401)
-        login(credential=key2,expected=401)
+        login(credential=key2,expected=403)
         val token=login().get("sessionToken").asText()
         session(token)
         session(token,context.copy(standardNUserId="other"),expected=401)

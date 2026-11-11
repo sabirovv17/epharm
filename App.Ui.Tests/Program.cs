@@ -105,6 +105,9 @@ internal static class Program
                 await Run("server-retry-after-countdown-is-bilingual-and-never-replays", RetryAfterCountdown);
                 await Run("exhausted-otp-requires-new-code-without-invented-countdown-or-auto-send", ExhaustedOtp);
                 await Run("rapid-submit-is-single-request-and-parent-accepted-grant-clears-password", RapidSubmit);
+                await Run("awaited-parent-handoff-keeps-form-busy-and-rejects-dismissed-replies", AwaitedParentHandoff);
+                await Run("assignment-denial-is-bilingual-actionable-and-never-registers-again", AssignmentDenial);
+                await Run("oversized-existing-password-guides-reset-without-truncation", OversizedExistingPassword);
                 await Run("registration-network-timeout-and-malformed-errors-retain-input", RegistrationTransportFailures);
                 await Run("registration-invalid-success-response-never-clears-form", InvalidRegistrationResponse);
                 await Run("both-login-routes-validate-success-status-without-changing-valid-flows", LoginSuccessStatuses);
@@ -125,7 +128,7 @@ internal static class Program
                 watchdog.Stop();
                 foreach (var window in Windows) if (window.IsVisible) window.Dismiss();
                 foreach (var window in RecommendationWindows) if (window.IsVisible) window.Close();
-                var success = Results.Count == 47 && Results.All(result => result.Passed);
+                var success = Results.Count == 50 && Results.All(result => result.Passed);
                 WriteProof(success, null);
                 application.Shutdown(success ? 0 : 1);
             }
@@ -873,6 +876,73 @@ internal static class Program
         Check(proof, "new-code-guidance-retranslates-current-state", Field<TextBlock>(window, "_status").Text.Contains("Жаңа SMS кодын сұраңыз", StringComparison.Ordinal));
     }
 
+    private static async Task AwaitedParentHandoff(Dictionary<string, bool> proof)
+    {
+        foreach (var registering in new[] { false, true })
+        foreach (var dismiss in new[] { false, true })
+        {
+            var state = KnownDeviceState();
+            using var handler = new FakeHandler { DeviceContext = state.Context };
+            using var client = new StaffAuthClient(Config(), handler);
+            var window = DeviceWindow(client, state, registrationSmsRequired: false);
+            if (registering) RegistrationFields(window); else FillLogin(window);
+            var started = false; var accepted = false;
+            var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            window.AuthenticationCompletion = async response => {
+                started = true;
+                await release.Task.WaitAsync(window.ClosedToken);
+                accepted = state.Accept(state.Generation, state.Context!, response, DateTimeOffset.UtcNow);
+                if (accepted) window.Dismiss();
+            };
+            var prefix = $"{(registering ? "registration" : "login")}-{(dismiss ? "dismissed" : "accepted")}";
+            Click(Field<Button>(window, "_submit")); await Until(() => started);
+            Check(proof, prefix + "-pending-parent-keeps-form-and-password-busy", Busy(window) &&
+                !Field<Button>(window, "_submit").IsEnabled && Field<PasswordBox>(window, "_password").Password == FixturePassword && state.Grant == null);
+            for (var n = 0; n < 5; n++) Field<Button>(window, "_submit").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Check(proof, prefix + "-no-auth-mutation-replay", handler.TotalCalls == 1);
+            if (dismiss) window.Dismiss();
+            release.TrySetResult(); await Until(() => !Busy(window));
+            Check(proof, prefix + "-only-live-completion-authenticates", accepted == !dismiss && !window.IsVisible &&
+                (state.Grant != null) == !dismiss && Field<PasswordBox>(window, "_password").Password.Length == 0);
+        }
+    }
+
+    private static async Task AssignmentDenial(Dictionary<string, bool> proof)
+    {
+        foreach (var code in new[] { "STAFF_PHARMACY_ASSIGNMENT_REQUIRED", "STAFF_PHARMACY_MISMATCH" })
+        {
+            var state = KnownDeviceState();
+            using var handler = new FakeHandler { DeviceContext = state.Context, LoginFailure = HttpStatusCode.Forbidden, LoginFailureCode = code };
+            using var client = new StaffAuthClient(Config(), handler); var window = DeviceWindow(client, state);
+            window.AssignmentPending += state.AwaitAssignment;
+            FillLogin(window); Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+            var ru = Field<TextBlock>(window, "_status").Text;
+            Check(proof, code + "-ru-guides-hq-without-new-registration", ru.Contains("HQ", StringComparison.Ordinal) &&
+                ru.Contains("Повторная регистрация не нужна", StringComparison.Ordinal) && window.WindowStyle != WindowStyle.None);
+            Click(Field<Button>(window, "_languageKk")); var kk = Field<TextBlock>(window, "_status").Text;
+            Check(proof, code + "-kk-retains-fields-and-pending-state", kk != ru && kk.Contains("Қайта тіркелудің қажеті жоқ", StringComparison.Ordinal) &&
+                state.BypassStatus == "pending_approval" && state.Grant == null && Field<PasswordBox>(window, "_password").Password == FixturePassword);
+            Check(proof, code + "-no-register-reset-or-raw-server-text", handler.TotalCalls == 1 && handler.DeviceLoginCalls == 1 &&
+                !ru.Contains("PRIVATE-RAW", StringComparison.Ordinal) && !kk.Contains("PRIVATE-RAW", StringComparison.Ordinal));
+            window.Dismiss();
+        }
+    }
+
+    private static async Task OversizedExistingPassword(Dictionary<string, bool> proof)
+    {
+        var state = DeviceState(); using var handler = new FakeHandler { DeviceContext = state.Context };
+        using var client = new StaffAuthClient(Config(), handler); var window = DeviceWindow(client, state);
+        FillLogin(window); var password = new string('я', 37); Field<PasswordBox>(window, "_password").Password = password;
+        Click(Field<Button>(window, "_submit")); await Until(() => !Busy(window));
+        Check(proof, "ru-explains-reset-not-truncating-existing-password", Field<TextBlock>(window, "_status").Text.Contains("Не сокращайте существующий пароль", StringComparison.Ordinal) &&
+            Field<PasswordBox>(window, "_password").Password == password && handler.TotalCalls == 0);
+        Click(Field<Button>(window, "_languageKk"));
+        Check(proof, "kk-explains-safe-reset", Field<TextBlock>(window, "_status").Text.Contains("Бар құпиясөзді қысқартпаңыз", StringComparison.Ordinal));
+        Click(Field<Button>(window, "_forgot"));
+        Check(proof, "explicit-reset-route-keeps-iin-without-auto-sms", Field<ComboBox>(window, "_mode").SelectedIndex == 2 &&
+            Field<TextBox>(window, "_iin").Text == FixtureIin && Field<PasswordBox>(window, "_password").Password.Length == 0 && handler.TotalCalls == 0);
+    }
+
     private static async Task RegistrationTransportFailures(Dictionary<string, bool> proof)
     {
         foreach (var failure in new[] { "network", "timeout", "malformed-json" })
@@ -1165,6 +1235,7 @@ internal static class Program
         public int? RetryAfterSeconds { get; init; }
         public string? RetryAction { get; init; }
         public HttpStatusCode? LoginFailure { get; init; }
+        public string LoginFailureCode { get; init; } = "SYNTHETIC_FAILURE";
         public bool OverrideLoginResponse { get; init; }
         public string? LoginResponseStatus { get; init; }
         public int DeviceDelayMilliseconds { get; init; }
@@ -1205,7 +1276,7 @@ internal static class Program
                     if (direct) DirectBodyMatched = DeviceBodyMatched && body.RootElement.EnumerateObject().Select(x => x.Name).Order().SequenceEqual(
                         new[] { "deviceContext", "iin", "name", "password", "phone" });
                     if (RateLimitedRequests) return LimitedReply();
-                    if (!registering && LoginFailure is { } failure) return Reply(new { code = "SYNTHETIC_FAILURE" }, failure);
+                    if (!registering && LoginFailure is { } failure) return Reply(new { code = LoginFailureCode, message = "PRIVATE-RAW-SYNTHETIC-TEXT" }, failure);
                     if (!registering && OverrideLoginResponse) return Reply(new StaffAuthResponse(LoginResponseStatus!, null, null,
                         new StaffIdentity("DEV-PERSON", "DEV synthetic employee"), DeviceContext: device));
                     if (direct && DirectTransportFailure == "network") throw new HttpRequestException("Synthetic offline transport.");

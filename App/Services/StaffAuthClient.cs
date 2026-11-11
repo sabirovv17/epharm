@@ -62,15 +62,14 @@ public sealed class StaffAuthClient : IDisposable
             Content = JsonContent.Create(context, options: Json),
         };
         request.Headers.Add("X-Staff-Session", token);
-        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
-        return await ReadAsync<StaffAuthResponse>(response, ct).ConfigureAwait(false);
+        return await SendReadAsync<StaffAuthResponse>(request, ct).ConfigureAwait(false);
     }
 
     public async Task DeviceLogoutAsync(string token, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/posm/staff/device/logout");
         request.Headers.Add("X-Staff-Session", token);
-        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode) throw new StaffApiException("UNAVAILABLE");
     }
 
@@ -95,24 +94,34 @@ public sealed class StaffAuthClient : IDisposable
             Content = JsonContent.Create(context, options: Json),
         };
         request.Headers.Add("X-Staff-Session", token);
-        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
-        return await ReadAsync<StaffAuthResponse>(response, ct).ConfigureAwait(false);
+        return await SendReadAsync<StaffAuthResponse>(request, ct).ConfigureAwait(false);
     }
 
     public async Task LogoutAsync(string token, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/posm/staff/logout");
         request.Headers.Add("X-Staff-Session", token);
-        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode) throw new StaffApiException("UNAVAILABLE");
     }
 
     private async Task<T> PostAsync<T>(string path, object body, CancellationToken ct)
     {
-        using var response = await _http.PostAsJsonAsync("/api/posm/staff/" + path, body, Json, ct).ConfigureAwait(false);
-        return await ReadAsync<T>(response, ct).ConfigureAwait(false);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/posm/staff/" + path) {
+            Content = JsonContent.Create(body, options: Json),
+        };
+        return await SendReadAsync<T>(request, ct).ConfigureAwait(false);
     }
-    private static async Task<T> ReadAsync<T>(HttpResponseMessage response, CancellationToken ct)
+    private async Task<T> SendReadAsync<T>(HttpRequestMessage request, CancellationToken ct)
+    {
+        // Observe definitive HTTP denial before reading optional error fields. Keep
+        // the same whole-operation deadline after switching to streamed headers.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(TimeSpan.FromSeconds(15));
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false);
+        return await ReadAsync<T>(response, deadline.Token, ct).ConfigureAwait(false);
+    }
+    private static async Task<T> ReadAsync<T>(HttpResponseMessage response, CancellationToken ct, CancellationToken callerCancellation)
     {
         if (!response.IsSuccessStatusCode)
         {
@@ -132,13 +141,33 @@ public sealed class StaffAuthClient : IDisposable
                 if (seconds is > 0 && double.IsFinite(seconds.Value))
                     retryAfterSeconds = (int)Math.Clamp(Math.Ceiling(seconds.Value), 1, 86400);
             }
-            var retryAction = code == "RATE_LIMITED" ? await ReadRetryAction(response, ct).ConfigureAwait(false) : null;
+            var retryAction = code == "RATE_LIMITED" ? await ReadRetryAction(response, ct, callerCancellation).ConfigureAwait(false) : null;
+            if (code == "FORBIDDEN") {
+                var assignment = await ReadOptionalMachineValue(response, "code", ct, callerCancellation).ConfigureAwait(false);
+                if (assignment is "STAFF_PHARMACY_ASSIGNMENT_REQUIRED" or "STAFF_PHARMACY_MISMATCH") code = assignment;
+            }
             throw new StaffApiException(code, retryAfterSeconds, retryAction);
         }
         return await response.Content.ReadFromJsonAsync<T>(Json, ct).ConfigureAwait(false)
             ?? throw new StaffApiException("INVALID_RESPONSE");
     }
-    private static async Task<string?> ReadRetryAction(HttpResponseMessage response, CancellationToken ct)
+    private static async Task<string?> ReadRetryAction(HttpResponseMessage response, CancellationToken ct, CancellationToken callerCancellation)
+    {
+        var action = await ReadOptionalMachineValue(response, "retryAction", ct, callerCancellation).ConfigureAwait(false);
+        return action == "REQUEST_NEW_OTP" ? action : null;
+    }
+    private static async Task<string?> ReadOptionalMachineValue(HttpResponseMessage response, string property, CancellationToken ct, CancellationToken callerCancellation)
+    {
+        try { return await ReadBoundedMachineValue(response, property, ct).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (callerCancellation.IsCancellationRequested) { throw; }
+        catch (Exception error) when (error is HttpRequestException or System.IO.IOException or OperationCanceledException) {
+            callerCancellation.ThrowIfCancellationRequested();
+            // Broken optional text cannot turn an already received 403 into a
+            // recoverable transport outage or replace a known 429 with a generic error.
+            return null;
+        }
+    }
+    private static async Task<string?> ReadBoundedMachineValue(HttpResponseMessage response, string property, CancellationToken ct)
     {
         // Optional machine action only. Neither free-form messages nor personal body fields
         // enter diagnostics/UI; malformed, oversized or unknown actions keep generic guidance.
@@ -154,8 +183,8 @@ public sealed class StaffAuthClient : IDisposable
         try {
             using var document = JsonDocument.Parse(buffer.AsMemory(0, count));
             return document.RootElement.ValueKind == JsonValueKind.Object &&
-                document.RootElement.TryGetProperty("retryAction", out var action) && action.ValueKind == JsonValueKind.String &&
-                action.GetString() == "REQUEST_NEW_OTP" ? "REQUEST_NEW_OTP" : null;
+                document.RootElement.TryGetProperty(property, out var action) && action.ValueKind == JsonValueKind.String
+                ? action.GetString() : null;
         }
         catch (JsonException) { return null; }
     }

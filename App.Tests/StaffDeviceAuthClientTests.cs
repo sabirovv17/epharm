@@ -282,6 +282,71 @@ public sealed class StaffDeviceAuthClientTests
         Assert.Equal(allowed, (await client.CheckCapabilitiesAsync(TestContext.Current.CancellationToken)).Enabled);
     }
 
+    [Theory]
+    [InlineData(403, "STAFF_PHARMACY_ASSIGNMENT_REQUIRED", "STAFF_PHARMACY_ASSIGNMENT_REQUIRED")]
+    [InlineData(403, "STAFF_PHARMACY_MISMATCH", "STAFF_PHARMACY_MISMATCH")]
+    [InlineData(403, "private-unknown-code", "FORBIDDEN")]
+    [InlineData(401, "STAFF_PHARMACY_MISMATCH", "INVALID_CREDENTIALS")]
+    [InlineData(400, "STAFF_PHARMACY_MISMATCH", "INVALID_DATA")]
+    public async Task OnlyAllowlisted403AssignmentCodesReachTheUi(int status, string supplied, string expected)
+    {
+        var calls = 0;
+        using var client = Client(new Handler((_, _) => { calls++; return Task.FromResult(Reply(new {
+            code = supplied, message = "PRIVATE-RAW-MESSAGE-MUST-NOT-ESCAPE",
+        }, (HttpStatusCode)status)); }));
+        var error = await Assert.ThrowsAsync<StaffApiException>(() => client.DeviceLoginAsync("000101500011", "A4x!", Device, TestContext.Current.CancellationToken));
+        Assert.Equal(expected, error.Code); Assert.Equal(1, calls); Assert.DoesNotContain("PRIVATE", error.Message);
+    }
+
+    [Theory]
+    [InlineData("not-json")]
+    [InlineData("{\"code\":123}")]
+    [InlineData("[]")]
+    public async Task Malformed403BodyRemainsGenericForbidden(string body)
+    {
+        using var client = Client(new Handler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden) {
+            Content = new StringContent(body),
+        })));
+        var error = await Assert.ThrowsAsync<StaffApiException>(() => client.DeviceLoginAsync("000101500011", "A4x!", Device, TestContext.Current.CancellationToken));
+        Assert.Equal("FORBIDDEN", error.Code);
+    }
+
+    [Theory]
+    [InlineData("io")]
+    [InlineData("http")]
+    [InlineData("timeout")]
+    public async Task BrokenOptionalErrorBodyCannotDowngradeAnAuthoritative403ToAnOutage(string failure)
+    {
+        using var client = Client(new Handler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden) {
+            Content = new BrokenContent(failure),
+        })));
+        var error = await Assert.ThrowsAsync<StaffApiException>(() => client.ValidateDeviceAsync("synthetic-grant", Device, TestContext.Current.CancellationToken));
+        Assert.Equal("FORBIDDEN", error.Code);
+    }
+
+    [Fact]
+    public async Task CallerCancellationDuringOptionalBodyStillPropagates()
+    {
+        using var stop = new CancellationTokenSource();
+        using var client = Client(new Handler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden) {
+            Content = new BrokenContent("timeout", stop.Cancel),
+        })));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.ValidateDeviceAsync("synthetic-grant", Device, stop.Token));
+    }
+
+    private sealed class BrokenContent(string failure, Action? beforeFailure = null) : HttpContent
+    {
+        protected override bool TryComputeLength(out long length) { length = 0; return false; }
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+        {
+            beforeFailure?.Invoke();
+            throw failure switch {
+                "timeout" => new OperationCanceledException(), "http" => new HttpRequestException("Synthetic failure"),
+                _ => new IOException("Synthetic body failure"),
+            };
+        }
+    }
+
     private sealed class Handler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) => send(request, ct);

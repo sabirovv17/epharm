@@ -52,6 +52,7 @@ class PharmacistService(
 
     @Transactional
     fun create(req: CreatePharmacistRequest): PharmacistDto {
+        kz.epharm.shared.validation.PharmacistPasswordPolicy.requireValid(req.password, 6)
         val pharmacy = findPharmacy(req.pharmacyId) ?: throw AppException(
             ErrorCode.VALIDATION_FAILED, "Pharmacy does not exist or is outside your scope", HttpStatus.BAD_REQUEST,
         )
@@ -98,6 +99,7 @@ class PharmacistService(
                 throw AppException(ErrorCode.FORBIDDEN, "Изменять телефон или пароль фармацевта может только HQ", HttpStatus.FORBIDDEN)
             }
         }
+        req.password?.let { kz.epharm.shared.validation.PharmacistPasswordPolicy.requireValid(it, 6) }
         val entity = loadOrThrow(id, forUpdate = true)
         if (entity.status == PharmacistStatus.blocked) {
             throw AppException(

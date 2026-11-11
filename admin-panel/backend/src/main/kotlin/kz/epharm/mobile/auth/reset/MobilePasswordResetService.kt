@@ -37,17 +37,18 @@ class MobilePasswordResetService(private val jdbc: JdbcTemplate, private val pro
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
     @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun request(iin: String, remoteAddress: String): MobilePasswordResetRequested {
+        val accountIin = iin.trim()
         val now = Instant.now()
-        limit("request-iin:$iin", 5, 3600, now)
+        limit("request-iin:$accountIin", 5, 3600, now)
         limit("request-address:$remoteAddress", 100, 3600, now)
-        val before = person(iin)
+        val before = person(accountIin)
         val phone = before?.phone?.let { runCatching { PhoneUtil.normalize(it) }.getOrNull() }
             ?.takeIf { Regex("\\+7[0-9]{10}").matches(it) }
         phone?.let {
             phoneLock.lock(it)
             limit("request-phone:$it", 1, 60, now)
         }
-        val current = person(iin, true)
+        val current = person(accountIin, true)
         val eligible = phone != null && current != null && current.id == before?.id &&
             current.status in setOf("active", "pending") && !current.password.isNullOrBlank() &&
             runCatching { PhoneUtil.normalize(current.phone) }.getOrNull() == phone
@@ -60,7 +61,7 @@ class MobilePasswordResetService(private val jdbc: JdbcTemplate, private val pro
             jdbc.update("DELETE FROM mobile_otps WHERE phone=?", phone)
         }
         jdbc.update("""INSERT INTO mobile_password_reset_challenges(id,iin_hash,pharmacist_id,phone,password_fingerprint,
-            eligible,provider,code_hash,expires_at) VALUES (?,?,?,?,?,?,?,?,?)""", id, hash(iin),
+            eligible,provider,code_hash,expires_at) VALUES (?,?,?,?,?,?,?,?,?)""", id, hash(accountIin),
             if (eligible) current!!.id else null, phone, if (eligible) hash(current!!.password!!) else null,
             eligible, provider.id, code?.let { codeMac(id, it) }, Timestamp.from(now.plusSeconds(300)))
         if (eligible) try { provider.requestOtp(phone!!, code) } catch (error: Exception) {
@@ -104,13 +105,12 @@ class MobilePasswordResetService(private val jdbc: JdbcTemplate, private val pro
     @Transactional
     @kz.epharm.mobile.auth.service.OtpTransactionAdmission
     fun complete(request: CompleteMobilePasswordReset): MobileAuthResponse {
-        if (request.password.length !in 8..128 || request.password.toByteArray(Charsets.UTF_8).size > 72)
-            throw AppException(ErrorCode.VALIDATION_FAILED, "Пароль: от 8 символов и не более 72 байт UTF-8")
+        kz.epharm.shared.validation.PharmacistPasswordPolicy.requireValid(request.password, 8)
         val before = jdbc.queryForList("SELECT id FROM mobile_password_reset_challenges WHERE reset_token_hash=?", UUID::class.java, hash(request.resetToken))
             .singleOrNull() ?: invalid()
         val challenge = lockChallenge(before)
         val now = Instant.now()
-        if (challenge.consumed || !challenge.eligible || challenge.iinHash != hash(request.iin) ||
+        if (challenge.consumed || !challenge.eligible || challenge.iinHash != hash(request.iin.trim()) ||
             challenge.verified == null || challenge.resetExpires?.isAfter(now) != true ||
             challenge.resetTokenHash != hash(request.resetToken)) invalid()
         val person = requireCurrentPerson(challenge)
@@ -126,7 +126,7 @@ class MobilePasswordResetService(private val jdbc: JdbcTemplate, private val pro
     }
 
     private fun requireChallenge(c: Challenge, iin: String, now: Instant) {
-        if (c.consumed || !c.eligible || c.iinHash != hash(iin) || c.provider != provider.id) invalid()
+        if (c.consumed || !c.eligible || c.iinHash != hash(iin.trim()) || c.provider != provider.id) invalid()
         if (!c.expires.isAfter(now)) throw AppException(ErrorCode.OTP_EXPIRED, "Срок действия кода истёк — запросите новый", HttpStatus.BAD_REQUEST)
     }
     private fun requireCurrentPerson(c: Challenge): Person {
