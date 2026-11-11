@@ -24,8 +24,27 @@ function Child([string]$Exe,[string]$Arguments){
 }
 function Start-App { if(@(OwnApps).Count){throw 'App already running'};$p=Child "$install\CustomerDisplay.exe" '';Emit 'app-launched' @{Pid=$p.Id;StartTicks=$p.StartTime.ToUniversalTime().Ticks;SessionId=$p.SessionId};$p }
 function Assert-Alive([string]$Version){$until=[DateTime]::UtcNow.AddSeconds(60);do{$a=@(OwnApps);$heartbeat=if(Test-Path -LiteralPath "$root\evidence\heartbeat.txt"){(Get-Item -LiteralPath "$root\evidence\heartbeat.txt").LastWriteTimeUtc}else{[DateTime]::MinValue};if($a.Count -eq 1 -and $a[0].SessionId -eq [Diagnostics.Process]::GetCurrentProcess().SessionId -and $a[0].Responding -and $a[0].MainWindowHandle -ne [IntPtr]::Zero -and $heartbeat -gt $a[0].StartTime.ToUniversalTime() -and ([DateTime]::UtcNow-$heartbeat).TotalSeconds -lt 15 -and [Reflection.AssemblyName]::GetAssemblyName("$install\CustomerDisplay.dll").Version.ToString() -ceq $Version){return $a[0]};Start-Sleep -Milliseconds 250}while([DateTime]::UtcNow -lt $until);throw 'No usable visible interactive app with fresh UI heartbeat'}
-function Stop-Mock {if($script:mock -and -not $script:mock.HasExited){$p=Get-Process -Id $script:mock.Id -ErrorAction Stop;if($p.Path -ine $psExe -or $p.StartTime.ToUniversalTime().Ticks -ne $script:mock.StartTime.ToUniversalTime().Ticks){throw 'Mock PID/start/path mismatch'};$p.Kill();if(-not $p.WaitForExit(5000)){throw 'Owned mock did not terminate; offline fault is unproven'}};$script:mock=$null}
-function Start-Mock {if($script:mock -and -not $script:mock.HasExited){throw 'Mock already running'};Remove-Item -LiteralPath "$root\evidence\mock-server-ready.txt" -ErrorAction SilentlyContinue;$script:mock=Child $psExe "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $root\mock-server.ps1";$until=[DateTime]::UtcNow.AddSeconds(15);while(-not(Test-Path -LiteralPath "$root\evidence\mock-server-ready.txt")){if($script:mock.HasExited -or [DateTime]::UtcNow -gt $until){throw 'Owned loopback mock failed to start'};Start-Sleep -Milliseconds 100}}
+function Stop-Mock {
+ if(-not $script:mock){return}
+ $server=$script:mock
+ try{$server.Dispose();[EpharmRecoveryLoopback]::AssertOffline()}
+ finally{[IO.File]::AppendAllLines((Join-Path $Proof 'mock-http-trace.txt'),[string[]]$server.Trace.ToArray())}
+ $script:mock=$null
+ Emit 'owned-loopback-stopped' @{ListenerClosed=$true;ThreadJoined=$true;HttpConnectionRefused=$true}
+}
+function Start-Mock {
+ if($script:mock){throw 'Mock already running'}
+ try{
+  if(-not ('EpharmRecoveryLoopback' -as [type])){Add-Type -Path (Join-Path $PSScriptRoot 'ci-recovery-loopback.cs')}
+  $script:mock=New-Object EpharmRecoveryLoopback($root)
+  Emit 'owned-loopback-ready' @{OwnerProcessId=$PID;Origin='http://127.0.0.1:18761';ReadyIdentityVerified=$true;BackgroundThread=$true}
+ }catch{
+  $failure=$_.Exception.GetBaseException();$code=$failure.HResult
+  if($failure -is [ComponentModel.Win32Exception]){$code=$failure.NativeErrorCode}
+  Emit 'owned-loopback-startup-failed' @{Type=$failure.GetType().FullName;Code=$code}
+  throw ('Owned in-process loopback mock failed to start: '+$failure.GetType().Name+' code='+$code)
+ }
+}
 function No-Release {[IO.File]::WriteAllText("$root\mock\manifest.current.json",'{"platform":"win-x64","current":false}')}
 function Activate([string]$Case){if(Test-Path -LiteralPath "$control\active.json"){throw 'Cannot change manifest during active update'};$dir="$root\cases\$Case";$p=Get-Content -LiteralPath "$dir\provenance.json" -Raw|ConvertFrom-Json;if($p.case -cne $Case -or $p.productionPublicationAllowed -ne $false -or (Hash "$dir\candidate.zip") -cne $p.servedSha256){throw 'Private case provenance mismatch'};Copy-Item -LiteralPath "$dir\candidate.zip" -Destination "$root\mock\candidate.zip" -Force;Copy-Item -LiteralPath "$dir\manifest.current.json" -Destination "$root\mock\manifest.current.json" -Force;return $p.servedSha256}
 function Assert-Preserved([string]$Archive,[string]$Version){
@@ -46,7 +65,12 @@ function Observe([string]$Case,[string]$Sha,[string]$Expected,[switch]$Offline,[
   if($s.ProcessId -and $s.ProcessStartTicks -and -not @($script:helperIdentities|Where-Object {$_.Id -eq $s.ProcessId -and $_.Ticks -eq $s.ProcessStartTicks}).Count){$script:helperIdentities+=@{Id=$s.ProcessId;Ticks=$s.ProcessStartTicks}}
   $key=$p.Id+':'+$s.Status;if($key -cne $last){Emit 'transaction-state' @{Case=$Case;Id=$p.Id;Version=$p.Version;Sha256=$Sha;Status=$s.Status;StateUpdatedUtc=$s.UpdatedAt;HelperPid=$s.ProcessId;HelperStartTicks=$s.ProcessStartTicks};$last=$key}
   $ready=Join-Path $dir.FullName 'ready.json'
-  if($s.Status -eq 'awaiting-health' -and $Offline -and -not $offlineStopped){Stop-Mock;$offlineStopped=$true;Emit 'mock-stopped-before-local-readiness' @{Case=$Case;BackendOffline=$true}}
+  if($s.Status -eq 'awaiting-health' -and $Offline -and -not $offlineStopped){
+   if(Test-Path -LiteralPath $ready){throw 'Offline fault missed the pre-readiness window'}
+   Stop-Mock
+   if(Test-Path -LiteralPath $ready){throw 'Candidate acknowledged before offline HTTP refusal was proven'}
+   $offlineStopped=$true;Emit 'mock-stopped-before-local-readiness' @{Case=$Case;BackendOffline=$true;HttpConnectionRefused=$true;ReadyAbsent=$true}
+  }
   if($s.Status -eq 'awaiting-health' -and $Interrupt -and -not $interrupted){
    if(Test-Path -LiteralPath $ready){throw 'Interruption missed the pre-readiness window'}
    $helper=Get-Process -Id $s.ProcessId -ErrorAction Stop;if($helper.Path -ine $psExe -or $helper.StartTime.ToUniversalTime().Ticks -ne $s.ProcessStartTicks){throw 'Helper PID/start/path changed'}
@@ -85,7 +109,6 @@ try{
  foreach($n in $names){Copy-Item -LiteralPath (Join-Path $released82 $n) -Destination (Join-Path $install $n) -Force}
  if((Hash "$install\CustomerDisplay.dll") -cne 'fba46e258dbcae1de91f62b7bd79b544414020225be3570f9c0f256faf5f1ff8'){throw 'Genuine baseline82 identity mismatch'}
  Copy-Item -LiteralPath (Join-Path $assets 'outbox.db') -Destination "$root\data\outbox.db"
- Copy-Item -LiteralPath (Join-Path $assets 'mock-server.ps1') -Destination "$root\mock-server.ps1"
  # Fresh fake signing key inside this temporary runner only; never exported/uploaded.
  $openssl=(Get-Command openssl.exe -ErrorAction SilentlyContinue|Select-Object -First 1).Source
  if(-not $openssl){$openssl=Join-Path $env:ProgramFiles 'Git\usr\bin\openssl.exe'}

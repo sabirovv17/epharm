@@ -15,5 +15,12 @@
     "prHeadCiRun": 43003413295,
     "reviewedPrTreeEqualsMain": true,
     "trueOsReboot": "PENDING_SEPARATE_OWNED_VM"
+  },
+  "server": {
+    "version": "v0.2.15",
+    "commit": "464352af46872de6edcb474b5b78390325a4b076",
+    "imagesRun": 43010008595,
+    "artifactId": 13850451121,
+    "artifactDigest": "sha256:9bd7587f929cfc049936bfcd618c32078e6176ee2ecb02485c1675de7cabcbc2"
   }
 }

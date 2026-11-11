@@ -821,3 +821,80 @@ jobs:
           path: ${{ runner.temp }}/display-pilot-proof/
           if-no-files-found: error
           retention-days: 7
+
+  isolated-auth-qa:
+    needs: repo-quality
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'sabirovv17/epharm' && github.ref == 'refs/heads/codex/pr160-display-pilot-20261111'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+    concurrency:
+      group: pr160-official-isolated-auth-qa
+      cancel-in-progress: false
+    env:
+      QA_PRIVATE_ROOT: ${{ runner.temp }}/pr160-isolated-qa
+      QA_SOURCE_ROOT: ${{ github.workspace }}/source
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: harness
+          persist-credentials: false
+      - name: Read root-reviewed candidate coordinates
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, re
+          config=json.loads(pathlib.Path('harness/tools/release/ci-display-candidate.json').read_text())
+          commit=config['main']['commit']; run=str(config['server']['imagesRun'])
+          assert isinstance(commit,str) and re.fullmatch(r'[a-f0-9]{40}',commit)
+          assert re.fullmatch(r'[0-9]+',run)
+          with open(os.environ['GITHUB_ENV'],'a') as output:
+              output.write('CANDIDATE_COMMIT='+commit+'\nCANDIDATE_RUN_ID='+run+'\n')
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CANDIDATE_COMMIT }}
+          path: source
+          persist-credentials: false
+      - name: Prepare private owner-only evidence directory
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -m 700 "$QA_PRIVATE_ROOT"
+          python3 - <<'PY'
+          import ast, pathlib
+          for name in ('fetch-official.py', 'run-isolated.py'):
+              ast.parse((pathlib.Path('harness/.github/qa')/name).read_text())
+          PY
+      - name: Verify and download official previous/candidate artifacts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 harness/.github/qa/fetch-official.py
+      - name: Recheck exact-main push CI before isolated acceptance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: source
+        run: python3 tools/release/verify-release-source.py "$CANDIDATE_COMMIT"
+      - name: Run bounded isolated500 auth phases and schema99 rollback rehearsal
+        env:
+          ROOT_CANDIDATE_READY: APPROVED_OFFICIAL_CANDIDATE
+        run: python3 harness/.github/qa/run-isolated.py
+      - name: Reconcile owned disposable cleanup
+        if: always()
+        run: python3 harness/.github/qa/run-isolated.py --cleanup-only
+      - name: Preserve only sanitized acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pr160-isolated-auth-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/pr160-isolated-qa/assessment.json
+            ${{ runner.temp }}/pr160-isolated-qa/results/rps-*.json
+            ${{ runner.temp }}/pr160-isolated-qa/artifacts/verified-identities.json
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: false
