@@ -44,7 +44,7 @@ def validate(c):
 
 
 def git(*args):
-    return subprocess.check_output(['git', '-C', str(ROOT), *args], text=True).strip()
+    return subprocess.check_output(['git', '-C', str(ROOT), *args], text=True, encoding='utf-8').strip()
 
 
 def source_guard():
