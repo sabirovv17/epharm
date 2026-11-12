@@ -14,6 +14,8 @@ import time
 import uuid
 import zipfile
 
+from paired_registration import host_cpu_model
+
 os.umask(0o077)
 ROOT = pathlib.Path(os.environ['QA_PRIVATE_ROOT']).resolve()
 SOURCE = pathlib.Path(os.environ['QA_SOURCE_ROOT']).resolve()
@@ -215,6 +217,28 @@ def phase(mode):
                 metrics.flush()
                 assert time.monotonic() - start < 600, 'Bounded phase exceeded'
                 time.sleep(8)
+            # Persist numeric-only observations even when k6 rejects its thresholds.
+            # The original exit/latency/error gates below remain unchanged.
+            cpu_observed = cpu_counters(docker('exec', BACKEND, 'cat', '/sys/fs/cgroup/cpu.stat', check=False).stdout)
+            cpu_initial = cpu_counters(cpu_before)
+            pool_observed = docker('exec', BACKEND, 'curl', '-fsS', 'http://127.0.0.1:8080/actuator/prometheus', check=False).stdout
+            hikari_observed = {}
+            for metric in ('hikaricp_connections_timeout_total', 'hikaricp_connections_acquire_seconds_count',
+                           'hikaricp_connections_acquire_seconds_sum', 'hikaricp_connections_acquire_seconds_max',
+                           'hikaricp_connections_usage_seconds_max', 'hikaricp_connections_active',
+                           'hikaricp_connections_pending', 'hikaricp_connections_max'):
+                values = re.findall(r'^' + metric + r'(?:\{[^\n]*\})? ([0-9.eE+-]+)$', pool_observed, re.M)
+                hikari_observed[metric] = list(map(float, values))
+            backend_state = inspect(BACKEND)['State']
+            REPORT.setdefault('phaseDiagnostics', {})[mode] = {
+                'outcome': 'OBSERVED_NOT_ACCEPTANCE', 'k6ExitCode': process.returncode,
+                'numericHostCpuModel': host_cpu_model(),
+                'elapsedSeconds': round(time.monotonic() - start, 3), 'sampledResourceMaxima': maxima,
+                'hikariObserved': hikari_observed,
+                'backendState': {key: backend_state[key] for key in ('Running', 'OOMKilled', 'ExitCode')},
+                'cgroupCounterDeltaIncludingSetupTeardown': {
+                    key: value - cpu_initial[key] for key, value in cpu_observed.items() if key in cpu_initial}}
+            write('assessment.json', REPORT)
             assert process.returncode == 0, 'Original k6 phase failed; no retries or relaxed thresholds'
         finally:
             if process.poll() is None:

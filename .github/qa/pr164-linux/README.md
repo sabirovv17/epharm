@@ -1,6 +1,35 @@
 # Private PR164 Linux acceptance extension
 
-This directory is a **harness deliverable only**. No Docker, VM, server or application was executed while preparing it. It never changes product source or production configuration.
+This directory is a **harness deliverable only**. No Docker, VM, server or application was executed locally while preparing it. It never changes product source or production configuration. Original private CI43157241311 remains a recorded failed registration latency gate (p95=2110.50ms versus<2000ms); it is not replaced by a later result.
+
+## One controlled same-host registration comparison
+
+The first normal old15 stop is intercepted once, after normal Flyway99 and seed
+verification with zero pharmacist profiles. `paired_registration.py` saves an
+owner-only private SQL dump of that exact fresh fixture, then calls the unchanged
+registration phase against official15, on the same hosted runner and prescribed
+resource caps. Reference PASS or FAIL remains explicitly recorded under
+`pairedRegistration15`; a completed threshold failure is diagnostic only and is
+never relabelled PASS. Missing/incomplete reference evidence, infrastructure error,
+OOM or ownership mismatch aborts the experiment.
+
+After stopping old15, restore checks the exact recorded PG/Redis container IDs,
+owner labels, internal network ID and membership, no published ports, generated
+database identity, and unchanged owner-only dump digest. Only that disposable
+database is restored; only its owned Redis logical DB0 is reset. Full public table
+data, canonical schema, schema99 history, sequence counters and zero pharmacist/
+device-session counts must exactly equal the saved baseline. Redis DB0 must have
+zero keys; another populated logical DB is refused. Snapshot SQL/auth data never
+enter uploaded artifacts.
+
+Official16 then cold-starts normally. All original500-fresh-desk registration,
+login/session, learner JWT/status and15→16→15→16 acceptance gates run once with no
+threshold/resource/rate-limit changes and no candidate auth warmup. Reference
+summary uses `results/rps-reference15-register-*.json`; unchanged candidate globs
+remain `results/rps-register-*.json`. Numeric CPU family/model/stepping, CPU limits,
+cgroup deltas, sampled resources and Hikari observations are retained for both,
+including a failed k6 exit. A candidate failure stops the run; there is no rerun
+loop or automatic acceptance retry.
 
 ## Root integration interface
 
@@ -40,7 +69,7 @@ The runner starts with `python3 run-linux-acceptance.py`; always run `--cleanup-
 
 ## Scope and fixed acceptance
 
-`legacy-run-isolated.py` is the previously reviewed PR160 helper from7037b1b5, copied with **owner/run-ID prefix changes and explicit owner-prefixed stopped-extraction container names only** (recorded in `legacy-source-sha256.txt` and the exact patch in `legacy-scaffold.diff`). It retains exact image/JAR extraction/provenance, all98 migration hashes/normal Flyway, original500-desk register/login/staff-session workloads and thresholds, resource caps, nonempty synthetic125KZT wallet/checkpoint preservation, previous-version grant/logout compatibility, and label/ID-scoped cleanup. Original arrival scheduling can count2000 or2001 session iterations; the real cross-version staff check adds1. The report records actual counts and requires at least2001 total, without inventing or overriding metrics.
+`legacy-run-isolated.py` derives from the previously reviewed PR160 helper7037b1b5, with owner/run-ID prefixes, owner-prefixed stopped extraction names and the explicit paired-run numeric diagnostics before the existing exit assertion. All46 original assertion ASTs remain identical. `legacy-source-sha256.txt`, cumulative `legacy-scaffold.diff` and `paired-provenance.json` record this controlled change. It retains exact image/JAR extraction/provenance, all98 migration hashes/normal Flyway, original500-desk register/login/staff-session workloads and thresholds, resource caps, nonempty synthetic125KZT wallet/checkpoint preservation, previous-version grant/logout compatibility, and label/ID-scoped cleanup. Original arrival scheduling can count2000 or2001 session iterations; the real cross-version staff check adds1. The report records actual counts and requires at least2001 total, without inventing or overriding metrics.
 
 The wrapper adds a distinct learner path after those phases:
 
@@ -56,3 +85,5 @@ Backend2CPU/1536MiB, Xmx768MiB/metaspace384MiB/Hikari10; PostgreSQL2CPU/768MiB, 
 Upload only `assessment.json`, `results/rps-*.json`, `results/learner-jwt-summary.json`, and `artifacts/verified-identities.json`. **Never upload** `*.private.*`, credentials, token fixture, raw logs, HTTP payloads or SQL. k6 summary intentionally excludes setup data/tokens. The exact owner is persisted before any resource can be created; cleanup reconciles late labelled containers and an orphan internal network and refuses foreign/nonempty/changed ownership. Runtime/cleanup failures stay failures.
 
 Offline checks: `python3 -m unittest discover -s . -p test_contracts.py -v`, Python AST parsing, and `node --check learner-jwt.mjs`. These validate trust boundaries and report shape only; they are not executed-app acceptance. Actual Linux CI and exact-artifact outcomes remain pending until root runs the workflow.
+
+Provenance patches use zero context (`git apply --unidiff-zero`) so required blank context markers do not look like source trailing whitespace. `paired-change.diff` contains code, tests, README and source-hash changes; generated provenance files have independent hashes in `delivery.json`.
