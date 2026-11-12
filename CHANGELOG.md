@@ -5,6 +5,22 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.16] - 2026-11-12
+
+### Fixed
+
+- Keep cashier work available when the POSM login window is open, minimized,
+  dismissed or waiting for a request. Bound automatic prompts independently of
+  security generations; manual tray login and immediate grant revocation remain.
+- Recheck the current OS cashier process after background session validation before
+  restoring a retained grant, preserving the existing bounded fail-closed recovery.
+- Check the current pharmacist account status for issued JWTs, including learner
+  requests. Blocked/deleted accounts lose access; pending onboarding remains.
+- Preserve HQ sessions during transient refresh failures and prevent stale merch
+  login/refresh completions from replacing a different account's session.
+- Prepare POSM 1.0.85 as a new immutable client release. Publication remains gated
+  on exact-main Windows upgrade, recovery, foreground and two-display acceptance.
+
 ## [0.2.15] - 2026-11-11
 
 ### Fixed
