@@ -66,7 +66,7 @@ try {
     $privateRuntime=Join-Path $Bench 'private-runtime-9.99.2'
     & dotnet publish $project -c Release -r win-x64 --self-contained true `
         -p:EnableWindowsTargeting=true -p:Version=9.99.2 -p:RuntimeFrameworkVersion=10.0.15 `
-        -p:ContinuousIntegrationBuild=true -p:SourceRevisionId=$c.exactMain `
+        -p:ContinuousIntegrationBuild=true -p:SourceRevisionId=$($c.exactMain) `
         -p:DebugType=None -p:DebugSymbols=false -o $privateRuntime
     if($LASTEXITCODE -ne 0){throw 'Private9.99.2 fixture build failed'}
     Need ([Reflection.AssemblyName]::GetAssemblyName((Join-Path $privateRuntime 'CustomerDisplay.dll')).Version.ToString() -ceq '9.99.2.0') 'Private fixture assembly version mismatch'
