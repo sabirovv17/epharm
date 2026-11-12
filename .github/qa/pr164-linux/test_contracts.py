@@ -10,7 +10,7 @@ import unittest
 from unittest import mock
 
 from jwt_workload import JwtAcceptance, literal, memory_mib, overview_valid, prometheus_values, token_shape, validate_fixture
-from paired_registration import PairedRegistration, canonical_schema, checked_snapshot, numeric_cpu_model, validate_reference
+from paired_registration import SnapshotRoundtrip, canonical_schema, checked_snapshot, numeric_cpu_model, validate_reference
 from runtime_observations import cpu_plan, cpuset_values, require_limits, http_delta, log_taxonomy, jvm_gc, safe_helper_traceback, fingerprint_comparison, ddl_block_fingerprints
 
 
@@ -105,7 +105,9 @@ class OwnedFixtureQa:
         self.rows, self.redis_keys, self.calls = 0, 0, []
         self.network = {'Id': self.NET, 'Name': self.OWNER + '-net', 'Internal': True, 'Labels': {self.LABEL: self.OWNER}, 'Containers': {x: {} for x in self.OWNED}}
         self.items = {identifier: {'Id': identifier, 'Config': {'Labels': {self.LABEL: self.OWNER}},
-                                  'HostConfig': {'PortBindings': {}}, 'NetworkSettings': {'Networks': {'own': {'NetworkID': self.NET}}}} for identifier in self.OWNED}
+                                  'State': {'Running': True}, 'HostConfig': {'PortBindings': {}},
+                                  'NetworkSettings': {'Networks': {'own': {'NetworkID': self.NET}}}} for identifier in self.OWNED}
+        self.phase = mock.Mock(side_effect=AssertionError('No reference workload is allowed'))
         (self.ROOT / 'fixture').mkdir()
         (self.ROOT / 'results').mkdir()
         (self.ROOT / 'fixture/fixture.private.json').write_text(json.dumps({'expectedDatabase': self.DATABASE, 'devices': [{}] * 500}))
@@ -126,6 +128,7 @@ class OwnedFixtureQa:
         if 'pg_sequences' in text:
             return '[]'
         if text.startswith('DO $$') and 'SYNTHETIC_DUMP' in text:
+            assert self.BACKEND is None and self.items['4' * 64]['State']['Running'] is False
             self.rows = 0
             return ''
         if text == '-- OFFLINE_ORIGINAL_VERIFY\n':
@@ -158,7 +161,12 @@ class OwnedFixtureQa:
         return types.SimpleNamespace(stdout=value)
 
 
-class PairedContracts(unittest.TestCase):
+class SnapshotContracts(unittest.TestCase):
+    def stop(self, qa):
+        qa.calls.append(('stop', qa.BACKEND))
+        qa.items[qa.BACKEND]['State']['Running'] = False
+        qa.BACKEND = None
+
     def reference_summary(self, qa, latency_failure=False):
         metrics = {name: {'values': {'count': 0}, 'thresholds': {'count==0': {'ok': True}}} for name in
                    ('rps_errors', 'rps_rate_limited', 'rps_5xx', 'rps_transport_errors', 'rps_unexpected_4xx', 'rps_unexpected_redirects', 'dropped_iterations')}
@@ -190,7 +198,7 @@ class PairedContracts(unittest.TestCase):
     def test_foreign_owner_network_database_and_ports_refused_before_mutation(self):
         with tempfile.TemporaryDirectory() as root:
             good = OwnedFixtureQa(root)
-            PairedRegistration(good).guard()
+            SnapshotRoundtrip(good).guard()
             for change in (
                 lambda q: q.items[q.PG]['Config']['Labels'].update({q.LABEL: 'foreign'}),
                 lambda q: q.items[q.REDIS]['NetworkSettings']['Networks']['own'].update(NetworkID='9' * 64),
@@ -202,7 +210,7 @@ class PairedContracts(unittest.TestCase):
                 q.calls = []
                 change(q)
                 with self.assertRaises(AssertionError):
-                    PairedRegistration(q).reset_redis()
+                    SnapshotRoundtrip(q).reset_redis()
                 self.assertFalse(any('FLUSHDB' in repr(call) or 'pg_dump' in repr(call) for call in q.calls))
 
     def test_snapshot_hash_mode_symlink_and_hardlink_refused(self):
@@ -227,77 +235,77 @@ class PairedContracts(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 checked_snapshot(p, digest)
 
-    def test_one_reference_pass_or_fail_restores_fresh_candidate_without_retries(self):
-        for exit_code in (0, 99):
-            with tempfile.TemporaryDirectory() as root:
-                q = OwnedFixtureQa(root)
-                paired = PairedRegistration(q)
-                calls = []
-                def phase(mode):
-                    calls.append(mode)
-                    self.assertEqual(q.rows, 0)
-                    q.rows, q.redis_keys = 500, 7
-                    q.REPORT['phaseDiagnostics']['register'] = {'k6ExitCode': exit_code, 'backendState': {'OOMKilled': False, 'Running': True}}
-                    if exit_code == 0:
-                        q.REPORT['phases']['register'] = {'outcome': 'PASS'}
-                    (q.ROOT / 'results/rps-register-offline.json').write_text(json.dumps(self.reference_summary(q, exit_code == 99)))
-                    if exit_code:
-                        raise AssertionError('Original fixed threshold rejected reference')
-                def stop():
-                    q.BACKEND = None
-                with mock.patch('paired_registration.host_cpu_model', return_value={'family': 6, 'model': 143, 'stepping': 8, 'hostLogicalProcessors': 4}):
-                    paired.run(phase, stop)
-                self.assertTrue(paired.completed)
-                self.assertEqual(calls, ['register'])
-                self.assertEqual(q.REPORT['pairedRegistration15']['outcome'], 'PASS' if exit_code == 0 else 'FAIL')
-                self.assertEqual((q.rows, q.redis_keys), (0, 0))
-                self.assertEqual(q.REPORT['phases'], {})
-                self.assertEqual(q.REPORT['pairedRegistration15']['sqlVerification'], 'PASS')
-                verify_position = next(i for i, call in enumerate(q.calls) if call == ('sql', '-- OFFLINE_ORIGINAL_VERIFY\n'))
-                restore_position = next(i for i, call in enumerate(q.calls) if call[0] == 'sql' and call[1].startswith('DO $$') and 'SYNTHETIC_DUMP' in call[1])
-                self.assertLess(verify_position, restore_position)
-                self.assertFalse(list((q.ROOT / 'results').glob('rps-register-*.json')))
-                self.assertTrue((q.ROOT / 'results/rps-reference15-register-offline.json').is_file())
-                with self.assertRaises(AssertionError):
-                    paired.run(phase, stop)
-
-    def test_reference_sql_failure_aborts_before_restore_or_candidate(self):
+    def test_snapshot_only_stops_owned_backend_and_never_calls_a_phase(self):
         with tempfile.TemporaryDirectory() as root:
             q = OwnedFixtureQa(root)
-            q.verify_ok = False
-            paired = PairedRegistration(q)
-            def phase(mode):
-                q.rows = 500
-                q.REPORT['phaseDiagnostics']['register'] = {'k6ExitCode': 99, 'backendState': {'OOMKilled': False, 'Running': True}}
-                (q.ROOT / 'results/rps-register-offline.json').write_text(json.dumps(self.reference_summary(q, True)))
-                raise AssertionError('Registration latency refusal')
-            def stop():
-                q.BACKEND = None
-            with mock.patch('paired_registration.host_cpu_model', return_value={}), self.assertRaises(RuntimeError):
-                paired.run(phase, stop)
-            self.assertFalse(paired.completed)
+            snapshot = SnapshotRoundtrip(q)
+            snapshot.run(lambda: self.stop(q))
+            self.assertTrue(snapshot.completed)
+            q.phase.assert_not_called()
+            self.assertEqual(q.REPORT['phases'], {})
+            self.assertEqual((q.rows, q.redis_keys), (0, 0))
+            proof = q.REPORT['snapshotRoundtrip']
+            self.assertEqual(proof['outcome'], 'PASS')
+            self.assertFalse(proof['oldReferenceLoadExecuted'])
+            stop_position = next(i for i, call in enumerate(q.calls) if call[0] == 'stop')
+            dump_position = next(i for i, call in enumerate(q.calls) if call[0] == 'docker' and 'pg_dump' in call[1])
+            restore_position = next(i for i, call in enumerate(q.calls) if call[0] == 'sql' and call[1].startswith('DO $$'))
+            self.assertLess(stop_position, dump_position)
+            self.assertLess(dump_position, restore_position)
+            self.assertFalse(list((q.ROOT / 'results').glob('rps-*.json')))
+            with self.assertRaises(AssertionError):
+                snapshot.run(lambda: self.stop(q))
+
+    def test_foreign_or_running_backend_aborts_before_dump_or_restore(self):
+        for foreign in (True, False):
+            with tempfile.TemporaryDirectory() as root:
+                q = OwnedFixtureQa(root)
+                if foreign:
+                    q.items[q.BACKEND]['Config']['Labels'][q.LABEL] = 'foreign'
+                def fake_stop():
+                    q.BACKEND = None
+                snapshot = SnapshotRoundtrip(q)
+                with self.assertRaises(AssertionError):
+                    snapshot.run(fake_stop)
+                self.assertFalse(snapshot.completed)
+                self.assertEqual(q.REPORT['snapshotRoundtrip']['stage'], 'stop-old-backend')
+                self.assertFalse(any('pg_dump' in repr(call) or 'FLUSHDB' in repr(call) for call in q.calls))
+                q.phase.assert_not_called()
+
+    def test_changed_snapshot_aborts_before_restore(self):
+        with tempfile.TemporaryDirectory() as root:
+            q = OwnedFixtureQa(root)
+            snapshot = SnapshotRoundtrip(q)
+            fingerprint = snapshot.fingerprint
+            calls = []
+            def mutate_after_dump():
+                calls.append(1)
+                value = fingerprint()
+                if len(calls) == 2:
+                    (q.ROOT / 'fresh-fixture.private.sql').write_text('changed private dump')
+                return value
+            with mock.patch.object(snapshot, 'fingerprint', side_effect=mutate_after_dump), self.assertRaises(AssertionError):
+                snapshot.run(lambda: self.stop(q))
+            self.assertFalse(snapshot.completed)
+            self.assertEqual(q.REPORT['snapshotRoundtrip']['stage'], 'restore-snapshot')
             self.assertFalse(any(call[0] == 'sql' and call[1].startswith('DO $$') for call in q.calls))
             self.assertFalse(any('FLUSHDB' in repr(call) for call in q.calls))
 
     def test_restore_mismatch_is_recorded_before_unchanged_strict_refusal(self):
         with tempfile.TemporaryDirectory() as root:
             q = OwnedFixtureQa(root)
-            paired = PairedRegistration(q)
-            baseline = paired.fingerprint()
+            snapshot = SnapshotRoundtrip(q)
+            baseline = snapshot.fingerprint()
             changed = dict(baseline, ddlSha256='f' * 64)
-            def phase(mode):
-                q.rows = 500
-                q.REPORT['phaseDiagnostics']['register'] = {'k6ExitCode': 0, 'backendState': {'OOMKilled': False, 'Running': True}}
-                (q.ROOT / 'results/rps-register-offline.json').write_text(json.dumps(self.reference_summary(q)))
-            def stop():
-                q.BACKEND = None
-            with mock.patch('paired_registration.host_cpu_model', return_value={}), mock.patch.object(paired, 'fingerprint', side_effect=[baseline, baseline, changed]), self.assertRaises(AssertionError):
-                paired.run(phase, stop)
-            saved = json.loads((q.ROOT / 'assessment.json').read_text())['pairedRegistration15']
-            self.assertEqual(saved['snapshotRestoreComparison']['failedFields'], ['ddlSha256'])
-            self.assertEqual(saved['snapshotRestoreComparison']['before']['ddlSha256'], baseline['ddlSha256'])
-            self.assertEqual(saved['snapshotRestoreComparison']['after']['ddlSha256'], changed['ddlSha256'])
-            self.assertFalse(paired.completed)
+            with mock.patch.object(snapshot, 'fingerprint', side_effect=[baseline, baseline, changed]), self.assertRaises(AssertionError):
+                snapshot.run(lambda: self.stop(q))
+            saved = json.loads((q.ROOT / 'assessment.json').read_text())['snapshotRoundtrip']
+            self.assertEqual(saved['restoreComparison']['failedFields'], ['ddlSha256'])
+            self.assertEqual(saved['restoreComparison']['before']['ddlSha256'], baseline['ddlSha256'])
+            self.assertEqual(saved['restoreComparison']['after']['ddlSha256'], changed['ddlSha256'])
+            self.assertEqual(saved['stage'], 'restored-fingerprint')
+            self.assertEqual(saved['outcome'], 'FAIL')
+            self.assertFalse(snapshot.completed)
 
     def test_dump_nonce_is_not_schema_but_schema_changes_remain_visible(self):
         self.assertEqual(canonical_schema('\\restrict abc\nCREATE TABLE t();\n\\unrestrict abc'), canonical_schema('\\restrict xyz\nCREATE TABLE t();\n\\unrestrict xyz'))

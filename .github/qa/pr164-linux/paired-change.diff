@@ -1,21 +1,19 @@
 --- a/.github/qa/pr164-linux/README.md
 +++ b/.github/qa/pr164-linux/README.md
-@@ -3 +3,61 @@
+@@ -3 +3,70 @@
 -This directory is a **harness deliverable only**. No Docker, VM, server or application was executed while preparing it. It never changes product source or production configuration.
 +This directory is a **harness deliverable only**. No Docker, VM, server or application was executed locally while preparing it. It never changes product source or production configuration. Original private CI43157241311 remains a recorded failed registration latency gate (p95=2110.50ms versus<2000ms); it is not replaced by a later result.
 +
-+## One controlled same-host registration comparison
++## One snapshot-only roundtrip before candidate acceptance
 +
 +The first normal old15 stop is intercepted once, after normal Flyway99 and seed
-+verification with zero pharmacist profiles. `paired_registration.py` saves an
-+owner-only private SQL dump of that exact fresh fixture, then calls the unchanged
-+registration phase against official15, on the same hosted runner and prescribed
-+resource caps. Reference PASS or FAIL remains explicitly recorded under
-+`pairedRegistration15`; a completed threshold failure is diagnostic only and is
-+never relabelled PASS. Missing/incomplete reference evidence, infrastructure error,
-+OOM or ownership mismatch aborts the experiment.
++verification with zero pharmacist profiles. `paired_registration.py` stops that
++exact owned backend, verifies it remains stopped, and saves an owner-only private
++SQL dump of the stable fresh fixture. It performs one actual dump/restore
++roundtrip and Redis DB0 reset before any business workload. It does not call a
++registration phase, start another old backend, warm candidate auth, or retry.
 +
-+After stopping old15, restore checks the exact recorded PG/Redis container IDs,
++Before each snapshot/restore operation, guards check the exact recorded PG/Redis container IDs,
 +owner labels, internal network ID and membership, no published ports, generated
 +database identity, and unchanged owner-only dump digest. Only that disposable
 +database is restored; only its owned Redis logical DB0 is reset. Full public table
@@ -24,14 +22,25 @@
 +zero keys; another populated logical DB is refused. Snapshot SQL/auth data never
 +enter uploaded artifacts.
 +
++Every guard, fingerprint, dump, restore and Redis reset has a fixed safe report
++stage under `snapshotRoundtrip`. Stability and restore comparisons, including raw
++order-sensitive DDL hashes, are written before their strict equality assertions.
++Any mismatch or operation failure aborts and leaves candidate untested.
++
 +Official16 then cold-starts normally. All original500-fresh-desk registration,
 +login/session, learner JWT/status and15→16→15→16 acceptance gates run once with no
-+threshold/resource/rate-limit changes and no candidate auth warmup. Reference
-+summary uses `results/rps-reference15-register-*.json`; unchanged candidate globs
-+remain `results/rps-register-*.json`. Numeric CPU family/model/stepping, CPU limits,
-+cgroup deltas, sampled resources and Hikari observations are retained for both,
-+including a failed k6 exit. A candidate failure stops the run; there is no rerun
-+loop or automatic acceptance retry.
++threshold/resource/rate-limit changes and no candidate auth warmup. Candidate
++summaries remain `results/rps-register-*.json`. A candidate failure stops the run;
++there is no rerun loop or automatic acceptance retry. A successful roundtrip is
++fixture evidence only and cannot substitute for any candidate acceptance gate.
++
++Previous measurements remain separate historical evidence: reference15 failed in
++43159736797 (485 created, 454 completed, 46 HTTP5xx, one dropped iteration) and
++43165054420 (482 created, 441 completed, 59 DEVICE_REGISTER HTTP503, two drops).
++Reference15 passed all500 in43162105153 before a snapshot assertion blocked16.
++None of those reference results becomes candidate acceptance. The retained
++`validate_reference` helper/tests describe historical classification only and are
++absent from the runtime path.
 +
 +## Owned-container placement and failure taxonomy
 +
@@ -49,11 +58,11 @@
 +Before cleanup, phase diagnostics retain CPU/cgroup/Hikari observations and JVM GC
 +numeric counters/phase-end rolling maxima. Prometheus HTTP counter deltas export
 +only fixed route buckets, numeric status and allowlisted exception buckets; this
-+distinguishes expected503 admission refusals from unhandled500. Backend logs are
++distinguishes observed503 responses from unhandled500. Backend logs are
 +parsed only into fixed exception-class counts; messages, raw URIs, HTTP bodies and
 +credentials never enter reports. Log class occurrences are not request counts,
 +and handled `AppException`503 may produce no backend error log. Raw logs remain
-+private and excluded from upload. One next paired run is permitted; another
++private and excluded from upload. One snapshot-only qualification is planned; another
 +candidate failure requires escalation, with previous failed runs retained.
 +
 +Snapshot diagnostics preserve before/after hashes, counts and failed field names
@@ -63,10 +72,10 @@
 +replace the primary order-sensitive `ddlSha256` equality or expose SQL. Run43162105153
 +had a valid reference15 PASS and then an unlocalized snapshot assertion before16;
 +it is retained as a fixture blocker, not a candidate performance failure.
-@@ -43 +103 @@
+@@ -43 +112 @@
 -`legacy-run-isolated.py` is the previously reviewed PR160 helper from7037b1b5, copied with **owner/run-ID prefix changes and explicit owner-prefixed stopped-extraction container names only** (recorded in `legacy-source-sha256.txt` and the exact patch in `legacy-scaffold.diff`). It retains exact image/JAR extraction/provenance, all98 migration hashes/normal Flyway, original500-desk register/login/staff-session workloads and thresholds, resource caps, nonempty synthetic125KZT wallet/checkpoint preservation, previous-version grant/logout compatibility, and label/ID-scoped cleanup. Original arrival scheduling can count2000 or2001 session iterations; the real cross-version staff check adds1. The report records actual counts and requires at least2001 total, without inventing or overriding metrics.
 +`legacy-run-isolated.py` derives from the previously reviewed PR160 helper7037b1b5, with owner/run-ID prefixes, owner-prefixed stopped extraction names and the explicit paired-run numeric diagnostics before the existing exit assertion. All46 original assertion ASTs remain identical. `legacy-source-sha256.txt`, cumulative `legacy-scaffold.diff` and `paired-provenance.json` record this controlled change. It retains exact image/JAR extraction/provenance, all98 migration hashes/normal Flyway, original500-desk register/login/staff-session workloads and thresholds, resource caps, nonempty synthetic125KZT wallet/checkpoint preservation, previous-version grant/logout compatibility, and label/ID-scoped cleanup. Original arrival scheduling can count2000 or2001 session iterations; the real cross-version staff check adds1. The report records actual counts and requires at least2001 total, without inventing or overriding metrics.
-@@ -58,0 +119,2 @@
+@@ -58,0 +128,2 @@
 +
 +Provenance patches use zero context (`git apply --unidiff-zero`) so required blank context markers do not look like source trailing whitespace. `paired-change.diff` contains code, tests, README and source-hash changes; generated provenance files have independent hashes in `delivery.json`.
 --- a/.github/qa/pr164-linux/legacy-run-isolated.py
@@ -157,23 +166,23 @@
 --- a/.github/qa/pr164-linux/run-linux-acceptance.py
 +++ b/.github/qa/pr164-linux/run-linux-acceptance.py
 @@ -10,0 +11,2 @@
-+from paired_registration import PairedRegistration
++from paired_registration import SnapshotRoundtrip
 +from runtime_observations import safe_helper_traceback
 @@ -85,0 +88 @@
 +    stop_backend = qa.stop_backend
 @@ -86,0 +90 @@
-+    paired = PairedRegistration(qa)
++    snapshot = SnapshotRoundtrip(qa)
 @@ -105,0 +110,6 @@
-+    def stop_with_paired_reference():
-+        if not paired.completed and qa.REPORT['stage'] == 'compat-old-before':
-+            paired.run(phase, stop_backend)
++    def stop_with_snapshot_roundtrip():
++        if not snapshot.completed and qa.REPORT['stage'] == 'compat-old-before':
++            snapshot.run(stop_backend)
 +        else:
 +            stop_backend()
 +
 @@ -107,0 +118 @@
-+    qa.stop_backend = stop_with_paired_reference
++    qa.stop_backend = stop_with_snapshot_roundtrip
 @@ -113,0 +125 @@
-+        assert paired.completed, 'Exactly one same-host reference and fresh restore are required'
++        assert snapshot.completed, 'Exactly one fresh-fixture snapshot roundtrip is required'
 @@ -124,0 +137 @@
 +        qa.REPORT['failureHelperTraceback'] = safe_helper_traceback(error)
 --- a/.github/qa/pr164-linux/test_contracts.py
@@ -187,9 +196,9 @@
 @@ -4,0 +10 @@
 +from unittest import mock
 @@ -6,0 +13,2 @@
-+from paired_registration import PairedRegistration, canonical_schema, checked_snapshot, numeric_cpu_model, validate_reference
++from paired_registration import SnapshotRoundtrip, canonical_schema, checked_snapshot, numeric_cpu_model, validate_reference
 +from runtime_observations import cpu_plan, cpuset_values, require_limits, http_delta, log_taxonomy, jvm_gc, safe_helper_traceback, fingerprint_comparison, ddl_block_fingerprints
-@@ -85,0 +94,290 @@
+@@ -85,0 +94,298 @@
 +class OwnedFixtureQa:
 +    OWNER = 'pr164-' + 'a' * 12
 +    LABEL = 'epharm.isolated-qa.owner'
@@ -204,7 +213,9 @@
 +        self.rows, self.redis_keys, self.calls = 0, 0, []
 +        self.network = {'Id': self.NET, 'Name': self.OWNER + '-net', 'Internal': True, 'Labels': {self.LABEL: self.OWNER}, 'Containers': {x: {} for x in self.OWNED}}
 +        self.items = {identifier: {'Id': identifier, 'Config': {'Labels': {self.LABEL: self.OWNER}},
-+                                  'HostConfig': {'PortBindings': {}}, 'NetworkSettings': {'Networks': {'own': {'NetworkID': self.NET}}}} for identifier in self.OWNED}
++                                  'State': {'Running': True}, 'HostConfig': {'PortBindings': {}},
++                                  'NetworkSettings': {'Networks': {'own': {'NetworkID': self.NET}}}} for identifier in self.OWNED}
++        self.phase = mock.Mock(side_effect=AssertionError('No reference workload is allowed'))
 +        (self.ROOT / 'fixture').mkdir()
 +        (self.ROOT / 'results').mkdir()
 +        (self.ROOT / 'fixture/fixture.private.json').write_text(json.dumps({'expectedDatabase': self.DATABASE, 'devices': [{}] * 500}))
@@ -225,6 +236,7 @@
 +        if 'pg_sequences' in text:
 +            return '[]'
 +        if text.startswith('DO $$') and 'SYNTHETIC_DUMP' in text:
++            assert self.BACKEND is None and self.items['4' * 64]['State']['Running'] is False
 +            self.rows = 0
 +            return ''
 +        if text == '-- OFFLINE_ORIGINAL_VERIFY\n':
@@ -257,7 +269,12 @@
 +        return types.SimpleNamespace(stdout=value)
 +
 +
-+class PairedContracts(unittest.TestCase):
++class SnapshotContracts(unittest.TestCase):
++    def stop(self, qa):
++        qa.calls.append(('stop', qa.BACKEND))
++        qa.items[qa.BACKEND]['State']['Running'] = False
++        qa.BACKEND = None
++
 +    def reference_summary(self, qa, latency_failure=False):
 +        metrics = {name: {'values': {'count': 0}, 'thresholds': {'count==0': {'ok': True}}} for name in
 +                   ('rps_errors', 'rps_rate_limited', 'rps_5xx', 'rps_transport_errors', 'rps_unexpected_4xx', 'rps_unexpected_redirects', 'dropped_iterations')}
@@ -289,7 +306,7 @@
 +    def test_foreign_owner_network_database_and_ports_refused_before_mutation(self):
 +        with tempfile.TemporaryDirectory() as root:
 +            good = OwnedFixtureQa(root)
-+            PairedRegistration(good).guard()
++            SnapshotRoundtrip(good).guard()
 +            for change in (
 +                lambda q: q.items[q.PG]['Config']['Labels'].update({q.LABEL: 'foreign'}),
 +                lambda q: q.items[q.REDIS]['NetworkSettings']['Networks']['own'].update(NetworkID='9' * 64),
@@ -301,7 +318,7 @@
 +                q.calls = []
 +                change(q)
 +                with self.assertRaises(AssertionError):
-+                    PairedRegistration(q).reset_redis()
++                    SnapshotRoundtrip(q).reset_redis()
 +                self.assertFalse(any('FLUSHDB' in repr(call) or 'pg_dump' in repr(call) for call in q.calls))
 +
 +    def test_snapshot_hash_mode_symlink_and_hardlink_refused(self):
@@ -326,77 +343,77 @@
 +            with self.assertRaises(AssertionError):
 +                checked_snapshot(p, digest)
 +
-+    def test_one_reference_pass_or_fail_restores_fresh_candidate_without_retries(self):
-+        for exit_code in (0, 99):
-+            with tempfile.TemporaryDirectory() as root:
-+                q = OwnedFixtureQa(root)
-+                paired = PairedRegistration(q)
-+                calls = []
-+                def phase(mode):
-+                    calls.append(mode)
-+                    self.assertEqual(q.rows, 0)
-+                    q.rows, q.redis_keys = 500, 7
-+                    q.REPORT['phaseDiagnostics']['register'] = {'k6ExitCode': exit_code, 'backendState': {'OOMKilled': False, 'Running': True}}
-+                    if exit_code == 0:
-+                        q.REPORT['phases']['register'] = {'outcome': 'PASS'}
-+                    (q.ROOT / 'results/rps-register-offline.json').write_text(json.dumps(self.reference_summary(q, exit_code == 99)))
-+                    if exit_code:
-+                        raise AssertionError('Original fixed threshold rejected reference')
-+                def stop():
-+                    q.BACKEND = None
-+                with mock.patch('paired_registration.host_cpu_model', return_value={'family': 6, 'model': 143, 'stepping': 8, 'hostLogicalProcessors': 4}):
-+                    paired.run(phase, stop)
-+                self.assertTrue(paired.completed)
-+                self.assertEqual(calls, ['register'])
-+                self.assertEqual(q.REPORT['pairedRegistration15']['outcome'], 'PASS' if exit_code == 0 else 'FAIL')
-+                self.assertEqual((q.rows, q.redis_keys), (0, 0))
-+                self.assertEqual(q.REPORT['phases'], {})
-+                self.assertEqual(q.REPORT['pairedRegistration15']['sqlVerification'], 'PASS')
-+                verify_position = next(i for i, call in enumerate(q.calls) if call == ('sql', '-- OFFLINE_ORIGINAL_VERIFY\n'))
-+                restore_position = next(i for i, call in enumerate(q.calls) if call[0] == 'sql' and call[1].startswith('DO $$') and 'SYNTHETIC_DUMP' in call[1])
-+                self.assertLess(verify_position, restore_position)
-+                self.assertFalse(list((q.ROOT / 'results').glob('rps-register-*.json')))
-+                self.assertTrue((q.ROOT / 'results/rps-reference15-register-offline.json').is_file())
-+                with self.assertRaises(AssertionError):
-+                    paired.run(phase, stop)
-+
-+    def test_reference_sql_failure_aborts_before_restore_or_candidate(self):
++    def test_snapshot_only_stops_owned_backend_and_never_calls_a_phase(self):
 +        with tempfile.TemporaryDirectory() as root:
 +            q = OwnedFixtureQa(root)
-+            q.verify_ok = False
-+            paired = PairedRegistration(q)
-+            def phase(mode):
-+                q.rows = 500
-+                q.REPORT['phaseDiagnostics']['register'] = {'k6ExitCode': 99, 'backendState': {'OOMKilled': False, 'Running': True}}
-+                (q.ROOT / 'results/rps-register-offline.json').write_text(json.dumps(self.reference_summary(q, True)))
-+                raise AssertionError('Registration latency refusal')
-+            def stop():
-+                q.BACKEND = None
-+            with mock.patch('paired_registration.host_cpu_model', return_value={}), self.assertRaises(RuntimeError):
-+                paired.run(phase, stop)
-+            self.assertFalse(paired.completed)
++            snapshot = SnapshotRoundtrip(q)
++            snapshot.run(lambda: self.stop(q))
++            self.assertTrue(snapshot.completed)
++            q.phase.assert_not_called()
++            self.assertEqual(q.REPORT['phases'], {})
++            self.assertEqual((q.rows, q.redis_keys), (0, 0))
++            proof = q.REPORT['snapshotRoundtrip']
++            self.assertEqual(proof['outcome'], 'PASS')
++            self.assertFalse(proof['oldReferenceLoadExecuted'])
++            stop_position = next(i for i, call in enumerate(q.calls) if call[0] == 'stop')
++            dump_position = next(i for i, call in enumerate(q.calls) if call[0] == 'docker' and 'pg_dump' in call[1])
++            restore_position = next(i for i, call in enumerate(q.calls) if call[0] == 'sql' and call[1].startswith('DO $$'))
++            self.assertLess(stop_position, dump_position)
++            self.assertLess(dump_position, restore_position)
++            self.assertFalse(list((q.ROOT / 'results').glob('rps-*.json')))
++            with self.assertRaises(AssertionError):
++                snapshot.run(lambda: self.stop(q))
++
++    def test_foreign_or_running_backend_aborts_before_dump_or_restore(self):
++        for foreign in (True, False):
++            with tempfile.TemporaryDirectory() as root:
++                q = OwnedFixtureQa(root)
++                if foreign:
++                    q.items[q.BACKEND]['Config']['Labels'][q.LABEL] = 'foreign'
++                def fake_stop():
++                    q.BACKEND = None
++                snapshot = SnapshotRoundtrip(q)
++                with self.assertRaises(AssertionError):
++                    snapshot.run(fake_stop)
++                self.assertFalse(snapshot.completed)
++                self.assertEqual(q.REPORT['snapshotRoundtrip']['stage'], 'stop-old-backend')
++                self.assertFalse(any('pg_dump' in repr(call) or 'FLUSHDB' in repr(call) for call in q.calls))
++                q.phase.assert_not_called()
++
++    def test_changed_snapshot_aborts_before_restore(self):
++        with tempfile.TemporaryDirectory() as root:
++            q = OwnedFixtureQa(root)
++            snapshot = SnapshotRoundtrip(q)
++            fingerprint = snapshot.fingerprint
++            calls = []
++            def mutate_after_dump():
++                calls.append(1)
++                value = fingerprint()
++                if len(calls) == 2:
++                    (q.ROOT / 'fresh-fixture.private.sql').write_text('changed private dump')
++                return value
++            with mock.patch.object(snapshot, 'fingerprint', side_effect=mutate_after_dump), self.assertRaises(AssertionError):
++                snapshot.run(lambda: self.stop(q))
++            self.assertFalse(snapshot.completed)
++            self.assertEqual(q.REPORT['snapshotRoundtrip']['stage'], 'restore-snapshot')
 +            self.assertFalse(any(call[0] == 'sql' and call[1].startswith('DO $$') for call in q.calls))
 +            self.assertFalse(any('FLUSHDB' in repr(call) for call in q.calls))
 +
 +    def test_restore_mismatch_is_recorded_before_unchanged_strict_refusal(self):
 +        with tempfile.TemporaryDirectory() as root:
 +            q = OwnedFixtureQa(root)
-+            paired = PairedRegistration(q)
-+            baseline = paired.fingerprint()
++            snapshot = SnapshotRoundtrip(q)
++            baseline = snapshot.fingerprint()
 +            changed = dict(baseline, ddlSha256='f' * 64)
-+            def phase(mode):
-+                q.rows = 500
-+                q.REPORT['phaseDiagnostics']['register'] = {'k6ExitCode': 0, 'backendState': {'OOMKilled': False, 'Running': True}}
-+                (q.ROOT / 'results/rps-register-offline.json').write_text(json.dumps(self.reference_summary(q)))
-+            def stop():
-+                q.BACKEND = None
-+            with mock.patch('paired_registration.host_cpu_model', return_value={}), mock.patch.object(paired, 'fingerprint', side_effect=[baseline, baseline, changed]), self.assertRaises(AssertionError):
-+                paired.run(phase, stop)
-+            saved = json.loads((q.ROOT / 'assessment.json').read_text())['pairedRegistration15']
-+            self.assertEqual(saved['snapshotRestoreComparison']['failedFields'], ['ddlSha256'])
-+            self.assertEqual(saved['snapshotRestoreComparison']['before']['ddlSha256'], baseline['ddlSha256'])
-+            self.assertEqual(saved['snapshotRestoreComparison']['after']['ddlSha256'], changed['ddlSha256'])
-+            self.assertFalse(paired.completed)
++            with mock.patch.object(snapshot, 'fingerprint', side_effect=[baseline, baseline, changed]), self.assertRaises(AssertionError):
++                snapshot.run(lambda: self.stop(q))
++            saved = json.loads((q.ROOT / 'assessment.json').read_text())['snapshotRoundtrip']
++            self.assertEqual(saved['restoreComparison']['failedFields'], ['ddlSha256'])
++            self.assertEqual(saved['restoreComparison']['before']['ddlSha256'], baseline['ddlSha256'])
++            self.assertEqual(saved['restoreComparison']['after']['ddlSha256'], changed['ddlSha256'])
++            self.assertEqual(saved['stage'], 'restored-fingerprint')
++            self.assertEqual(saved['outcome'], 'FAIL')
++            self.assertFalse(snapshot.completed)
 +
 +    def test_dump_nonce_is_not_schema_but_schema_changes_remain_visible(self):
 +        self.assertEqual(canonical_schema('\\restrict abc\nCREATE TABLE t();\n\\unrestrict abc'), canonical_schema('\\restrict xyz\nCREATE TABLE t();\n\\unrestrict xyz'))
@@ -482,14 +499,13 @@
 +
 --- a/.github/qa/pr164-linux/paired_registration.py
 +++ b/.github/qa/pr164-linux/paired_registration.py
-@@ -0,0 +1,198 @@
-+"""One same-host reference15 registration, then restore the exact fresh fixture."""
+@@ -0,0 +1,200 @@
++"""One stopped-backend snapshot roundtrip before the unchanged candidate workload."""
 +import hashlib
 +import json
 +import os
 +import re
 +import stat
-+import time
 +from runtime_observations import fingerprint_comparison, ddl_block_fingerprints
 +
 +
@@ -548,7 +564,7 @@
 +            'zeroErrorCounters': True, 'failedRegistrationLatencyGates': [gate for _, gate in failed]}
 +
 +
-+class PairedRegistration:
++class SnapshotRoundtrip:
 +    def __init__(self, qa):
 +        self.q = qa
 +        self.completed = False
@@ -608,79 +624,82 @@
 +        assert self.q.docker('exec', self.q.REDIS, 'redis-cli', '-n', '0', 'FLUSHDB', 'SYNC').stdout.strip() == 'OK'
 +        assert self.q.docker('exec', self.q.REDIS, 'redis-cli', '-n', '0', 'DBSIZE').stdout.strip() == '0'
 +
-+    def run(self, phase, stop):
++    def require_stopped(self, backend):
++        self.guard()
++        assert self.q.BACKEND is None, 'Stop the old backend before the snapshot roundtrip'
++        assert backend in self.q.OWNED
++        item = self.q.inspect(backend)
++        owned_identity(item, backend, self.q.OWNER, self.q.LABEL, self.q.NET)
++        assert item['State']['Running'] is False, 'Recorded old backend must remain stopped'
++
++    def run(self, stop):
 +        q = self.q
 +        assert not self.completed and q.REPORT['stage'] == 'compat-old-before'
-+        self.guard()
-+        assert q.docker('exec', q.REDIS, 'redis-cli', '-n', '0', 'DBSIZE').stdout.strip() == '0'
-+        baseline = self.fingerprint()
-+        baseline_ddl_diagnostics = self.last_ddl_diagnostics
-+        cpu = host_cpu_model()
-+        snapshot = q.ROOT / 'paired-registration.private.sql'
-+        with snapshot.open('x') as output:
-+            output.write(self.dump())
-+        snapshot.chmod(0o600)
-+        snapshot_hash = hashlib.sha256(snapshot.read_bytes()).hexdigest()
-+        stable = self.fingerprint()
-+        q.REPORT['pairedSnapshotStabilityComparison'] = fingerprint_comparison(baseline, stable)
-+        q.REPORT['pairedSnapshotStabilityComparison']['ddlBlockDiagnostics'] = {'before': baseline_ddl_diagnostics, 'after': self.last_ddl_diagnostics}
-+        q.write('assessment.json', q.REPORT)
-+        assert stable == baseline, 'Snapshot was not taken from a stable fresh fixture'
-+        assert not list((q.ROOT / 'results').glob('rps-register-*.json'))
-+        old_phases, old_diagnostics = q.REPORT['phases'], q.REPORT.get('phaseDiagnostics', {})
-+        q.REPORT['phases'], q.REPORT['phaseDiagnostics'] = {}, {}
 +        original_stage = q.REPORT['stage']
-+        failure = None
-+        started = time.monotonic()
++        proof = {'outcome': 'INCOMPLETE', 'acceptanceRole': 'FRESH_FIXTURE_ROUNDTRIP_ONLY',
++                 'oldReferenceLoadExecuted': False, 'candidateAuthWarmup': False,
++                 'privateSnapshotUploaded': False}
++        q.REPORT['snapshotRoundtrip'] = proof
++
++        def stage(name):
++            proof['stage'] = name
++            q.REPORT['stage'] = 'snapshot-roundtrip-' + name
++            q.write('assessment.json', q.REPORT)
++
 +        try:
-+            phase('register')
-+        except AssertionError as error:
-+            failure = type(error).__name__
-+        finally:
++            stage('stop-old-backend')
++            self.guard()
++            backend = q.BACKEND
++            assert backend in q.OWNED
++            owned_identity(q.inspect(backend), backend, q.OWNER, q.LABEL, q.NET)
 +            stop()
-+        reference = {'outcome': 'FAIL' if failure else 'PASS', 'failureType': failure,
-+                     'elapsedSeconds': round(time.monotonic() - started, 3),
-+                     'phases': q.REPORT['phases'], 'phaseDiagnostics': q.REPORT['phaseDiagnostics'],
-+                     'acceptanceRole': 'REFERENCE_ONLY_NEVER_CANDIDATE_ACCEPTANCE',
-+                     'sameHostNumericCpuModel': cpu, 'originalCandidateFailureRunPreserved': 43157241311}
-+        q.REPORT['pairedRegistration15'] = reference
-+        q.REPORT['phases'], q.REPORT['phaseDiagnostics'] = old_phases, old_diagnostics
-+        # Move the reference summary away from the unchanged candidate glob.
-+        summaries = list((q.ROOT / 'results').glob('rps-register-*.json'))
-+        assert len(summaries) == 1
-+        summary = json.loads(summaries[0].read_text())
-+        assert summary['mode'] == 'register' and summary['fixture']['devices'] == 500
-+        assert summary['fixture']['expectedDatabase'] == q.DATABASE
-+        diagnostic = reference['phaseDiagnostics'].get('register', {})
-+        assert diagnostic.get('k6ExitCode') in (0, 99), 'Reference failed outside the completed k6 threshold path'
-+        assert not diagnostic['backendState']['OOMKilled'] and diagnostic['backendState']['Running']
-+        reference['summary'] = summary
-+        reference['completionAndFailureClassification'] = validate_reference(summary, diagnostic, failure)
-+        self.guard()
-+        q.sql((q.ROOT / 'fixture/verify.sql').read_text())
-+        reference['sqlVerification'] = 'PASS'
-+        destination = summaries[0].with_name('rps-reference15-' + summaries[0].name.removeprefix('rps-'))
-+        summaries[0].rename(destination)
-+        reference['summaryFile'] = destination.name
-+        for path in q.ROOT.glob('register-*'):
-+            if path.is_file():
-+                path.rename(path.with_name('reference15-' + path.name))
-+        self.guard()
-+        restore_text = checked_snapshot(snapshot, snapshot_hash)
-+        guard = "DO $$ BEGIN IF current_database() <> '" + q.DATABASE + "' THEN RAISE EXCEPTION 'Wrong disposable database'; END IF; END $$;\n"
-+        q.sql(guard + restore_text)
-+        self.reset_redis()
-+        restored = self.fingerprint()
-+        reference['snapshotRestoreComparison'] = fingerprint_comparison(baseline, restored)
-+        reference['snapshotRestoreComparison']['ddlBlockDiagnostics'] = {'before': baseline_ddl_diagnostics, 'after': self.last_ddl_diagnostics}
-+        q.write('assessment.json', q.REPORT)
-+        assert restored == baseline, 'Reference experiment changed the candidate fresh fixture'
-+        reference['snapshotRestore'] = {'outcome': 'PASS', 'snapshotSha256': snapshot_hash, 'before': baseline, 'after': restored,
-+                                        'ownedRedisDb0Keys': 0, 'candidateAuthWarmup': False, 'candidateFreshProfiles': 0,
-+                                        'privateSnapshotUploaded': False}
-+        q.REPORT['stage'] = original_stage
-+        q.write('assessment.json', q.REPORT)
-+        self.completed = True
++            self.require_stopped(backend)
++            assert q.docker('exec', q.REDIS, 'redis-cli', '-n', '0', 'DBSIZE').stdout.strip() == '0'
++            assert not list((q.ROOT / 'results').glob('rps-register-*.json'))
++
++            stage('baseline-fingerprint')
++            baseline = self.fingerprint()
++            baseline_ddl_diagnostics = self.last_ddl_diagnostics
++            stage('write-snapshot')
++            self.require_stopped(backend)
++            snapshot = q.ROOT / 'fresh-fixture.private.sql'
++            with snapshot.open('x') as output:
++                output.write(self.dump())
++            snapshot.chmod(0o600)
++            snapshot_hash = hashlib.sha256(snapshot.read_bytes()).hexdigest()
++
++            stage('stability-fingerprint')
++            self.require_stopped(backend)
++            stable = self.fingerprint()
++            proof['stabilityComparison'] = fingerprint_comparison(baseline, stable)
++            proof['stabilityComparison']['ddlBlockDiagnostics'] = {'before': baseline_ddl_diagnostics, 'after': self.last_ddl_diagnostics}
++            q.write('assessment.json', q.REPORT)
++            assert stable == baseline, 'Snapshot was not taken from a stable fresh fixture'
++
++            stage('restore-snapshot')
++            self.require_stopped(backend)
++            restore_text = checked_snapshot(snapshot, snapshot_hash)
++            guard = "DO $$ BEGIN IF current_database() <> '" + q.DATABASE + "' THEN RAISE EXCEPTION 'Wrong disposable database'; END IF; END $$;\n"
++            q.sql(guard + restore_text)
++            stage('reset-redis')
++            self.require_stopped(backend)
++            self.reset_redis()
++            stage('restored-fingerprint')
++            self.require_stopped(backend)
++            restored = self.fingerprint()
++            proof['restoreComparison'] = fingerprint_comparison(baseline, restored)
++            proof['restoreComparison']['ddlBlockDiagnostics'] = {'before': baseline_ddl_diagnostics, 'after': self.last_ddl_diagnostics}
++            q.write('assessment.json', q.REPORT)
++            assert restored == baseline, 'Snapshot roundtrip changed the candidate fresh fixture'
++            proof.update(outcome='PASS', stage='complete', snapshotSha256=snapshot_hash,
++                         ownedRedisDb0Keys=0, candidateFreshProfiles=0)
++            q.REPORT['stage'] = original_stage
++            q.write('assessment.json', q.REPORT)
++            self.completed = True
++        except Exception as error:
++            proof.update(outcome='FAIL', failureType=type(error).__name__)
++            q.write('assessment.json', q.REPORT)
++            raise
 --- a/.github/qa/pr164-linux/runtime_observations.py
 +++ b/.github/qa/pr164-linux/runtime_observations.py
 @@ -0,0 +1,143 @@

@@ -1,11 +1,10 @@
 {
-  "state": "PRIVATE_PAIRED_HELPER_PREPARED_NOT_EXECUTED",
+  "state": "FROZEN_SNAPSHOT_ONLY_NOT_RUNTIME_ACCEPTED",
   "baseQaCommit": "5852f56ae52a9689c610c968942189a9f83ebbba",
   "officialCandidateMain": "addb2c97bf752038688e91a6902369da5194009b",
   "preservedFailureRun": 43157241311,
   "originalLegacyAssertCount": 46,
   "allOriginalLegacyAssertTreesIdentical": true,
-  "allOriginalWrapperAssertTreesRetained": true,
   "unchangedFrozenFiles": {
     "fetch-official.py": "c9b3d30d5befd968f19c701134369d0c2cb6c0b875f4b866138738373437fccf",
     "jwt_workload.py": "b41768166a464050e8690a8be9813618591a08fdb1c0f5f842d29ccb842a1fa8",
@@ -13,13 +12,13 @@
     "job-snippet.yml": "d0abededdbff6e1fb94be0f03bead8dc504818e9f958a9e7978140c8c4ec7a13"
   },
   "candidateWorkloadAndThresholdFilesUnchanged": true,
-  "referenceCallsOriginalPhaseRegister": true,
+  "referenceCallsOriginalPhaseRegister": false,
   "candidateAttempts": 1,
-  "referenceAttempts": 1,
+  "referenceAttempts": 0,
   "candidateWarmup": false,
   "snapshotAndRawDataUploadAllowed": false,
   "privateSnapshotBoundBytes": 33554432,
-  "offlineTests": "18 PASS",
+  "offlineTests": "19 PASS",
   "pythonAst": "PASS",
   "applicationDockerVmServerExecutionByPreparer": false,
   "newRuntimeAcceptance": "PENDING_ROOT_RUN",
@@ -36,7 +35,8 @@
     ],
     "assertionWithK6Exit0": "ABORT",
     "originalVerifySqlBeforeRestore": "REQUIRED_PASS",
-    "sqlError": "ABORT"
+    "sqlError": "ABORT",
+    "runtimeRole": "HISTORICAL_ONLY_NEVER_EXECUTED"
   },
   "isolationBaseQaCommit": "c47f5b388ce5db2723e1439e7ddee882956639fe",
   "preservedFailureRuns": [
@@ -62,7 +62,7 @@
     "rawUrisBodiesCredentialsMessagesUploaded": false,
     "originalOtpAdmission4Permits2SecondsChanged": false
   },
-  "nextPairedAttempts": 1,
+  "nextPairedAttempts": 0,
   "candidateFailureAction": "STOP_AND_ESCALATE_NO_RETRY",
   "workloadSourceHashes": {
     "load-tests/run-rps-registration.sh": "91abd6e43dac6e201814a08753339576471bf9ae80b0b8145df92a77e4bbcead",
@@ -91,5 +91,24 @@
     "prior43162105153Candidate16Started": false,
     "exactPriorFailureLocation": "UNKNOWN_UNTIL_NEW_DIAGNOSTIC_EVIDENCE",
     "unsupportedBlockLayoutDoesNotAlterStrictEquality": true
+  },
+  "assertNormalization": "Only expected uniqueowner regex pr160\u2192pr164; all46 normalized ASTs/order equal",
+  "nextSnapshotRoundtripAttempts": 1,
+  "priorQualificationRunsPreserved": [
+    43157241311,
+    43159736797,
+    43162105153,
+    43165054420
+  ],
+  "snapshotOnlyReplan": {
+    "baseQaCommit": "4fae816a948abd307e722450a918e2f5cff3e0c4",
+    "stoppedBackendBeforeBaseline": true,
+    "actualRestoreRequired": true,
+    "strictRawFingerprintsUnchanged": true,
+    "candidateThresholdRateResourcesUnchanged": true,
+    "reference15SuccessNoLongerRequired": true,
+    "candidateRegistrationAttempts": 1,
+    "authWarmup": false,
+    "review": "authimplementation+releaseauditreadonly+rootintegration"
   }
 }

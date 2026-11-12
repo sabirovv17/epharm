@@ -2,18 +2,16 @@
 
 This directory is a **harness deliverable only**. No Docker, VM, server or application was executed locally while preparing it. It never changes product source or production configuration. Original private CI43157241311 remains a recorded failed registration latency gate (p95=2110.50ms versus<2000ms); it is not replaced by a later result.
 
-## One controlled same-host registration comparison
+## One snapshot-only roundtrip before candidate acceptance
 
 The first normal old15 stop is intercepted once, after normal Flyway99 and seed
-verification with zero pharmacist profiles. `paired_registration.py` saves an
-owner-only private SQL dump of that exact fresh fixture, then calls the unchanged
-registration phase against official15, on the same hosted runner and prescribed
-resource caps. Reference PASS or FAIL remains explicitly recorded under
-`pairedRegistration15`; a completed threshold failure is diagnostic only and is
-never relabelled PASS. Missing/incomplete reference evidence, infrastructure error,
-OOM or ownership mismatch aborts the experiment.
+verification with zero pharmacist profiles. `paired_registration.py` stops that
+exact owned backend, verifies it remains stopped, and saves an owner-only private
+SQL dump of the stable fresh fixture. It performs one actual dump/restore
+roundtrip and Redis DB0 reset before any business workload. It does not call a
+registration phase, start another old backend, warm candidate auth, or retry.
 
-After stopping old15, restore checks the exact recorded PG/Redis container IDs,
+Before each snapshot/restore operation, guards check the exact recorded PG/Redis container IDs,
 owner labels, internal network ID and membership, no published ports, generated
 database identity, and unchanged owner-only dump digest. Only that disposable
 database is restored; only its owned Redis logical DB0 is reset. Full public table
@@ -22,14 +20,25 @@ device-session counts must exactly equal the saved baseline. Redis DB0 must have
 zero keys; another populated logical DB is refused. Snapshot SQL/auth data never
 enter uploaded artifacts.
 
+Every guard, fingerprint, dump, restore and Redis reset has a fixed safe report
+stage under `snapshotRoundtrip`. Stability and restore comparisons, including raw
+order-sensitive DDL hashes, are written before their strict equality assertions.
+Any mismatch or operation failure aborts and leaves candidate untested.
+
 Official16 then cold-starts normally. All original500-fresh-desk registration,
 login/session, learner JWT/status and15→16→15→16 acceptance gates run once with no
-threshold/resource/rate-limit changes and no candidate auth warmup. Reference
-summary uses `results/rps-reference15-register-*.json`; unchanged candidate globs
-remain `results/rps-register-*.json`. Numeric CPU family/model/stepping, CPU limits,
-cgroup deltas, sampled resources and Hikari observations are retained for both,
-including a failed k6 exit. A candidate failure stops the run; there is no rerun
-loop or automatic acceptance retry.
+threshold/resource/rate-limit changes and no candidate auth warmup. Candidate
+summaries remain `results/rps-register-*.json`. A candidate failure stops the run;
+there is no rerun loop or automatic acceptance retry. A successful roundtrip is
+fixture evidence only and cannot substitute for any candidate acceptance gate.
+
+Previous measurements remain separate historical evidence: reference15 failed in
+43159736797 (485 created, 454 completed, 46 HTTP5xx, one dropped iteration) and
+43165054420 (482 created, 441 completed, 59 DEVICE_REGISTER HTTP503, two drops).
+Reference15 passed all500 in43162105153 before a snapshot assertion blocked16.
+None of those reference results becomes candidate acceptance. The retained
+`validate_reference` helper/tests describe historical classification only and are
+absent from the runtime path.
 
 ## Owned-container placement and failure taxonomy
 
@@ -47,11 +56,11 @@ retained, and this harness never uses `docker update`.
 Before cleanup, phase diagnostics retain CPU/cgroup/Hikari observations and JVM GC
 numeric counters/phase-end rolling maxima. Prometheus HTTP counter deltas export
 only fixed route buckets, numeric status and allowlisted exception buckets; this
-distinguishes expected503 admission refusals from unhandled500. Backend logs are
+distinguishes observed503 responses from unhandled500. Backend logs are
 parsed only into fixed exception-class counts; messages, raw URIs, HTTP bodies and
 credentials never enter reports. Log class occurrences are not request counts,
 and handled `AppException`503 may produce no backend error log. Raw logs remain
-private and excluded from upload. One next paired run is permitted; another
+private and excluded from upload. One snapshot-only qualification is planned; another
 candidate failure requires escalation, with previous failed runs retained.
 
 Snapshot diagnostics preserve before/after hashes, counts and failed field names

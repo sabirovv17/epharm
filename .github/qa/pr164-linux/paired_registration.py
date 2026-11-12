@@ -1,10 +1,9 @@
-"""One same-host reference15 registration, then restore the exact fresh fixture."""
+"""One stopped-backend snapshot roundtrip before the unchanged candidate workload."""
 import hashlib
 import json
 import os
 import re
 import stat
-import time
 from runtime_observations import fingerprint_comparison, ddl_block_fingerprints
 
 
@@ -63,7 +62,7 @@ def validate_reference(summary, diagnostic, phase_assertion):
             'zeroErrorCounters': True, 'failedRegistrationLatencyGates': [gate for _, gate in failed]}
 
 
-class PairedRegistration:
+class SnapshotRoundtrip:
     def __init__(self, qa):
         self.q = qa
         self.completed = False
@@ -123,76 +122,79 @@ class PairedRegistration:
         assert self.q.docker('exec', self.q.REDIS, 'redis-cli', '-n', '0', 'FLUSHDB', 'SYNC').stdout.strip() == 'OK'
         assert self.q.docker('exec', self.q.REDIS, 'redis-cli', '-n', '0', 'DBSIZE').stdout.strip() == '0'
 
-    def run(self, phase, stop):
+    def require_stopped(self, backend):
+        self.guard()
+        assert self.q.BACKEND is None, 'Stop the old backend before the snapshot roundtrip'
+        assert backend in self.q.OWNED
+        item = self.q.inspect(backend)
+        owned_identity(item, backend, self.q.OWNER, self.q.LABEL, self.q.NET)
+        assert item['State']['Running'] is False, 'Recorded old backend must remain stopped'
+
+    def run(self, stop):
         q = self.q
         assert not self.completed and q.REPORT['stage'] == 'compat-old-before'
-        self.guard()
-        assert q.docker('exec', q.REDIS, 'redis-cli', '-n', '0', 'DBSIZE').stdout.strip() == '0'
-        baseline = self.fingerprint()
-        baseline_ddl_diagnostics = self.last_ddl_diagnostics
-        cpu = host_cpu_model()
-        snapshot = q.ROOT / 'paired-registration.private.sql'
-        with snapshot.open('x') as output:
-            output.write(self.dump())
-        snapshot.chmod(0o600)
-        snapshot_hash = hashlib.sha256(snapshot.read_bytes()).hexdigest()
-        stable = self.fingerprint()
-        q.REPORT['pairedSnapshotStabilityComparison'] = fingerprint_comparison(baseline, stable)
-        q.REPORT['pairedSnapshotStabilityComparison']['ddlBlockDiagnostics'] = {'before': baseline_ddl_diagnostics, 'after': self.last_ddl_diagnostics}
-        q.write('assessment.json', q.REPORT)
-        assert stable == baseline, 'Snapshot was not taken from a stable fresh fixture'
-        assert not list((q.ROOT / 'results').glob('rps-register-*.json'))
-        old_phases, old_diagnostics = q.REPORT['phases'], q.REPORT.get('phaseDiagnostics', {})
-        q.REPORT['phases'], q.REPORT['phaseDiagnostics'] = {}, {}
         original_stage = q.REPORT['stage']
-        failure = None
-        started = time.monotonic()
+        proof = {'outcome': 'INCOMPLETE', 'acceptanceRole': 'FRESH_FIXTURE_ROUNDTRIP_ONLY',
+                 'oldReferenceLoadExecuted': False, 'candidateAuthWarmup': False,
+                 'privateSnapshotUploaded': False}
+        q.REPORT['snapshotRoundtrip'] = proof
+
+        def stage(name):
+            proof['stage'] = name
+            q.REPORT['stage'] = 'snapshot-roundtrip-' + name
+            q.write('assessment.json', q.REPORT)
+
         try:
-            phase('register')
-        except AssertionError as error:
-            failure = type(error).__name__
-        finally:
+            stage('stop-old-backend')
+            self.guard()
+            backend = q.BACKEND
+            assert backend in q.OWNED
+            owned_identity(q.inspect(backend), backend, q.OWNER, q.LABEL, q.NET)
             stop()
-        reference = {'outcome': 'FAIL' if failure else 'PASS', 'failureType': failure,
-                     'elapsedSeconds': round(time.monotonic() - started, 3),
-                     'phases': q.REPORT['phases'], 'phaseDiagnostics': q.REPORT['phaseDiagnostics'],
-                     'acceptanceRole': 'REFERENCE_ONLY_NEVER_CANDIDATE_ACCEPTANCE',
-                     'sameHostNumericCpuModel': cpu, 'originalCandidateFailureRunPreserved': 43157241311}
-        q.REPORT['pairedRegistration15'] = reference
-        q.REPORT['phases'], q.REPORT['phaseDiagnostics'] = old_phases, old_diagnostics
-        # Move the reference summary away from the unchanged candidate glob.
-        summaries = list((q.ROOT / 'results').glob('rps-register-*.json'))
-        assert len(summaries) == 1
-        summary = json.loads(summaries[0].read_text())
-        assert summary['mode'] == 'register' and summary['fixture']['devices'] == 500
-        assert summary['fixture']['expectedDatabase'] == q.DATABASE
-        diagnostic = reference['phaseDiagnostics'].get('register', {})
-        assert diagnostic.get('k6ExitCode') in (0, 99), 'Reference failed outside the completed k6 threshold path'
-        assert not diagnostic['backendState']['OOMKilled'] and diagnostic['backendState']['Running']
-        reference['summary'] = summary
-        reference['completionAndFailureClassification'] = validate_reference(summary, diagnostic, failure)
-        self.guard()
-        q.sql((q.ROOT / 'fixture/verify.sql').read_text())
-        reference['sqlVerification'] = 'PASS'
-        destination = summaries[0].with_name('rps-reference15-' + summaries[0].name.removeprefix('rps-'))
-        summaries[0].rename(destination)
-        reference['summaryFile'] = destination.name
-        for path in q.ROOT.glob('register-*'):
-            if path.is_file():
-                path.rename(path.with_name('reference15-' + path.name))
-        self.guard()
-        restore_text = checked_snapshot(snapshot, snapshot_hash)
-        guard = "DO $$ BEGIN IF current_database() <> '" + q.DATABASE + "' THEN RAISE EXCEPTION 'Wrong disposable database'; END IF; END $$;\n"
-        q.sql(guard + restore_text)
-        self.reset_redis()
-        restored = self.fingerprint()
-        reference['snapshotRestoreComparison'] = fingerprint_comparison(baseline, restored)
-        reference['snapshotRestoreComparison']['ddlBlockDiagnostics'] = {'before': baseline_ddl_diagnostics, 'after': self.last_ddl_diagnostics}
-        q.write('assessment.json', q.REPORT)
-        assert restored == baseline, 'Reference experiment changed the candidate fresh fixture'
-        reference['snapshotRestore'] = {'outcome': 'PASS', 'snapshotSha256': snapshot_hash, 'before': baseline, 'after': restored,
-                                        'ownedRedisDb0Keys': 0, 'candidateAuthWarmup': False, 'candidateFreshProfiles': 0,
-                                        'privateSnapshotUploaded': False}
-        q.REPORT['stage'] = original_stage
-        q.write('assessment.json', q.REPORT)
-        self.completed = True
+            self.require_stopped(backend)
+            assert q.docker('exec', q.REDIS, 'redis-cli', '-n', '0', 'DBSIZE').stdout.strip() == '0'
+            assert not list((q.ROOT / 'results').glob('rps-register-*.json'))
+
+            stage('baseline-fingerprint')
+            baseline = self.fingerprint()
+            baseline_ddl_diagnostics = self.last_ddl_diagnostics
+            stage('write-snapshot')
+            self.require_stopped(backend)
+            snapshot = q.ROOT / 'fresh-fixture.private.sql'
+            with snapshot.open('x') as output:
+                output.write(self.dump())
+            snapshot.chmod(0o600)
+            snapshot_hash = hashlib.sha256(snapshot.read_bytes()).hexdigest()
+
+            stage('stability-fingerprint')
+            self.require_stopped(backend)
+            stable = self.fingerprint()
+            proof['stabilityComparison'] = fingerprint_comparison(baseline, stable)
+            proof['stabilityComparison']['ddlBlockDiagnostics'] = {'before': baseline_ddl_diagnostics, 'after': self.last_ddl_diagnostics}
+            q.write('assessment.json', q.REPORT)
+            assert stable == baseline, 'Snapshot was not taken from a stable fresh fixture'
+
+            stage('restore-snapshot')
+            self.require_stopped(backend)
+            restore_text = checked_snapshot(snapshot, snapshot_hash)
+            guard = "DO $$ BEGIN IF current_database() <> '" + q.DATABASE + "' THEN RAISE EXCEPTION 'Wrong disposable database'; END IF; END $$;\n"
+            q.sql(guard + restore_text)
+            stage('reset-redis')
+            self.require_stopped(backend)
+            self.reset_redis()
+            stage('restored-fingerprint')
+            self.require_stopped(backend)
+            restored = self.fingerprint()
+            proof['restoreComparison'] = fingerprint_comparison(baseline, restored)
+            proof['restoreComparison']['ddlBlockDiagnostics'] = {'before': baseline_ddl_diagnostics, 'after': self.last_ddl_diagnostics}
+            q.write('assessment.json', q.REPORT)
+            assert restored == baseline, 'Snapshot roundtrip changed the candidate fresh fixture'
+            proof.update(outcome='PASS', stage='complete', snapshotSha256=snapshot_hash,
+                         ownedRedisDb0Keys=0, candidateFreshProfiles=0)
+            q.REPORT['stage'] = original_stage
+            q.write('assessment.json', q.REPORT)
+            self.completed = True
+        except Exception as error:
+            proof.update(outcome='FAIL', failureType=type(error).__name__)
+            q.write('assessment.json', q.REPORT)
+            raise
