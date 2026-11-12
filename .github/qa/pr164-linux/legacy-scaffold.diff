@@ -1,12 +1,43 @@
 --- original7037b1b5/.github/qa/run-isolated.py
 +++ legacy-run-isolated.py
-@@ -16,0 +17,2 @@
+@@ -16,0 +17,3 @@
 +from paired_registration import host_cpu_model
++from runtime_observations import cpu_plan, cpuset_text, require_limits, http_delta, jvm_gc, log_taxonomy
 +
-@@ -21 +23 @@
+@@ -21 +24 @@
 -OWNER = 'pr160-' + uuid.uuid4().hex[:12]
 +OWNER = 'pr164-' + uuid.uuid4().hex[:12]
-@@ -217,0 +220,22 @@
+@@ -26,0 +30,2 @@
++AFFINITY = None
++ACTIVE_VERSION = None
+@@ -72,0 +78 @@
++    require_limits(item, role, AFFINITY)
+@@ -75 +81,2 @@
+-                                'memoryBytes': item['HostConfig']['Memory'], 'nanoCpus': item['HostConfig']['NanoCpus']})
++                                'memoryBytes': item['HostConfig']['Memory'], 'nanoCpus': item['HostConfig']['NanoCpus'],
++                                'cpusetCpus': item['HostConfig'].get('CpusetCpus', '')})
+@@ -80,0 +88 @@
++    placement = 'backend' if role.startswith('backend-') else 'support'
+@@ -82 +90 @@
+-                        '--label', LABEL + '=' + OWNER, *args).stdout.strip()
++                        '--label', LABEL + '=' + OWNER, '--cpuset-cpus', cpuset_text(AFFINITY[placement]), *args).stdout.strip()
+@@ -108 +116 @@
+-    global BACKEND
++    global BACKEND, ACTIVE_VERSION
+@@ -119,0 +128,2 @@
++            ACTIVE_VERSION = expected['version']
++            print(json.dumps({'stage': 'backend-ready', 'version': int(ACTIVE_VERSION.rsplit('.', 1)[1]), 'schema': 99}), flush=True)
+@@ -171,0 +182 @@
++    print(json.dumps({'stage': 'phase-start-' + mode, 'version': int(ACTIVE_VERSION.rsplit('.', 1)[1]), 'completed': 0, 'created': 0}), flush=True)
+@@ -181 +192,2 @@
+-        QA_OWNER=OWNER, QA_DOCKER=DOCKER, K6_IMAGE=IMAGES['k6'])
++        QA_OWNER=OWNER, QA_DOCKER=DOCKER, K6_IMAGE=IMAGES['k6'],
++        QA_SUPPORT_CPUSET=cpuset_text(AFFINITY['support']))
+@@ -182,0 +195 @@
++    wall_start = dt.datetime.now(dt.timezone.utc).isoformat()
+@@ -184,0 +198 @@
++    prometheus_before = docker('exec', BACKEND, 'curl', '-fsS', 'http://127.0.0.1:8080/actuator/prometheus').stdout
+@@ -217,0 +232,32 @@
 +            # Persist numeric-only observations even when k6 rejects its thresholds.
 +            # The original exit/latency/error gates below remain unchanged.
 +            cpu_observed = cpu_counters(docker('exec', BACKEND, 'cat', '/sys/fs/cgroup/cpu.stat', check=False).stdout)
@@ -20,21 +51,40 @@
 +                values = re.findall(r'^' + metric + r'(?:\{[^\n]*\})? ([0-9.eE+-]+)$', pool_observed, re.M)
 +                hikari_observed[metric] = list(map(float, values))
 +            backend_state = inspect(BACKEND)['State']
++            backend_logs = docker('logs', '--since', wall_start, BACKEND, check=False)
 +            REPORT.setdefault('phaseDiagnostics', {})[mode] = {
 +                'outcome': 'OBSERVED_NOT_ACCEPTANCE', 'k6ExitCode': process.returncode,
 +                'numericHostCpuModel': host_cpu_model(),
++                'httpRouteStatusDelta': http_delta(prometheus_before, pool_observed),
++                'ownedBackendExceptionClassCounts': log_taxonomy(backend_logs.stdout + backend_logs.stderr),
++                'jvmGcBefore': jvm_gc(prometheus_before), 'jvmGcAtPhaseEndRollingMax': jvm_gc(pool_observed),
 +                'elapsedSeconds': round(time.monotonic() - start, 3), 'sampledResourceMaxima': maxima,
 +                'hikariObserved': hikari_observed,
 +                'backendState': {key: backend_state[key] for key in ('Running', 'OOMKilled', 'ExitCode')},
 +                'cgroupCounterDeltaIncludingSetupTeardown': {
 +                    key: value - cpu_initial[key] for key, value in cpu_observed.items() if key in cpu_initial}}
 +            write('assessment.json', REPORT)
-@@ -288 +312 @@
++            observed_summary = sorted((ROOT / 'results').glob('rps-' + mode + '-*.json'))
++            public_metrics = json.loads(observed_summary[0].read_text())['metrics'] if len(observed_summary) == 1 else {}
++            print(json.dumps({'stage': 'phase-observed-' + mode, 'version': int(ACTIVE_VERSION.rsplit('.', 1)[1]),
++                              'completed': public_metrics.get('rps_completed', {}).get('values', {}).get('count', 0),
++                              'created': public_metrics.get('rps_registration_created', {}).get('values', {}).get('count', 0),
++                              'errors': public_metrics.get('rps_errors', {}).get('values', {}).get('count', 0)}), flush=True)
+@@ -254 +300 @@
+-    global IDENTITIES, DATABASE, IMAGES, NET, PG, REDIS
++    global IDENTITIES, DATABASE, IMAGES, NET, PG, REDIS, AFFINITY
+@@ -258,0 +305,2 @@
++    AFFINITY = cpu_plan(os.sched_getaffinity(0))
++    REPORT['logicalCpuPlacement'] = AFFINITY
+@@ -288 +336 @@
 -        identifier = docker('create', '--network', 'none', '--label', LABEL + '=' + OWNER, image['Id']).stdout.strip()
 +        identifier = docker('create', '--name', OWNER + '-artifact-extraction-' + which, '--network', 'none', '--label', LABEL + '=' + OWNER, image['Id']).stdout.strip()
-@@ -302 +326 @@
+@@ -302 +350 @@
 -    run_id = 'pr160_' + secrets.token_hex(5)
 +    run_id = 'pr164_' + secrets.token_hex(5)
-@@ -440 +464 @@
+@@ -347 +395 @@
+-    wrapper.write_text('#!/bin/sh\nif [ "$1" = run ]; then\n shift\n exec "$QA_DOCKER" run --name "$RPS_OWNED_CONTAINER" --label "' + LABEL + '=$QA_OWNER" --cpus 2 --memory 1024m "$@"\nfi\nexec "$QA_DOCKER" "$@"\n')
++    wrapper.write_text('#!/bin/sh\nif [ "$1" = run ]; then\n shift\n exec "$QA_DOCKER" run --name "$RPS_OWNED_CONTAINER" --label "' + LABEL + '=$QA_OWNER" --cpus 2 --memory 1024m --cpuset-cpus "$QA_SUPPORT_CPUSET" "$@"\nfi\nexec "$QA_DOCKER" "$@"\n')
+@@ -440 +488 @@
 -        assert re.fullmatch(r'pr160-[a-f0-9]{12}', OWNER)
 +        assert re.fullmatch(r'pr164-[a-f0-9]{12}', OWNER)

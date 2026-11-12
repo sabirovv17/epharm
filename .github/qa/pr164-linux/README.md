@@ -31,6 +31,29 @@ cgroup deltas, sampled resources and Hikari observations are retained for both,
 including a failed k6 exit. A candidate failure stops the run; there is no rerun
 loop or automatic acceptance retry.
 
+## Owned-container placement and failure taxonomy
+
+The next run narrows only our containers' CPU affinity: backend uses exactly two
+available logical CPUs; PostgreSQL, Redis and both generators use two other
+available logical CPUs. Fewer than four available CPUs is refused. All original
+`--cpus` quotas, memory/JVM/Hikari settings, workloads, rates and thresholds remain
+unchanged. This neither allocates physical cores nor prevents host/hypervisor work
+on those CPUs. BE/PG/Redis actual CPU quota/memory/cpuset are inspected before
+business load. Generator creation flags enforce the same quotas plus cpuset;
+actual generator configuration is inspected at the existing first polling
+opportunity **after start**. Original `docker run --rm`/stdin/exit semantics are
+retained, and this harness never uses `docker update`.
+
+Before cleanup, phase diagnostics retain CPU/cgroup/Hikari observations and JVM GC
+numeric counters/phase-end rolling maxima. Prometheus HTTP counter deltas export
+only fixed route buckets, numeric status and allowlisted exception buckets; this
+distinguishes expected503 admission refusals from unhandled500. Backend logs are
+parsed only into fixed exception-class counts; messages, raw URIs, HTTP bodies and
+credentials never enter reports. Log class occurrences are not request counts,
+and handled `AppException`503 may produce no backend error log. Raw logs remain
+private and excluded from upload. One next paired run is permitted; another
+candidate failure requires escalation, with previous failed runs retained.
+
 ## Root integration interface
 
 Copy these helpers to `.github/qa/pr164-linux/` on a disposable QA branch. Do not copy the old QA `ci.yml`, disable mandatory checks, or merge this harness branch. Root owns the workflow, artifact coordinates, all downloads and launch. `job-snippet.yml` is a job fragment, not a complete workflow or authorization.

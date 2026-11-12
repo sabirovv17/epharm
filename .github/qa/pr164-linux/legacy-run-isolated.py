@@ -15,6 +15,7 @@ import uuid
 import zipfile
 
 from paired_registration import host_cpu_model
+from runtime_observations import cpu_plan, cpuset_text, require_limits, http_delta, jvm_gc, log_taxonomy
 
 os.umask(0o077)
 ROOT = pathlib.Path(os.environ['QA_PRIVATE_ROOT']).resolve()
@@ -26,6 +27,8 @@ OWNED = []
 NET = None
 PG = None
 BACKEND = None
+AFFINITY = None
+ACTIVE_VERSION = None
 REPORT = {'outcome': 'INCOMPLETE', 'owner': OWNER, 'resources': [], 'phases': {}, 'compatibility': {}, 'limits': {
     'backendCpu': 2, 'backendMemoryMiB': 1536, 'jvmXmxMiB': 768, 'metaspaceMiB': 384, 'hikariMaximumPoolSize': 10,
     'postgresCpu': 2, 'postgresMemoryMiB': 768, 'redisCpu': 1, 'redisMemoryMiB': 128,
@@ -72,16 +75,19 @@ def inspect(identifier):
 def own(identifier, role):
     item = inspect(identifier)
     assert item['Id'] == identifier and item['Config']['Labels'][LABEL] == OWNER
+    require_limits(item, role, AFFINITY)
     OWNED.append(identifier)
     REPORT['resources'].append({'role': role, 'containerId': identifier, 'imageId': item['Image'],
-                                'memoryBytes': item['HostConfig']['Memory'], 'nanoCpus': item['HostConfig']['NanoCpus']})
+                                'memoryBytes': item['HostConfig']['Memory'], 'nanoCpus': item['HostConfig']['NanoCpus'],
+                                'cpusetCpus': item['HostConfig'].get('CpusetCpus', '')})
     write('assessment.json', REPORT)
     return identifier
 
 
 def run_container(role, *args):
+    placement = 'backend' if role.startswith('backend-') else 'support'
     identifier = docker('run', '-d', '--pull=never', '--name', OWNER + '-' + role,
-                        '--label', LABEL + '=' + OWNER, *args).stdout.strip()
+                        '--label', LABEL + '=' + OWNER, '--cpuset-cpus', cpuset_text(AFFINITY[placement]), *args).stdout.strip()
     assert re.fullmatch('[a-f0-9]{64}', identifier)
     return own(identifier, role)
 
@@ -107,7 +113,7 @@ def stop_backend():
 
 
 def start_backend(which, image, env_path):
-    global BACKEND
+    global BACKEND, ACTIVE_VERSION
     BACKEND = run_container('backend-' + which, '--network', NET, '--network-alias', 'backend',
         '--memory', '1536m', '--cpus', '2', '--read-only', '--tmpfs', '/tmp:rw,nosuid,size=128m',
         '--env-file', str(env_path), image)
@@ -119,6 +125,8 @@ def start_backend(which, image, env_path):
             expected = IDENTITIES['previous' if which.startswith('old') else 'candidate']
             assert health['status'] == 'ok' and health['version'] == expected['version'] and health['commit'] == expected['commit']
             REPORT['compatibility'][which] = {'health': health, 'schema99Fingerprint': schema()}
+            ACTIVE_VERSION = expected['version']
+            print(json.dumps({'stage': 'backend-ready', 'version': int(ACTIVE_VERSION.rsplit('.', 1)[1]), 'schema': 99}), flush=True)
             return
         if not inspect(BACKEND)['State']['Running']:
             record_startup_failure()
@@ -171,6 +179,7 @@ ROLLBACK;""")
 
 def phase(mode):
     REPORT['stage'] = 'load-' + mode
+    print(json.dumps({'stage': 'phase-start-' + mode, 'version': int(ACTIVE_VERSION.rsplit('.', 1)[1]), 'completed': 0, 'created': 0}), flush=True)
     name = OWNER + '-k6-' + mode
     env = os.environ.copy()
     for key in list(env):
@@ -180,10 +189,13 @@ def phase(mode):
         RPS_FIXTURE_FILE=str(ROOT / 'fixture/fixture.private.json'), ISOLATED_RPS_LOAD_TEST='DISPOSABLE_DATABASE_NO_SMS',
         RPS_DOCKER_NETWORK='container:' + BACKEND, K6_RESULT_DIR=str(ROOT / 'results'), MODE=mode,
         VUS='50' if mode == 'register' else '25', DURATION='2m', RPS_OWNED_CONTAINER=name,
-        QA_OWNER=OWNER, QA_DOCKER=DOCKER, K6_IMAGE=IMAGES['k6'])
+        QA_OWNER=OWNER, QA_DOCKER=DOCKER, K6_IMAGE=IMAGES['k6'],
+        QA_SUPPORT_CPUSET=cpuset_text(AFFINITY['support']))
     start = time.monotonic()
+    wall_start = dt.datetime.now(dt.timezone.utc).isoformat()
     maxima = {'cpuPercent': {}, 'memoryMiB': {}, 'postgresConnections': 0, 'postgresLockWaiters': 0, 'postgresDeadlocks': 0}
     cpu_before = docker('exec', BACKEND, 'cat', '/sys/fs/cgroup/cpu.stat', check=False).stdout
+    prometheus_before = docker('exec', BACKEND, 'curl', '-fsS', 'http://127.0.0.1:8080/actuator/prometheus').stdout
     def cpu_counters(raw):
         return {parts[0]: int(parts[1]) for line in raw.splitlines() if len(parts := line.split()) == 2 and parts[1].isdigit()}
     def memory_mib(raw):
@@ -230,15 +242,25 @@ def phase(mode):
                 values = re.findall(r'^' + metric + r'(?:\{[^\n]*\})? ([0-9.eE+-]+)$', pool_observed, re.M)
                 hikari_observed[metric] = list(map(float, values))
             backend_state = inspect(BACKEND)['State']
+            backend_logs = docker('logs', '--since', wall_start, BACKEND, check=False)
             REPORT.setdefault('phaseDiagnostics', {})[mode] = {
                 'outcome': 'OBSERVED_NOT_ACCEPTANCE', 'k6ExitCode': process.returncode,
                 'numericHostCpuModel': host_cpu_model(),
+                'httpRouteStatusDelta': http_delta(prometheus_before, pool_observed),
+                'ownedBackendExceptionClassCounts': log_taxonomy(backend_logs.stdout + backend_logs.stderr),
+                'jvmGcBefore': jvm_gc(prometheus_before), 'jvmGcAtPhaseEndRollingMax': jvm_gc(pool_observed),
                 'elapsedSeconds': round(time.monotonic() - start, 3), 'sampledResourceMaxima': maxima,
                 'hikariObserved': hikari_observed,
                 'backendState': {key: backend_state[key] for key in ('Running', 'OOMKilled', 'ExitCode')},
                 'cgroupCounterDeltaIncludingSetupTeardown': {
                     key: value - cpu_initial[key] for key, value in cpu_observed.items() if key in cpu_initial}}
             write('assessment.json', REPORT)
+            observed_summary = sorted((ROOT / 'results').glob('rps-' + mode + '-*.json'))
+            public_metrics = json.loads(observed_summary[0].read_text())['metrics'] if len(observed_summary) == 1 else {}
+            print(json.dumps({'stage': 'phase-observed-' + mode, 'version': int(ACTIVE_VERSION.rsplit('.', 1)[1]),
+                              'completed': public_metrics.get('rps_completed', {}).get('values', {}).get('count', 0),
+                              'created': public_metrics.get('rps_registration_created', {}).get('values', {}).get('count', 0),
+                              'errors': public_metrics.get('rps_errors', {}).get('values', {}).get('count', 0)}), flush=True)
             assert process.returncode == 0, 'Original k6 phase failed; no retries or relaxed thresholds'
         finally:
             if process.poll() is None:
@@ -275,11 +297,13 @@ def phase(mode):
 
 
 def main():
-    global IDENTITIES, DATABASE, IMAGES, NET, PG, REDIS
+    global IDENTITIES, DATABASE, IMAGES, NET, PG, REDIS, AFFINITY
     assert sys.platform.startswith('linux') and os.environ.get('GITHUB_ACTIONS') == 'true'
     assert os.environ.get('ROOT_CANDIDATE_READY') == 'APPROVED_OFFICIAL_CANDIDATE'
     assert command(['git', '-C', str(SOURCE), 'rev-parse', 'HEAD']).stdout.strip() == os.environ['CANDIDATE_COMMIT']
     assert not os.environ.get('GITHUB_TOKEN') and not os.environ.get('GH_TOKEN'), 'GitHub credentials must not reach runtime step'
+    AFFINITY = cpu_plan(os.sched_getaffinity(0))
+    REPORT['logicalCpuPlacement'] = AFFINITY
     IDENTITIES = json.loads((ROOT / 'artifacts/verified-identities.json').read_text())
     candidate_sources = json.loads((pathlib.Path(IDENTITIES['candidate']['directory']) / 'source-files.json').read_text())
     assert all(hashlib.sha256((SOURCE / name).read_bytes()).hexdigest() == digest for name, digest in candidate_sources.items())
@@ -368,7 +392,7 @@ def main():
     (ROOT / 'results').mkdir(mode=0o700)
     (ROOT / 'bin').mkdir(mode=0o700)
     wrapper = ROOT / 'bin/docker'
-    wrapper.write_text('#!/bin/sh\nif [ "$1" = run ]; then\n shift\n exec "$QA_DOCKER" run --name "$RPS_OWNED_CONTAINER" --label "' + LABEL + '=$QA_OWNER" --cpus 2 --memory 1024m "$@"\nfi\nexec "$QA_DOCKER" "$@"\n')
+    wrapper.write_text('#!/bin/sh\nif [ "$1" = run ]; then\n shift\n exec "$QA_DOCKER" run --name "$RPS_OWNED_CONTAINER" --label "' + LABEL + '=$QA_OWNER" --cpus 2 --memory 1024m --cpuset-cpus "$QA_SUPPORT_CPUSET" "$@"\nfi\nexec "$QA_DOCKER" "$@"\n')
     wrapper.chmod(0o700)
     REPORT['stage'] = 'compat-old-before'
     start_backend('old-before', loaded['previous'], env_path)

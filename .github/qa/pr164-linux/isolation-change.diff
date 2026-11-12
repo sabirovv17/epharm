@@ -1,0 +1,238 @@
+--- a/.github/qa/pr164-linux/README.md
++++ b/.github/qa/pr164-linux/README.md
+@@ -32,0 +33,23 @@
++
++## Owned-container placement and failure taxonomy
++
++The next run narrows only our containers' CPU affinity: backend uses exactly two
++available logical CPUs; PostgreSQL, Redis and both generators use two other
++available logical CPUs. Fewer than four available CPUs is refused. All original
++`--cpus` quotas, memory/JVM/Hikari settings, workloads, rates and thresholds remain
++unchanged. This neither allocates physical cores nor prevents host/hypervisor work
++on those CPUs. BE/PG/Redis actual CPU quota/memory/cpuset are inspected before
++business load. Generator creation flags enforce the same quotas plus cpuset;
++actual generator configuration is inspected at the existing first polling
++opportunity **after start**. Original `docker run --rm`/stdin/exit semantics are
++retained, and this harness never uses `docker update`.
++
++Before cleanup, phase diagnostics retain CPU/cgroup/Hikari observations and JVM GC
++numeric counters/phase-end rolling maxima. Prometheus HTTP counter deltas export
++only fixed route buckets, numeric status and allowlisted exception buckets; this
++distinguishes expected503 admission refusals from unhandled500. Backend logs are
++parsed only into fixed exception-class counts; messages, raw URIs, HTTP bodies and
++credentials never enter reports. Log class occurrences are not request counts,
++and handled `AppException`503 may produce no backend error log. Raw logs remain
++private and excluded from upload. One next paired run is permitted; another
++candidate failure requires escalation, with previous failed runs retained.
+--- a/.github/qa/pr164-linux/legacy-run-isolated.py
++++ b/.github/qa/pr164-linux/legacy-run-isolated.py
+@@ -17,0 +18 @@
++from runtime_observations import cpu_plan, cpuset_text, require_limits, http_delta, jvm_gc, log_taxonomy
+@@ -28,0 +30,2 @@
++AFFINITY = None
++ACTIVE_VERSION = None
+@@ -74,0 +78 @@
++    require_limits(item, role, AFFINITY)
+@@ -77 +81,2 @@
+-                                'memoryBytes': item['HostConfig']['Memory'], 'nanoCpus': item['HostConfig']['NanoCpus']})
++                                'memoryBytes': item['HostConfig']['Memory'], 'nanoCpus': item['HostConfig']['NanoCpus'],
++                                'cpusetCpus': item['HostConfig'].get('CpusetCpus', '')})
+@@ -82,0 +88 @@
++    placement = 'backend' if role.startswith('backend-') else 'support'
+@@ -84 +90 @@
+-                        '--label', LABEL + '=' + OWNER, *args).stdout.strip()
++                        '--label', LABEL + '=' + OWNER, '--cpuset-cpus', cpuset_text(AFFINITY[placement]), *args).stdout.strip()
+@@ -110 +116 @@
+-    global BACKEND
++    global BACKEND, ACTIVE_VERSION
+@@ -121,0 +128,2 @@
++            ACTIVE_VERSION = expected['version']
++            print(json.dumps({'stage': 'backend-ready', 'version': int(ACTIVE_VERSION.rsplit('.', 1)[1]), 'schema': 99}), flush=True)
+@@ -173,0 +182 @@
++    print(json.dumps({'stage': 'phase-start-' + mode, 'version': int(ACTIVE_VERSION.rsplit('.', 1)[1]), 'completed': 0, 'created': 0}), flush=True)
+@@ -183 +192,2 @@
+-        QA_OWNER=OWNER, QA_DOCKER=DOCKER, K6_IMAGE=IMAGES['k6'])
++        QA_OWNER=OWNER, QA_DOCKER=DOCKER, K6_IMAGE=IMAGES['k6'],
++        QA_SUPPORT_CPUSET=cpuset_text(AFFINITY['support']))
+@@ -184,0 +195 @@
++    wall_start = dt.datetime.now(dt.timezone.utc).isoformat()
+@@ -186,0 +198 @@
++    prometheus_before = docker('exec', BACKEND, 'curl', '-fsS', 'http://127.0.0.1:8080/actuator/prometheus').stdout
+@@ -232,0 +245 @@
++            backend_logs = docker('logs', '--since', wall_start, BACKEND, check=False)
+@@ -235,0 +249,3 @@
++                'httpRouteStatusDelta': http_delta(prometheus_before, pool_observed),
++                'ownedBackendExceptionClassCounts': log_taxonomy(backend_logs.stdout + backend_logs.stderr),
++                'jvmGcBefore': jvm_gc(prometheus_before), 'jvmGcAtPhaseEndRollingMax': jvm_gc(pool_observed),
+@@ -241,0 +258,6 @@
++            observed_summary = sorted((ROOT / 'results').glob('rps-' + mode + '-*.json'))
++            public_metrics = json.loads(observed_summary[0].read_text())['metrics'] if len(observed_summary) == 1 else {}
++            print(json.dumps({'stage': 'phase-observed-' + mode, 'version': int(ACTIVE_VERSION.rsplit('.', 1)[1]),
++                              'completed': public_metrics.get('rps_completed', {}).get('values', {}).get('count', 0),
++                              'created': public_metrics.get('rps_registration_created', {}).get('values', {}).get('count', 0),
++                              'errors': public_metrics.get('rps_errors', {}).get('values', {}).get('count', 0)}), flush=True)
+@@ -278 +300 @@
+-    global IDENTITIES, DATABASE, IMAGES, NET, PG, REDIS
++    global IDENTITIES, DATABASE, IMAGES, NET, PG, REDIS, AFFINITY
+@@ -282,0 +305,2 @@
++    AFFINITY = cpu_plan(os.sched_getaffinity(0))
++    REPORT['logicalCpuPlacement'] = AFFINITY
+@@ -371 +395 @@
+-    wrapper.write_text('#!/bin/sh\nif [ "$1" = run ]; then\n shift\n exec "$QA_DOCKER" run --name "$RPS_OWNED_CONTAINER" --label "' + LABEL + '=$QA_OWNER" --cpus 2 --memory 1024m "$@"\nfi\nexec "$QA_DOCKER" "$@"\n')
++    wrapper.write_text('#!/bin/sh\nif [ "$1" = run ]; then\n shift\n exec "$QA_DOCKER" run --name "$RPS_OWNED_CONTAINER" --label "' + LABEL + '=$QA_OWNER" --cpus 2 --memory 1024m --cpuset-cpus "$QA_SUPPORT_CPUSET" "$@"\nfi\nexec "$QA_DOCKER" "$@"\n')
+--- a/.github/qa/pr164-linux/legacy-source-sha256.txt
++++ b/.github/qa/pr164-linux/legacy-source-sha256.txt
+@@ -2,2 +2,3 @@
+-8373f42169661603a7f995eb679e942d175d939fb12da8c199cf6777f7a8b650 prior-frozen-PR164-prefix-and-extraction-name-only
+-e40b2fe1c88b41dcb56114795b8c67c13e10faf84a1994ab9c6eba4434b4bf82 paired-numeric-diagnostics-only-all-original-asserts-identical
++8373f42169661603a7f995eb679e942d175d939fb12da8c199cf6777f7a8b650 prior-prefix-and-extraction-only
++e40b2fe1c88b41dcb56114795b8c67c13e10faf84a1994ab9c6eba4434b4bf82 previous-paired-qa-c47f5b388ce5db2723e1439e7ddee882956639fe
++9564a75bbdfe759d38af0ae4d26dc372c94e7d2d47af29f0fae000eb5b98197f owned-logical-affinity-and-fixed-numeric-observations-all46original-asserts-identical
+--- a/.github/qa/pr164-linux/test_contracts.py
++++ b/.github/qa/pr164-linux/test_contracts.py
+@@ -13,0 +14 @@
++from runtime_observations import cpu_plan, cpuset_values, require_limits, http_delta, log_taxonomy, jvm_gc
+@@ -286,0 +288,44 @@
++class ObservationContracts(unittest.TestCase):
++    def test_affinity_is_disjoint_and_never_increases_existing_limits(self):
++        plan = cpu_plan({3, 5, 7, 9, 11, 13})
++        self.assertEqual((plan['backend'], plan['support']), ([3, 5], [7, 9]))
++        self.assertFalse(plan['physicalIsolationClaimed'])
++        with self.assertRaises(AssertionError):
++            cpu_plan({0, 1, 2})
++        self.assertEqual(cpuset_values('0-1,4'), {0, 1, 4})
++        for role, memory, cpus, placement in (('backend-old-before',1536,2,'backend'), ('backend-candidate',1536,2,'backend'),
++                                             ('postgres',768,2,'support'), ('redis',128,1,'support'), ('k6-register',1024,2,'support'), ('k6-learner',1024,2,'support')):
++            item = {'HostConfig': {'Memory': memory*1024**2, 'NanoCpus': cpus*1_000_000_000, 'CpusetCpus': ','.join(map(str, plan[placement]))}}
++            require_limits(item, role, plan)
++            for key, bad in (('Memory', memory*1024**2+1), ('NanoCpus', cpus*1_000_000_000+1), ('CpusetCpus','0,1')):
++                invalid = copy.deepcopy(item); invalid['HostConfig'][key] = bad
++                with self.assertRaises(AssertionError):
++                    require_limits(invalid, role, plan)
++
++    def test_route_taxonomy_distinguishes_503_without_exporting_dynamic_labels(self):
++        prefix = 'http_server_requests_seconds_count'
++        before = prefix+'{uri="/api/posm/staff/device/register-without-sms",status="503",exception="none"} 2\n'
++        after = prefix+'{uri="/api/posm/staff/device/register-without-sms",status="503",exception="none"} 48\n'
++        after += prefix+'{uri="/private/token-secret",status="500",exception="private.SecretException"} 1\n'
++        result = http_delta(before, after)
++        self.assertTrue(result['metricPresent'])
++        self.assertIn({'routeBucket':'DEVICE_REGISTER','status':503,'exceptionBucket':'NONE','count':46.0}, result['counts'])
++        self.assertNotIn('token-secret', json.dumps(result))
++        self.assertNotIn('SecretException', json.dumps(result))
++        self.assertEqual(result['counts'][1]['exceptionBucket'], 'OTHER')
++        with self.assertRaises(AssertionError):
++            http_delta(after, before)
++
++    def test_log_and_gc_taxonomy_contains_only_fixed_classes_and_numeric_values(self):
++        raw = 'Необработанное исключение\njava.lang.IllegalStateException: TOKEN_SECRET\nCaused by: org.postgresql.util.PSQLException: PRIVATE_BODY\nprivate.SensitiveException: PHONE_SECRET\n'
++        result = log_taxonomy(raw)
++        self.assertEqual(result['unhandledEventMarkers'], 1)
++        self.assertEqual(result['topLevelClassCounts'], {'IllegalStateException':1,'OTHER':1})
++        self.assertEqual(result['causedByClassCounts'], {'PSQLException':1})
++        self.assertNotIn('SECRET', json.dumps(result))
++        self.assertNotIn('SensitiveException', json.dumps(result))
++        gc = jvm_gc('jvm_gc_pause_seconds_max{cause="PRIVATE_VALUE"} 0.012\njvm_memory_used_bytes{area="heap"} 12345\n')
++        self.assertEqual(gc['jvm_gc_pause_seconds_max'], [0.012])
++        self.assertNotIn('PRIVATE_VALUE', json.dumps(gc))
++
++
+--- a/.github/qa/pr164-linux/runtime_observations.py
++++ b/.github/qa/pr164-linux/runtime_observations.py
+@@ -0,0 +1,96 @@
++"""Owned-run CPU placement and numeric diagnostics; no product instrumentation."""
++import re
++
++
++def cpu_plan(available):
++    cpus = sorted(set(available))
++    assert len(cpus) >= 4 and all(type(x) is int and x >= 0 for x in cpus), 'Four available logical CPUs required'
++    return {'backend': cpus[:2], 'support': cpus[2:4], 'availableLogicalCpuCount': len(cpus), 'physicalIsolationClaimed': False}
++
++
++def cpuset_text(cpus):
++    return ','.join(map(str, cpus))
++
++
++def cpuset_values(text):
++    assert re.fullmatch(r'[0-9]+(?:-[0-9]+)?(?:,[0-9]+(?:-[0-9]+)?)*', text)
++    result = set()
++    for part in text.split(','):
++        bounds = list(map(int, part.split('-')))
++        assert len(bounds) == 1 or bounds[0] <= bounds[1] <= bounds[0] + 256
++        result.update(range(bounds[0], bounds[-1] + 1))
++    return result
++
++
++def require_limits(item, role, plan):
++    if role.startswith('artifact-extraction-'):
++        return
++    if role.startswith('backend-'):
++        memory, cpus, placement = 1536, 2, 'backend'
++    elif role == 'postgres':
++        memory, cpus, placement = 768, 2, 'support'
++    elif role == 'redis':
++        memory, cpus, placement = 128, 1, 'support'
++    else:
++        assert role.startswith('k6-'), 'Unknown runtime role'
++        memory, cpus, placement = 1024, 2, 'support'
++    limits = item['HostConfig']
++    assert limits['Memory'] == memory * 1024**2 and limits['NanoCpus'] == cpus * 1_000_000_000
++    assert cpuset_values(limits['CpusetCpus']) == set(plan[placement]), 'Actual CPU placement mismatch'
++
++
++ROUTES = {
++    '/api/posm/staff/device/register-without-sms': 'DEVICE_REGISTER',
++    '/api/posm/staff/device/login': 'DEVICE_LOGIN',
++    '/api/posm/staff/device/session/check': 'DEVICE_CHECK',
++    '/api/posm/staff/device/logout': 'DEVICE_LOGOUT',
++    '/api/posm/staff/capabilities': 'CAPABILITIES',
++    '/api/posm/heartbeat': 'HEARTBEAT', '/api/posm/playlists/active': 'PLAYLIST', '/api/posm/recommend': 'RECOMMEND',
++    '/api/mobile/auth/login': 'LEARNER_LOGIN', '/api/mobile/training': 'LEARNER_TRAINING',
++}
++EXCEPTIONS = ('AppException', 'SQLTransientConnectionException', 'SQLTimeoutException', 'PSQLException',
++              'CannotCreateTransactionException', 'CannotGetJdbcConnectionException', 'CannotAcquireLockException',
++              'PessimisticLockingFailureException', 'CannotSerializeTransactionException', 'DataAccessResourceFailureException',
++              'UnexpectedRollbackException', 'TransactionSystemException', 'IllegalStateException',
++              'IllegalArgumentException', 'NullPointerException', 'RejectedExecutionException', 'OutOfMemoryError')
++
++
++def http_counts(text):
++    counts = {}
++    for labels, value in re.findall(r'^http_server_requests_seconds_count\{([^\n]*)\} ([0-9.eE+-]+)$', text, re.M):
++        tags = dict(re.findall(r'(\w+)="([^"\\]*)"', labels))
++        status = tags.get('status', '')
++        if not re.fullmatch('[1-5][0-9]{2}', status):
++            continue
++        exception = tags.get('exception', tags.get('error', 'none')).rsplit('.', 1)[-1]
++        bucket = exception if exception in EXCEPTIONS else ('NONE' if exception.lower() in ('none', 'null') else 'OTHER')
++        key = (ROUTES.get(tags.get('uri'), 'OTHER'), int(status), bucket)
++        counts[key] = counts.get(key, 0) + float(value)
++    return counts
++
++
++def http_delta(before, after):
++    result = []
++    old, new = http_counts(before), http_counts(after)
++    for key, count in sorted(new.items()):
++        delta = count - old.get(key, 0)
++        assert delta >= 0
++        if delta:
++            result.append({'routeBucket': key[0], 'status': key[1], 'exceptionBucket': key[2], 'count': delta})
++    return {'metricPresent': bool(new), 'counts': result}
++
++
++def jvm_gc(text):
++    names = ('jvm_gc_pause_seconds_count', 'jvm_gc_pause_seconds_sum', 'jvm_gc_pause_seconds_max',
++             'jvm_gc_memory_allocated_bytes_total', 'jvm_gc_memory_promoted_bytes_total', 'jvm_memory_used_bytes')
++    return {name: list(map(float, re.findall(r'^' + name + r'(?:\{[^\n]*\})? ([0-9.eE+-]+)$', text, re.M))) for name in names}
++
++
++def log_taxonomy(text):
++    result = {'unhandledEventMarkers': text.count('Необработанное исключение'), 'topLevelClassCounts': {}, 'causedByClassCounts': {}, 'occurrencesAreNotRequestCounts': True}
++    for causal, qualified in re.findall(r'^(Caused by: )?([a-zA-Z_$][\w.$]*(?:Exception|Error))(?::|\s|$)', text, re.M):
++        name = qualified.rsplit('.', 1)[-1]
++        bucket = name if name in EXCEPTIONS else 'OTHER'
++        field = 'causedByClassCounts' if causal else 'topLevelClassCounts'
++        result[field][bucket] = result[field].get(bucket, 0) + 1
++    return result

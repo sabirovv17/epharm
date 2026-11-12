@@ -11,6 +11,7 @@ from unittest import mock
 
 from jwt_workload import JwtAcceptance, literal, memory_mib, overview_valid, prometheus_values, token_shape, validate_fixture
 from paired_registration import PairedRegistration, canonical_schema, checked_snapshot, numeric_cpu_model, validate_reference
+from runtime_observations import cpu_plan, cpuset_values, require_limits, http_delta, log_taxonomy, jvm_gc
 
 
 class FakeQa:
@@ -282,6 +283,50 @@ class PairedContracts(unittest.TestCase):
         self.assertEqual(canonical_schema('\\restrict abc\nCREATE TABLE t();\n\\unrestrict abc'), canonical_schema('\\restrict xyz\nCREATE TABLE t();\n\\unrestrict xyz'))
         self.assertNotEqual(canonical_schema('CREATE TABLE t();'), canonical_schema('CREATE TABLE changed();'))
         self.assertEqual(numeric_cpu_model('cpu family : 6\nmodel : 143\nstepping : 8\n\n'), {'family': 6, 'model': 143, 'stepping': 8})
+
+
+class ObservationContracts(unittest.TestCase):
+    def test_affinity_is_disjoint_and_never_increases_existing_limits(self):
+        plan = cpu_plan({3, 5, 7, 9, 11, 13})
+        self.assertEqual((plan['backend'], plan['support']), ([3, 5], [7, 9]))
+        self.assertFalse(plan['physicalIsolationClaimed'])
+        with self.assertRaises(AssertionError):
+            cpu_plan({0, 1, 2})
+        self.assertEqual(cpuset_values('0-1,4'), {0, 1, 4})
+        for role, memory, cpus, placement in (('backend-old-before',1536,2,'backend'), ('backend-candidate',1536,2,'backend'),
+                                             ('postgres',768,2,'support'), ('redis',128,1,'support'), ('k6-register',1024,2,'support'), ('k6-learner',1024,2,'support')):
+            item = {'HostConfig': {'Memory': memory*1024**2, 'NanoCpus': cpus*1_000_000_000, 'CpusetCpus': ','.join(map(str, plan[placement]))}}
+            require_limits(item, role, plan)
+            for key, bad in (('Memory', memory*1024**2+1), ('NanoCpus', cpus*1_000_000_000+1), ('CpusetCpus','0,1')):
+                invalid = copy.deepcopy(item); invalid['HostConfig'][key] = bad
+                with self.assertRaises(AssertionError):
+                    require_limits(invalid, role, plan)
+
+    def test_route_taxonomy_distinguishes_503_without_exporting_dynamic_labels(self):
+        prefix = 'http_server_requests_seconds_count'
+        before = prefix+'{uri="/api/posm/staff/device/register-without-sms",status="503",exception="none"} 2\n'
+        after = prefix+'{uri="/api/posm/staff/device/register-without-sms",status="503",exception="none"} 48\n'
+        after += prefix+'{uri="/private/token-secret",status="500",exception="private.SecretException"} 1\n'
+        result = http_delta(before, after)
+        self.assertTrue(result['metricPresent'])
+        self.assertIn({'routeBucket':'DEVICE_REGISTER','status':503,'exceptionBucket':'NONE','count':46.0}, result['counts'])
+        self.assertNotIn('token-secret', json.dumps(result))
+        self.assertNotIn('SecretException', json.dumps(result))
+        self.assertEqual(result['counts'][1]['exceptionBucket'], 'OTHER')
+        with self.assertRaises(AssertionError):
+            http_delta(after, before)
+
+    def test_log_and_gc_taxonomy_contains_only_fixed_classes_and_numeric_values(self):
+        raw = 'Необработанное исключение\njava.lang.IllegalStateException: TOKEN_SECRET\nCaused by: org.postgresql.util.PSQLException: PRIVATE_BODY\nprivate.SensitiveException: PHONE_SECRET\n'
+        result = log_taxonomy(raw)
+        self.assertEqual(result['unhandledEventMarkers'], 1)
+        self.assertEqual(result['topLevelClassCounts'], {'IllegalStateException':1,'OTHER':1})
+        self.assertEqual(result['causedByClassCounts'], {'PSQLException':1})
+        self.assertNotIn('SECRET', json.dumps(result))
+        self.assertNotIn('SensitiveException', json.dumps(result))
+        gc = jvm_gc('jvm_gc_pause_seconds_max{cause="PRIVATE_VALUE"} 0.012\njvm_memory_used_bytes{area="heap"} 12345\n')
+        self.assertEqual(gc['jvm_gc_pause_seconds_max'], [0.012])
+        self.assertNotIn('PRIVATE_VALUE', json.dumps(gc))
 
 
 if __name__ == '__main__':
