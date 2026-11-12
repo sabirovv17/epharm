@@ -2,42 +2,56 @@
 +++ legacy-run-isolated.py
 @@ -16,0 +17,3 @@
 +from paired_registration import host_cpu_model
-+from runtime_observations import cpu_plan, cpuset_text, require_limits, http_delta, jvm_gc, log_taxonomy
++from runtime_observations import cpu_plan, numeric_cpu_topology, require_limits, backend_preflight, http_delta, jvm_gc, log_taxonomy
 +
 @@ -21 +24 @@
 -OWNER = 'pr160-' + uuid.uuid4().hex[:12]
 +OWNER = 'pr164-' + uuid.uuid4().hex[:12]
 @@ -26,0 +30,2 @@
-+AFFINITY = None
++CPU_BUDGET = None
 +ACTIVE_VERSION = None
-@@ -72,0 +78 @@
-+    require_limits(item, role, AFFINITY)
-@@ -75 +81,2 @@
+@@ -28 +33,2 @@
+-    'backendCpu': 2, 'backendMemoryMiB': 1536, 'jvmXmxMiB': 768, 'metaspaceMiB': 384, 'hikariMaximumPoolSize': 10,
++    'backendCpu': 4, 'backendMemoryMiB': 2048, 'javaToolOptions': '-XX:MaxRAMPercentage=65.0', 'hikariMaximumPoolSize': 10,
++    'admissionMaximumConcurrent': 4, 'admissionWaitSeconds': 2, 'cpuAffinityApplied': False,
+@@ -31 +37,4 @@
+-}, 'limitations': [
++}, 'qualificationProfile': 'PRODUCTION_BUDGET_NOT_EXACT_REPLICA',
++   'priorTwoCpuCandidateFailure': {'runId': 43167673998, 'outcome': 'FAIL', 'created': 477, 'completed': 431,
++                                   'deviceRegister503': 69, 'droppedIterations': 1, 'registrationP95Ms': 2541.75407725},
++   'limitations': [
+@@ -35 +44 @@
+-    'k6 capped at 2 CPU/1024MiB; prior PR158 generator was uncapped. Backend limits and all workload/latency/error thresholds remain unchanged.',
++    'Separate production-budget qualification: backend 4 CPU/2048MiB/JVM65%, no affinity; not an exact production replica. Prior2CPU capacity FAIL is retained, and all workload/latency/error thresholds are unchanged.',
+@@ -72,0 +82 @@
++    require_limits(item, role, CPU_BUDGET)
+@@ -75 +85,2 @@
 -                                'memoryBytes': item['HostConfig']['Memory'], 'nanoCpus': item['HostConfig']['NanoCpus']})
 +                                'memoryBytes': item['HostConfig']['Memory'], 'nanoCpus': item['HostConfig']['NanoCpus'],
 +                                'cpusetCpus': item['HostConfig'].get('CpusetCpus', '')})
-@@ -80,0 +88 @@
-+    placement = 'backend' if role.startswith('backend-') else 'support'
-@@ -82 +90 @@
--                        '--label', LABEL + '=' + OWNER, *args).stdout.strip()
-+                        '--label', LABEL + '=' + OWNER, '--cpuset-cpus', cpuset_text(AFFINITY[placement]), *args).stdout.strip()
-@@ -108 +116 @@
+@@ -108 +119 @@
 -    global BACKEND
 +    global BACKEND, ACTIVE_VERSION
-@@ -119,0 +128,2 @@
+@@ -110 +121 @@
+-        '--memory', '1536m', '--cpus', '2', '--read-only', '--tmpfs', '/tmp:rw,nosuid,size=128m',
++        '--memory', '2048m', '--cpus', '4', '--read-only', '--tmpfs', '/tmp:rw,nosuid,size=128m',
+@@ -118,0 +130,6 @@
++            require_limits(inspect(BACKEND), 'backend-' + which, CPU_BUDGET)
++            preflight = backend_preflight(
++                docker('exec', BACKEND, 'curl', '-fsS', 'http://127.0.0.1:8080/actuator/prometheus').stdout,
++                docker('exec', BACKEND, 'cat', '/sys/fs/cgroup/cpu.max').stdout,
++                docker('exec', BACKEND, 'cat', '/sys/fs/cgroup/memory.max').stdout)
++            REPORT.setdefault('backendBudgetPreflight', {})[which] = preflight
+@@ -119,0 +137,2 @@
 +            ACTIVE_VERSION = expected['version']
 +            print(json.dumps({'stage': 'backend-ready', 'version': int(ACTIVE_VERSION.rsplit('.', 1)[1]), 'schema': 99}), flush=True)
-@@ -171,0 +182 @@
+@@ -171,0 +191 @@
 +    print(json.dumps({'stage': 'phase-start-' + mode, 'version': int(ACTIVE_VERSION.rsplit('.', 1)[1]), 'completed': 0, 'created': 0}), flush=True)
-@@ -181 +192,2 @@
--        QA_OWNER=OWNER, QA_DOCKER=DOCKER, K6_IMAGE=IMAGES['k6'])
-+        QA_OWNER=OWNER, QA_DOCKER=DOCKER, K6_IMAGE=IMAGES['k6'],
-+        QA_SUPPORT_CPUSET=cpuset_text(AFFINITY['support']))
-@@ -182,0 +195 @@
+@@ -182,0 +203 @@
 +    wall_start = dt.datetime.now(dt.timezone.utc).isoformat()
-@@ -184,0 +198 @@
+@@ -184,0 +206 @@
 +    prometheus_before = docker('exec', BACKEND, 'curl', '-fsS', 'http://127.0.0.1:8080/actuator/prometheus').stdout
-@@ -217,0 +232,32 @@
+@@ -217,0 +240,32 @@
 +            # Persist numeric-only observations even when k6 rejects its thresholds.
 +            # The original exit/latency/error gates below remain unchanged.
 +            cpu_observed = cpu_counters(docker('exec', BACKEND, 'cat', '/sys/fs/cgroup/cpu.stat', check=False).stdout)
@@ -70,21 +84,22 @@
 +                              'completed': public_metrics.get('rps_completed', {}).get('values', {}).get('count', 0),
 +                              'created': public_metrics.get('rps_registration_created', {}).get('values', {}).get('count', 0),
 +                              'errors': public_metrics.get('rps_errors', {}).get('values', {}).get('count', 0)}), flush=True)
-@@ -254 +300 @@
+@@ -254 +308 @@
 -    global IDENTITIES, DATABASE, IMAGES, NET, PG, REDIS
-+    global IDENTITIES, DATABASE, IMAGES, NET, PG, REDIS, AFFINITY
-@@ -258,0 +305,2 @@
-+    AFFINITY = cpu_plan(os.sched_getaffinity(0))
-+    REPORT['logicalCpuPlacement'] = AFFINITY
-@@ -288 +336 @@
++    global IDENTITIES, DATABASE, IMAGES, NET, PG, REDIS, CPU_BUDGET
+@@ -258,0 +313,3 @@
++    CPU_BUDGET = cpu_plan(os.sched_getaffinity(0))
++    REPORT['logicalCpuBudget'] = CPU_BUDGET
++    REPORT['numericHostCpuTopology'] = numeric_cpu_topology(pathlib.Path('/proc/cpuinfo').read_text(), CPU_BUDGET['availableLogicalCpuIds'])
+@@ -288 +345 @@
 -        identifier = docker('create', '--network', 'none', '--label', LABEL + '=' + OWNER, image['Id']).stdout.strip()
 +        identifier = docker('create', '--name', OWNER + '-artifact-extraction-' + which, '--network', 'none', '--label', LABEL + '=' + OWNER, image['Id']).stdout.strip()
-@@ -302 +350 @@
+@@ -302 +359 @@
 -    run_id = 'pr160_' + secrets.token_hex(5)
 +    run_id = 'pr164_' + secrets.token_hex(5)
-@@ -347 +395 @@
--    wrapper.write_text('#!/bin/sh\nif [ "$1" = run ]; then\n shift\n exec "$QA_DOCKER" run --name "$RPS_OWNED_CONTAINER" --label "' + LABEL + '=$QA_OWNER" --cpus 2 --memory 1024m "$@"\nfi\nexec "$QA_DOCKER" "$@"\n')
-+    wrapper.write_text('#!/bin/sh\nif [ "$1" = run ]; then\n shift\n exec "$QA_DOCKER" run --name "$RPS_OWNED_CONTAINER" --label "' + LABEL + '=$QA_OWNER" --cpus 2 --memory 1024m --cpuset-cpus "$QA_SUPPORT_CPUSET" "$@"\nfi\nexec "$QA_DOCKER" "$@"\n')
-@@ -440 +488 @@
+@@ -334 +391 @@
+-        'SERVER_ADDRESS': '0.0.0.0', 'JAVA_TOOL_OPTIONS': '-Xmx768m -XX:MaxMetaspaceSize=384m -XX:ActiveProcessorCount=2',
++        'SERVER_ADDRESS': '0.0.0.0', 'JAVA_TOOL_OPTIONS': '-XX:MaxRAMPercentage=65.0',
+@@ -440 +497 @@
 -        assert re.fullmatch(r'pr160-[a-f0-9]{12}', OWNER)
 +        assert re.fullmatch(r'pr164-[a-f0-9]{12}', OWNER)

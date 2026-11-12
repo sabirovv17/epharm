@@ -1,4 +1,4 @@
-# Private PR164 Linux acceptance extension
+# Private PR164 production-budget qualification
 
 This directory is a **harness deliverable only**. No Docker, VM, server or application was executed locally while preparing it. It never changes product source or production configuration. Original private CI43157241311 remains a recorded failed registration latency gate (p95=2110.50ms versus<2000ms); it is not replaced by a later result.
 
@@ -9,8 +9,9 @@ metadata added: official15 starts once for normal Flyway99 and seed; the origina
 zero-profile assertion passes; old15 stops; official16 cold-starts. No optional
 reference registration, SQL snapshot restore or Redis reset runs. All original
 candidate workload, JWT/security, financial preservation and15→16→15→16 gates
-remain mandatory, with unchanged thresholds, rate limits, resources and no warmup
-or retry. Exactly one complete candidate qualification is planned; failure stops.
+remain mandatory, with unchanged thresholds and rate limits, no warmup or retry.
+The separately declared production-budget resources below apply to every backend
+version. Exactly one complete qualification is planned; failure stops.
 
 The snapshot/restore helper was introduced only to undo the additional old15
 reference workload. With that workload removed there are no such business writes
@@ -28,18 +29,33 @@ become candidate acceptance. SnapshotRoundtrip and validate_reference remain
 only diagnostic/offline helpers and are absent from the runtime qualification
 call path. Original candidate43157241311 latencyFAIL remains preserved as well.
 
-## Owned-container placement and failure taxonomy
+The original-flow2CPU candidate43167673998 is also retained as **FAIL**:
+477created,431completed,69DEVICE_REGISTER503,1drop,p95=2541.754ms. A result under
+the new profile cannot supersede that2CPU capacity failure or claim2CPU acceptance.
 
-The next run narrows only our containers' CPU affinity: backend uses exactly two
-available logical CPUs; PostgreSQL, Redis and both generators use two other
-available logical CPUs. Fewer than four available CPUs is refused. All original
-`--cpus` quotas, memory/JVM/Hikari settings, workloads, rates and thresholds remain
-unchanged. This neither allocates physical cores nor prevents host/hypervisor work
-on those CPUs. BE/PG/Redis actual CPU quota/memory/cpuset are inspected before
-business load. Generator creation flags enforce the same quotas plus cpuset;
-actual generator configuration is inspected at the existing first polling
-opportunity **after start**. Original `docker run --rm`/stdin/exit semantics are
-retained, and this harness never uses `docker update`.
+## Separately declared production-budget profile
+
+This is **PRODUCTION_BUDGET_NOT_EXACT_REPLICA**, a separate profile motivated by
+the freshly observed production backend2GiB/JVM65% budget on a4CPU host. It is not
+production-capacity certification or an exact reproduction of production hardware,
+data, host contention or configuration. The test backend has an explicit4CPU
+quota; production's backend quota was unset. No physical-core exclusivity is claimed.
+
+The runner must expose exactly4 available logical CPUs. Every backend version uses
+4CPU/2048MiB and exactly `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=65.0`, without
+Xmx/metaspace/ActiveProcessorCount overrides. PostgreSQL stays2CPU/768MiB,
+Redis1CPU/128MiB and both generators2CPU/1024MiB. All containers have unset CPU
+affinity; no cpuset flag or `docker update` is used. Hikari remains10 and admission
+remains4 with the existing2second wait. Workloads, arrival rates and every SLO/error
+gate remain unchanged.
+
+Actual BE/PG/Redis quotas, memory, empty cpuset and exact backend JVM environment
+are inspected before business load. Generators retain the original command/stdin/
+`--rm`/exit behavior and are inspected after start at the first polling opportunity.
+Read-only numeric CPU topology exports only logical/core/package IDs and numeric
+family/model/stepping/core/sibling fields. Backend readiness checks numeric cgroup
+quota/memory, Prometheus systemCPU4 and poolmax10. Positive heap-pool maxima are
+recorded as pool metadata, explicitly **not** a claimed total heap maximum.
 
 Before cleanup, phase diagnostics retain CPU/cgroup/Hikari observations and JVM GC
 numeric counters/phase-end rolling maxima. Prometheus HTTP counter deltas export
@@ -48,7 +64,7 @@ distinguishes observed503 responses from unhandled500. Backend logs are
 parsed only into fixed exception-class counts; messages, raw URIs, HTTP bodies and
 credentials never enter reports. Log class occurrences are not request counts,
 and handled `AppException`503 may produce no backend error log. Raw logs remain
-private and excluded from upload. One original-flow candidate qualification is planned; another
+private and excluded from upload. One production-budget qualification is planned; another
 candidate failure requires escalation, with previous failed runs retained.
 
 Snapshot diagnostics preserve before/after hashes, counts and failed field names
@@ -97,7 +113,7 @@ The runner starts with `python3 run-linux-acceptance.py`; always run `--cleanup-
 
 ## Scope and fixed acceptance
 
-`legacy-run-isolated.py` derives from the previously reviewed PR160 helper7037b1b5, with owner/run-ID prefixes, owner-prefixed stopped extraction names and the explicit paired-run numeric diagnostics before the existing exit assertion. All46 original assertion ASTs remain identical after the intentional unique owner-prefix normalization `pr160`→`pr164`. `legacy-source-sha256.txt`, cumulative `legacy-scaffold.diff` and `paired-provenance.json` record this controlled change. It retains exact image/JAR extraction/provenance, all98 migration hashes/normal Flyway, original500-desk register/login/staff-session workloads and thresholds, resource caps, nonempty synthetic125KZT wallet/checkpoint preservation, previous-version grant/logout compatibility, and label/ID-scoped cleanup. Original arrival scheduling can count2000 or2001 session iterations; the real cross-version staff check adds1. The report records actual counts and requires at least2001 total, without inventing or overriding metrics.
+`legacy-run-isolated.py` derives from the previously reviewed PR160 helper7037b1b5, with owner/run-ID prefixes, owner-prefixed stopped extraction names, numeric diagnostics and the explicit production-budget profile above. All46 original assertion ASTs remain identical after the intentional unique owner-prefix normalization `pr160`→`pr164`. `legacy-source-sha256.txt`, cumulative `legacy-scaffold.diff` and `paired-provenance.json` record this controlled change. It retains exact image/JAR extraction/provenance, all98 migration hashes/normal Flyway, original500-desk register/login/staff-session workloads and thresholds, unchanged support-service caps, nonempty synthetic125KZT wallet/checkpoint preservation, previous-version grant/logout compatibility, and label/ID-scoped cleanup. Original arrival scheduling can count2000 or2001 session iterations; the real cross-version staff check adds1. The report records actual counts and requires at least2001 total, without inventing or overriding metrics.
 
 The wrapper adds a distinct learner path after those phases:
 
@@ -106,7 +122,7 @@ The wrapper adds a distinct learner path after those phases:
 3. Two additional synthetic probes use normal POSM registration-without-SMS and normal password JWT login; their device grants are immediately logged out. On the **same issued JWT**, active and pending status reads succeed; blocked reads/start fail403 `USER_NOT_ACTIVE`; actual deleted profile fails401 `USER_NOT_FOUND`. An authorized nonexistent-assignment start gives404, so denial is distinguished from a service-level missing record. Training fingerprints before/after denied requests stay identical. These status-fixture cases do not claim a complete frontend/registration onboarding workflow.
 4. A blocked probe stays blocked through **15→16→15→16**. Previous15 is expected to permit its training overview200: report this as a known baseline security weakness, not security rollback acceptance. Final16 must immediately deny403 again, permit the same token after active status, and deny after re-blocking. Schema, primary500 identity/credential/counter data and synthetic financial/training fingerprints remain unchanged. Financial balances/earned totals have a separate fingerprint because the preserved legacy scenario deliberately inserts its125KZT ledger/checkpoint after the load phases.
 
-Backend2CPU/1536MiB, Xmx768MiB/metaspace384MiB/Hikari10; PostgreSQL2CPU/768MiB, Redis1CPU/128MiB, each generator2CPU/1GiB. Containers share only a uniquely labelled **internal** network; no ports or production URLs. Existing integration-disable/SMS-dev settings remain synthetic-only. Source migration changes fail closed and require replanning.
+Backend4CPU/2048MiB, JVMMaxRAMPercentage65%/Hikari10; PostgreSQL2CPU/768MiB, Redis1CPU/128MiB, each generator2CPU/1GiB, all without affinity. Containers share only a uniquely labelled **internal** network; no ports or production URLs. Existing integration-disable/SMS-dev settings remain synthetic-only. Source migration changes fail closed and require replanning.
 
 ## Evidence and cleanup
 

@@ -1,7 +1,8 @@
-"""Owned-run CPU placement and numeric diagnostics; no product instrumentation."""
+"""Owned-run production-budget checks and numeric diagnostics; no product instrumentation."""
 import re
 import pathlib
 import hashlib
+import math
 
 
 def ddl_block_fingerprints(canonical_sql):
@@ -51,39 +52,62 @@ def fingerprint_comparison(before, after):
 
 def cpu_plan(available):
     cpus = sorted(set(available))
-    assert len(cpus) >= 4 and all(type(x) is int and x >= 0 for x in cpus), 'Four available logical CPUs required'
-    return {'backend': cpus[:2], 'support': cpus[2:4], 'availableLogicalCpuCount': len(cpus), 'physicalIsolationClaimed': False}
+    assert len(cpus) == 4 and all(type(x) is int and x >= 0 for x in cpus), 'Exactly four available logical CPUs required'
+    return {'availableLogicalCpuIds': cpus, 'availableLogicalCpuCount': 4,
+            'affinityApplied': False, 'physicalIsolationClaimed': False}
 
 
-def cpuset_text(cpus):
-    return ','.join(map(str, cpus))
-
-
-def cpuset_values(text):
-    assert re.fullmatch(r'[0-9]+(?:-[0-9]+)?(?:,[0-9]+(?:-[0-9]+)?)*', text)
-    result = set()
-    for part in text.split(','):
-        bounds = list(map(int, part.split('-')))
-        assert len(bounds) == 1 or bounds[0] <= bounds[1] <= bounds[0] + 256
-        result.update(range(bounds[0], bounds[-1] + 1))
+def numeric_cpu_topology(text, available):
+    result = []
+    fields = {'processor': 'logicalCpu', 'physical id': 'packageId', 'core id': 'coreId',
+              'cpu family': 'family', 'model': 'model', 'stepping': 'stepping',
+              'cpu cores': 'reportedCores', 'siblings': 'reportedSiblings'}
+    for block in text.split('\n\n'):
+        values = dict((key.strip(), value.strip()) for line in block.splitlines() if ':' in line for key, value in [line.split(':', 1)])
+        if values.get('processor', '').isdigit() and int(values['processor']) in available:
+            result.append({name: int(values[key]) for key, name in fields.items() if values.get(key, '').isdigit()})
+    assert sorted(row['logicalCpu'] for row in result) == sorted(available)
     return result
 
 
 def require_limits(item, role, plan):
     if role.startswith('artifact-extraction-'):
         return
+    assert plan['availableLogicalCpuCount'] == 4 and plan['affinityApplied'] is False
     if role.startswith('backend-'):
-        memory, cpus, placement = 1536, 2, 'backend'
+        memory, cpus = 2048, 4
+        options = [entry for entry in item['Config']['Env'] if entry.startswith('JAVA_TOOL_OPTIONS=')]
+        assert options == ['JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=65.0'], 'Unexpected backend JVM budget'
+        assert not any(entry.split('=', 1)[0] in ('JDK_JAVA_OPTIONS', '_JAVA_OPTIONS') and entry.split('=', 1)[-1]
+                       for entry in item['Config']['Env']), 'Unexpected additional JVM options'
+        env = dict(entry.split('=', 1) for entry in item['Config']['Env'] if '=' in entry)
+        assert env.get('SMS_MAX_CONCURRENT_TRANSACTIONS', '4') == '4', 'Admission must retain its four permits'
     elif role == 'postgres':
-        memory, cpus, placement = 768, 2, 'support'
+        memory, cpus = 768, 2
     elif role == 'redis':
-        memory, cpus, placement = 128, 1, 'support'
+        memory, cpus = 128, 1
     else:
         assert role.startswith('k6-'), 'Unknown runtime role'
-        memory, cpus, placement = 1024, 2, 'support'
+        memory, cpus = 1024, 2
     limits = item['HostConfig']
     assert limits['Memory'] == memory * 1024**2 and limits['NanoCpus'] == cpus * 1_000_000_000
-    assert cpuset_values(limits['CpusetCpus']) == set(plan[placement]), 'Actual CPU placement mismatch'
+    assert limits['CpusetCpus'] == '', 'CPU affinity must remain unset'
+
+
+def backend_preflight(prometheus, cpu_max, memory_max):
+    def metric(name):
+        return list(map(float, re.findall(r'^' + name + r'(?:\{[^\n]*\})? ([0-9.eE+-]+)$', prometheus, re.M)))
+    quota, period = map(int, cpu_max.split())
+    memory = int(memory_max.strip())
+    assert quota > 0 and period > 0 and quota == 4 * period and memory == 2048 * 1024**2
+    assert metric('system_cpu_count') == [4.0]
+    assert metric('hikaricp_connections_max') == [10.0]
+    heap = [float(value) for labels, value in re.findall(r'^jvm_memory_max_bytes\{([^\n]*)\} ([0-9.eE+-]+)$', prometheus, re.M)
+            if re.search(r'(?:^|,)area="heap"(?:,|$)', labels) and float(value) > 0]
+    assert heap and all(math.isfinite(value) for value in heap), 'Finite positive heap pool maximum evidence required'
+    return {'systemCpuCount': 4, 'hikariMaximumPoolSize': 10, 'cgroupCpuQuota': quota,
+            'cgroupCpuPeriod': period, 'cgroupMemoryMaxBytes': memory, 'positiveHeapPoolMaxBytes': heap,
+            'heapPoolValuesAreNotTotalHeapMax': True}
 
 
 ROUTES = {

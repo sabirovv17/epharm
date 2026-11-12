@@ -11,7 +11,7 @@ from unittest import mock
 
 from jwt_workload import JwtAcceptance, literal, memory_mib, overview_valid, prometheus_values, token_shape, validate_fixture
 from paired_registration import SnapshotRoundtrip, canonical_schema, checked_snapshot, numeric_cpu_model, validate_reference
-from runtime_observations import cpu_plan, cpuset_values, require_limits, http_delta, log_taxonomy, jvm_gc, safe_helper_traceback, fingerprint_comparison, ddl_block_fingerprints
+from runtime_observations import cpu_plan, numeric_cpu_topology, require_limits, backend_preflight, http_delta, log_taxonomy, jvm_gc, safe_helper_traceback, fingerprint_comparison, ddl_block_fingerprints
 
 
 class FakeQa:
@@ -346,21 +346,50 @@ class ObservationContracts(unittest.TestCase):
         self.assertEqual(comparison['failedFields'], ['ddlSha256'])
         self.assertEqual(comparison['unexpectedFieldCount'], 1)
 
-    def test_affinity_is_disjoint_and_never_increases_existing_limits(self):
-        plan = cpu_plan({3, 5, 7, 9, 11, 13})
-        self.assertEqual((plan['backend'], plan['support']), ([3, 5], [7, 9]))
+    def test_production_budget_requires_exact_host_caps_jvm_and_unset_affinity(self):
+        plan = cpu_plan({3, 5, 7, 9})
+        self.assertEqual(plan['availableLogicalCpuCount'], 4)
+        self.assertFalse(plan['affinityApplied'])
         self.assertFalse(plan['physicalIsolationClaimed'])
-        with self.assertRaises(AssertionError):
-            cpu_plan({0, 1, 2})
-        self.assertEqual(cpuset_values('0-1,4'), {0, 1, 4})
-        for role, memory, cpus, placement in (('backend-old-before',1536,2,'backend'), ('backend-candidate',1536,2,'backend'),
-                                             ('postgres',768,2,'support'), ('redis',128,1,'support'), ('k6-register',1024,2,'support'), ('k6-learner',1024,2,'support')):
-            item = {'HostConfig': {'Memory': memory*1024**2, 'NanoCpus': cpus*1_000_000_000, 'CpusetCpus': ','.join(map(str, plan[placement]))}}
+        for available in ({0, 1, 2}, {0, 1, 2, 3, 4}, {-1, 1, 2, 3}):
+            with self.assertRaises(AssertionError):
+                cpu_plan(available)
+        for role, memory, cpus in (('backend-old-before',2048,4), ('backend-candidate',2048,4),
+                                   ('backend-old-after',2048,4), ('backend-final',2048,4),
+                                   ('postgres',768,2), ('redis',128,1), ('k6-register',1024,2), ('k6-learner',1024,2)):
+            item = {'HostConfig': {'Memory': memory*1024**2, 'NanoCpus': cpus*1_000_000_000, 'CpusetCpus': ''},
+                    'Config': {'Env': ['JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=65.0']}}
             require_limits(item, role, plan)
             for key, bad in (('Memory', memory*1024**2+1), ('NanoCpus', cpus*1_000_000_000+1), ('CpusetCpus','0,1')):
                 invalid = copy.deepcopy(item); invalid['HostConfig'][key] = bad
                 with self.assertRaises(AssertionError):
                     require_limits(invalid, role, plan)
+            if role.startswith('backend-'):
+                for options in ([], ['JAVA_TOOL_OPTIONS=-Xmx768m'], ['JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=65.0 -XX:ActiveProcessorCount=2'],
+                                ['JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=65.0', '_JAVA_OPTIONS=-Xmx768m'],
+                                ['JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=65.0', 'SMS_MAX_CONCURRENT_TRANSACTIONS=5']):
+                    invalid = copy.deepcopy(item); invalid['Config']['Env'] = options
+                    with self.assertRaises(AssertionError):
+                        require_limits(invalid, role, plan)
+
+    def test_numeric_topology_and_backend_preflight_export_no_raw_metadata(self):
+        text = '\n\n'.join(f'processor : {i}\nphysical id : 0\ncore id : {i}\ncpu family : 25\nmodel : 1\nstepping : 1\nsiblings : 4\nmodel name : PRIVATE_HOST_NAME' for i in range(4))
+        topology = numeric_cpu_topology(text, [0, 1, 2, 3])
+        self.assertEqual(len(topology), 4)
+        self.assertNotIn('PRIVATE', json.dumps(topology))
+        self.assertTrue(all(type(value) is int for row in topology for value in row.values()))
+        prom = 'system_cpu_count 4.0\nhikaricp_connections_max{pool="PRIVATE_POOL"} 10.0\njvm_memory_max_bytes{area="heap",id="PRIVATE_POOL"} 1396703232\n'
+        proof = backend_preflight(prom, '400000 100000', '2147483648')
+        self.assertEqual(proof['systemCpuCount'], 4)
+        self.assertTrue(proof['heapPoolValuesAreNotTotalHeapMax'])
+        self.assertNotIn('PRIVATE', json.dumps(proof))
+        for metrics, cpu, memory in ((prom.replace('4.0', '2.0'), '400000 100000', '2147483648'),
+                                     (prom.replace('10.0', '20.0'), '400000 100000', '2147483648'),
+                                     (prom, '200000 100000', '2147483648'), (prom, '400000 100000', '1610612736'),
+                                     (prom.replace('1396703232', '-1.0'), '400000 100000', '2147483648'),
+                                     (prom.replace('1396703232', '1e999'), '400000 100000', '2147483648')):
+            with self.assertRaises(AssertionError):
+                backend_preflight(metrics, cpu, memory)
 
     def test_route_taxonomy_distinguishes_503_without_exporting_dynamic_labels(self):
         prefix = 'http_server_requests_seconds_count'

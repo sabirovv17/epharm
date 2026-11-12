@@ -1,121 +1,66 @@
 {
-  "state": "FROZEN_ORIGINAL_FRESH_FLOW_NOT_RUNTIME_ACCEPTED",
-  "baseQaCommit": "5852f56ae52a9689c610c968942189a9f83ebbba",
+  "state": "FROZEN_PRODUCTION_BUDGET_NOT_RUNTIME_ACCEPTED",
   "officialCandidateMain": "addb2c97bf752038688e91a6902369da5194009b",
-  "preservedFailureRun": 43157241311,
+  "originalHelperCommit": "7037b1b5",
+  "originalWrapperBase": "5852f56a",
+  "originalWrapperOnlyChanges": "safe_helper_traceback import and failure metadata",
   "originalLegacyAssertCount": 46,
-  "allOriginalLegacyAssertTreesIdentical": true,
-  "unchangedFrozenFiles": {
+  "originalLegacyAssertTrees": "exactly identical after intentional owner-prefix pr160\u2192pr164 normalization",
+  "sourceAndAllWorkloadRateThresholdFilesUnchanged": true,
+  "frozenFiles": {
+    "run-linux-acceptance.py": "3312b7998ef6df504c0a2cc1652b463c28eb27736a16f054de2f3122c8518b97",
     "fetch-official.py": "c9b3d30d5befd968f19c701134369d0c2cb6c0b875f4b866138738373437fccf",
     "jwt_workload.py": "b41768166a464050e8690a8be9813618591a08fdb1c0f5f842d29ccb842a1fa8",
     "learner-jwt.mjs": "090d324b9d8d2d045e726f322aa2cc08fb094b4fa3a65b83cfaa94c7e2b42cae",
-    "job-snippet.yml": "d0abededdbff6e1fb94be0f03bead8dc504818e9f958a9e7978140c8c4ec7a13"
+    "paired_registration.py": "14ff24b17762c281a082eb8c4029a65bdb6cb550b6dfb273079e8b96213485fd"
   },
-  "candidateWorkloadAndThresholdFilesUnchanged": true,
-  "referenceCallsOriginalPhaseRegister": false,
-  "candidateAttempts": 1,
-  "referenceAttempts": 0,
-  "candidateWarmup": false,
-  "snapshotAndRawDataUploadAllowed": false,
-  "privateSnapshotBoundBytes": 33554432,
-  "offlineTests": "19 PASS",
-  "pythonAst": "PASS",
-  "applicationDockerVmServerExecutionByPreparer": false,
-  "newRuntimeAcceptance": "PENDING_ROOT_RUN",
-  "referenceCompletionGuard": {
-    "created": 500,
-    "completed": 500,
-    "checksFailed": 0,
-    "httpFailureRate": 0,
-    "allZeroErrorAndDroppedCountersRequired": true,
-    "onlyAllowedFailureMetric": "http_req_duration{workload:rps-register}",
-    "onlyAllowedFailedGates": [
-      "p(95)<2000",
-      "p(99)<10000"
-    ],
-    "assertionWithK6Exit0": "ABORT",
-    "originalVerifySqlBeforeRestore": "REQUIRED_PASS",
-    "sqlError": "ABORT",
-    "runtimeRole": "HISTORICAL_ONLY_NEVER_EXECUTED"
+  "profile": {
+    "name": "PRODUCTION_BUDGET_NOT_EXACT_REPLICA",
+    "basis": "Read-only live76 budget inspected2026-11-12T06:29:16Z;4logicalCPU host/noBEquota/2GiB/JAVA_TOOL_OPTIONS65%",
+    "backendCpuQuota": 4,
+    "backendMemoryMiB": 2048,
+    "javaToolOptions": "-XX:MaxRAMPercentage=65.0",
+    "cpuAffinityApplied": false,
+    "exactAvailableLogicalCpuCountRequired": 4,
+    "hikariMaximumPoolSize": 10,
+    "otpAdmissionPermits": 4,
+    "otpAdmissionWaitSeconds": 2,
+    "supportLimits": "PG2CPU768MiB Redis1CPU128MiB k6both2CPU1024MiB unchanged",
+    "actualPreflight": "exactDockerlimits/emptycpuset/JVMenv plus cgroupCPU4/memory2GiB/promsystemCPU4/pool10; positiveheapmaxpoolvaluesnotclaimedtotalheap",
+    "physicalIsolationOrProductionCapacityCertification": false
   },
-  "isolationBaseQaCommit": "c47f5b388ce5db2723e1439e7ddee882956639fe",
-  "preservedFailureRuns": [
-    43157241311,
-    43159736797
-  ],
-  "logicalCpuAffinity": {
-    "backendLogicalCpus": 2,
-    "supportLogicalCpus": 2,
-    "minimumAvailableLogicalCpus": 4,
-    "disjoint": true,
-    "physicalIsolationClaimed": false,
-    "cpuQuotasMemoryJvmHikariUnchanged": true,
-    "generatorOriginalDockerRunRmStdinExitLifecycleUnchanged": true,
-    "serviceActualInspectBeforeBusinessLoad": true,
-    "generatorCreationLimitsEnforcedAndActualInspectAfterStartAtExistingPoll": true,
-    "dockerUpdateUsed": false
-  },
-  "diagnostics": {
-    "prometheusHttpRouteStatusExceptionDelta": "fixed buckets + numeric status/count only",
-    "backendLogs": "fixed exception-class counts only; occurrences not requests; handled503 may not log",
-    "jvmGc": "numeric counters and phase-end rolling maxima only",
-    "rawUrisBodiesCredentialsMessagesUploaded": false,
-    "originalOtpAdmission4Permits2SecondsChanged": false
-  },
-  "nextPairedAttempts": 0,
-  "candidateFailureAction": "STOP_AND_ESCALATE_NO_RETRY",
-  "workloadSourceHashes": {
-    "load-tests/run-rps-registration.sh": "91abd6e43dac6e201814a08753339576471bf9ae80b0b8145df92a77e4bbcead",
-    "load-tests/k6/rps-registration.js": "76b743a96efb3ae2784e715f2064398381ae6e3b85cea279cb2608cd4efc6993",
-    "load-tests/k6/rps-contract.mjs": "b3387f3010f2fd3e13fbfe281687992fdefa0c4c8a8ff89879d3b3118c12061a"
-  },
-  "snapshotDiagnosticBaseQaCommit": "0a56494659b1d03d95f0c1836e25c877a3e70ce0",
-  "preservedQualificationRuns": [
-    43157241311,
-    43159736797,
-    43162105153
-  ],
-  "snapshotDiagnostic": {
-    "comparisonWrittenBeforeBothStrictEqualities": true,
-    "strictOriginalBaselineAndDdlShaEqualityRetained": true,
-    "intactObjectBlockSortingDiagnosticOnlyNeverEqualityInput": true,
-    "headerFooterDigestsSeparate": true,
-    "failureLocationMetadata": [
-      "helperBasename",
-      "functionName",
-      "lineNumber"
-    ],
-    "localsArgsSourceLinesExceptionBodyExported": false,
-    "rawSqlExported": false,
-    "prior43162105153Reference15": "PASS",
-    "prior43162105153Candidate16Started": false,
-    "exactPriorFailureLocation": "UNKNOWN_UNTIL_NEW_DIAGNOSTIC_EVIDENCE",
-    "unsupportedBlockLayoutDoesNotAlterStrictEquality": true
-  },
-  "assertNormalization": "Only expected uniqueowner regex pr160\u2192pr164; all46 normalized ASTs/order equal",
-  "nextSnapshotRoundtripAttempts": 0,
-  "priorQualificationRunsPreserved": [
+  "preservedFailures": [
     43157241311,
     43159736797,
     43162105153,
-    43165054420
+    43165054420,
+    43167159318,
+    43167673998
   ],
-  "snapshotOnlyReplan": {
-    "baseQaCommit": "4fae816a948abd307e722450a918e2f5cff3e0c4",
-    "stoppedBackendBeforeBaseline": true,
-    "actualRestoreRequired": true,
-    "strictRawFingerprintsUnchanged": true,
-    "candidateThresholdRateResourcesUnchanged": true,
-    "reference15SuccessNoLongerRequired": true,
-    "candidateRegistrationAttempts": 1,
-    "authWarmup": false,
-    "review": "authimplementation+releaseauditreadonly+rootintegration"
+  "latestTwoCpuFailure": {
+    "run": 43167673998,
+    "status": "FAIL",
+    "created": 477,
+    "completed": 431,
+    "register503": 69,
+    "drops": 1,
+    "p95ms": 2541.75407725,
+    "causalRegressionEstablished": false,
+    "mayBeRelabelledPassByNewProfile": false
   },
-  "nextOriginalFlowCandidateAttempts": 1,
-  "originalWrapperAllAssertTreesRetained": true,
-  "originalWrapperBase": "5852f56a",
-  "originalWrapperOnlyChanges": "safe_helper_traceback import and metadata on failure",
-  "optionalRestoreFailedRun": 43167159318,
-  "optionalRestoreOutcome": "FAIL_DDL_HASH_DIFFERENCE_CAUSE_UNKNOWN_CANDIDATE_NOT_RUN",
-  "removeOptionalReferenceAndRestoreReason": "No reference workload/business mutations remain to undo; return original fresh fixture path, not a restore waiver"
+  "optionalSnapshotFailure": {
+    "run": 43167159318,
+    "status": "FAIL",
+    "cause": "UNKNOWNDDLdifference; candidateNOTRUN",
+    "runtimeRestoreRemovedBecause": "Optionaloldreferenceworkloadremoved; nobusinesswrites to undo. Originalfreshfixtureflowrestored."
+  },
+  "newProfileMaximumQualifications": 1,
+  "candidateWarmup": false,
+  "candidateRetries": 0,
+  "failureAction": "STOP; bounded stack/admission diagnostics then capacity/productworkitem, noresource/SLOpermutationtogreen",
+  "offlineTests": "20PASS",
+  "pythonAst": "PASS",
+  "snapshotOrRawLogsTokensCredentialsUploaded": false,
+  "actualApplicationExecutionByPreparer": false,
+  "runtimeAcceptance": "PENDING"
 }

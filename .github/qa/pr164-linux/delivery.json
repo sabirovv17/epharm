@@ -1,8 +1,8 @@
 {
-  "state": "FROZEN_ORIGINAL_FRESH_FLOW_NOT_RUNTIME_ACCEPTED",
-  "createdUtc": "2026-11-12T06:21:31.640283+00:00",
+  "state": "FROZEN_PRODUCTION_BUDGET_NOT_RUNTIME_ACCEPTED",
+  "createdUtc": "2026-11-12T06:36:44.376092+00:00",
   "offlineChecks": [
-    "19 offline trust-boundary/snapshot-only/no-phase/stopped-backend/mutation/strict-DDL/affinity/taxonomy checks PASS",
+    "20 offline trust-boundary/production-budget/caps/JVM/empty-affinity/corecount/numeric-preflight/taxonomy/history checks PASS",
     "all46 original legacy assertion ASTs identical after intentional owner-prefix pr160\u2192pr164 normalization; candidate workload gates unchanged",
     "unchanged fetch/JWT/k6/workload/rate/threshold source PASS",
     "Python AST PASS",
@@ -13,34 +13,37 @@
   "gitCommitPushOrDispatchPerformed": false,
   "productSourceChanged": false,
   "files": {
-    "README.md": "b99ab4764753de2e7dc57e07cf7f7e83a8fe249ae7b6a920cfa721450a331bee",
+    "README.md": "3161ab599e58e0ff3c644b3bf7b56b761cbeb2bdeb910fb5e0cd8e017114ff5d",
     "fetch-official.py": "c9b3d30d5befd968f19c701134369d0c2cb6c0b875f4b866138738373437fccf",
-    "isolation-change.diff": "dfedcc2630e420a8738340fd24e8442b87b61d1bb787031f0ee9ce5069b1d8ee",
+    "isolation-change.diff": "b60d8bef14912743f84b3880fd93ddb1194d2565a42d778b77b62fdb45946fef",
     "job-snippet.yml": "d0abededdbff6e1fb94be0f03bead8dc504818e9f958a9e7978140c8c4ec7a13",
     "jwt_workload.py": "b41768166a464050e8690a8be9813618591a08fdb1c0f5f842d29ccb842a1fa8",
     "learner-jwt.mjs": "090d324b9d8d2d045e726f322aa2cc08fb094b4fa3a65b83cfaa94c7e2b42cae",
-    "legacy-run-isolated.py": "9564a75bbdfe759d38af0ae4d26dc372c94e7d2d47af29f0fae000eb5b98197f",
-    "legacy-scaffold.diff": "dd982e4ffd557374d3557a4e0dcb87438a7cf395f3e65ee1373c68b9e21b1d1d",
-    "legacy-source-sha256.txt": "d0da4aee4ac0334cbeb24c301066e2881bb504fccd72653ac8e5120efc8fafc0",
-    "paired-change.diff": "baf61f1029bbc1b4f830c6afa021aae9b8efcaba8ddaf34c4afeeceff223089c",
-    "paired-provenance.json": "cf0578e78623df43ba2e545de2b4a93e406af8cefd070c676d2a7a546ee50d4e",
+    "legacy-run-isolated.py": "3e22ace8853efc733eabcb14828f5e001abca2725a5665d31685e0c854dd7cf6",
+    "legacy-scaffold.diff": "7ea94d76df9d54d6c264a44b558e25815b91f53721400710b570abf2ed1a7cd7",
+    "legacy-source-sha256.txt": "c6db53b16f6604aab66f114bc08d5c4529b18c2d8ccf916530455598de5f76a6",
+    "paired-change.diff": "a6b3d5b406316d56f9708d3cd0b67639e3f75b182125edf4bf912516e4a986c7",
+    "paired-provenance.json": "44290718f3e5589d9425be8300dead2053196463790329413fc386a9eaa1fe68",
     "paired_registration.py": "14ff24b17762c281a082eb8c4029a65bdb6cb550b6dfb273079e8b96213485fd",
     "run-linux-acceptance.py": "3312b7998ef6df504c0a2cc1652b463c28eb27736a16f054de2f3122c8518b97",
-    "runtime_observations.py": "e84faf256af9980bd0e3c981c29ccac2f58893d2a48c3c9106e3575dba407b2b",
-    "snapshot-diagnostics-change.diff": "7669433d04fe42af61e6bc35446c355d2465f72e4ab43f5c9b25e5017c290fcf",
-    "test_contracts.py": "822f3888d2c456189d994690bed7e13ddea7519d1892e4fd12df61c390f446a1"
+    "runtime_observations.py": "d84de7c5fc3b1218e8985882e35520fc9b2fd9bffc74674384fcb24c45aab039",
+    "snapshot-diagnostics-change.diff": "38e1284e262e280221179bcdf576689803b05555c51989389f1c467b7472c53e",
+    "test_contracts.py": "5cd4df122513d56761639e8bb6be54852dc52ec8547eb0cfeb26b3eaaa20d778",
+    "production-budget-change.diff": "a4029087abd5e0afa57c628e1636e4eff88f06a9e2525cbadeaea1c3b59f2e4c"
   },
   "priorFailedRunsPreserved": [
     43157241311,
     43159736797,
     43165054420,
-    43167159318
+    43167159318,
+    43167673998
   ],
   "priorQualificationRunsPreserved": [
     43157241311,
     43159736797,
     43162105153,
     43165054420,
-    43167159318
+    43167159318,
+    43167673998
   ]
 }

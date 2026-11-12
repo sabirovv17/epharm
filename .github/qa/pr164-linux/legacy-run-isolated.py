@@ -15,7 +15,7 @@ import uuid
 import zipfile
 
 from paired_registration import host_cpu_model
-from runtime_observations import cpu_plan, cpuset_text, require_limits, http_delta, jvm_gc, log_taxonomy
+from runtime_observations import cpu_plan, numeric_cpu_topology, require_limits, backend_preflight, http_delta, jvm_gc, log_taxonomy
 
 os.umask(0o077)
 ROOT = pathlib.Path(os.environ['QA_PRIVATE_ROOT']).resolve()
@@ -27,17 +27,21 @@ OWNED = []
 NET = None
 PG = None
 BACKEND = None
-AFFINITY = None
+CPU_BUDGET = None
 ACTIVE_VERSION = None
 REPORT = {'outcome': 'INCOMPLETE', 'owner': OWNER, 'resources': [], 'phases': {}, 'compatibility': {}, 'limits': {
-    'backendCpu': 2, 'backendMemoryMiB': 1536, 'jvmXmxMiB': 768, 'metaspaceMiB': 384, 'hikariMaximumPoolSize': 10,
+    'backendCpu': 4, 'backendMemoryMiB': 2048, 'javaToolOptions': '-XX:MaxRAMPercentage=65.0', 'hikariMaximumPoolSize': 10,
+    'admissionMaximumConcurrent': 4, 'admissionWaitSeconds': 2, 'cpuAffinityApplied': False,
     'postgresCpu': 2, 'postgresMemoryMiB': 768, 'redisCpu': 1, 'redisMemoryMiB': 128,
     'k6Cpu': 2, 'k6MemoryMiB': 1024,
-}, 'limitations': [
+}, 'qualificationProfile': 'PRODUCTION_BUDGET_NOT_EXACT_REPLICA',
+   'priorTwoCpuCandidateFailure': {'runId': 43167673998, 'outcome': 'FAIL', 'created': 477, 'completed': 431,
+                                   'deviceRegister503': 69, 'droppedIterations': 1, 'registrationP95Ms': 2541.75407725},
+   'limitations': [
     'Synthetic 500-pharmacy API workload; no production-sized dataset, physical POSM capacity or real video playback.',
     'No sales, offline replay, uploads, Flutter/mobile, real SMS, external catalogue, Standard-N source or CRM bridges.',
     'Compatibility covers normal Flyway, process-bound staff sessions and preservation of synthetic financial data; it does not certify financial writers or production disaster recovery.',
-    'k6 capped at 2 CPU/1024MiB; prior PR158 generator was uncapped. Backend limits and all workload/latency/error thresholds remain unchanged.',
+    'Separate production-budget qualification: backend 4 CPU/2048MiB/JVM65%, no affinity; not an exact production replica. Prior2CPU capacity FAIL is retained, and all workload/latency/error thresholds are unchanged.',
 ]}
 
 
@@ -75,7 +79,7 @@ def inspect(identifier):
 def own(identifier, role):
     item = inspect(identifier)
     assert item['Id'] == identifier and item['Config']['Labels'][LABEL] == OWNER
-    require_limits(item, role, AFFINITY)
+    require_limits(item, role, CPU_BUDGET)
     OWNED.append(identifier)
     REPORT['resources'].append({'role': role, 'containerId': identifier, 'imageId': item['Image'],
                                 'memoryBytes': item['HostConfig']['Memory'], 'nanoCpus': item['HostConfig']['NanoCpus'],
@@ -85,9 +89,8 @@ def own(identifier, role):
 
 
 def run_container(role, *args):
-    placement = 'backend' if role.startswith('backend-') else 'support'
     identifier = docker('run', '-d', '--pull=never', '--name', OWNER + '-' + role,
-                        '--label', LABEL + '=' + OWNER, '--cpuset-cpus', cpuset_text(AFFINITY[placement]), *args).stdout.strip()
+                        '--label', LABEL + '=' + OWNER, *args).stdout.strip()
     assert re.fullmatch('[a-f0-9]{64}', identifier)
     return own(identifier, role)
 
@@ -115,7 +118,7 @@ def stop_backend():
 def start_backend(which, image, env_path):
     global BACKEND, ACTIVE_VERSION
     BACKEND = run_container('backend-' + which, '--network', NET, '--network-alias', 'backend',
-        '--memory', '1536m', '--cpus', '2', '--read-only', '--tmpfs', '/tmp:rw,nosuid,size=128m',
+        '--memory', '2048m', '--cpus', '4', '--read-only', '--tmpfs', '/tmp:rw,nosuid,size=128m',
         '--env-file', str(env_path), image)
     deadline = time.monotonic() + 180
     while time.monotonic() < deadline:
@@ -124,6 +127,12 @@ def start_backend(which, image, env_path):
             health = json.loads(result.stdout)
             expected = IDENTITIES['previous' if which.startswith('old') else 'candidate']
             assert health['status'] == 'ok' and health['version'] == expected['version'] and health['commit'] == expected['commit']
+            require_limits(inspect(BACKEND), 'backend-' + which, CPU_BUDGET)
+            preflight = backend_preflight(
+                docker('exec', BACKEND, 'curl', '-fsS', 'http://127.0.0.1:8080/actuator/prometheus').stdout,
+                docker('exec', BACKEND, 'cat', '/sys/fs/cgroup/cpu.max').stdout,
+                docker('exec', BACKEND, 'cat', '/sys/fs/cgroup/memory.max').stdout)
+            REPORT.setdefault('backendBudgetPreflight', {})[which] = preflight
             REPORT['compatibility'][which] = {'health': health, 'schema99Fingerprint': schema()}
             ACTIVE_VERSION = expected['version']
             print(json.dumps({'stage': 'backend-ready', 'version': int(ACTIVE_VERSION.rsplit('.', 1)[1]), 'schema': 99}), flush=True)
@@ -189,8 +198,7 @@ def phase(mode):
         RPS_FIXTURE_FILE=str(ROOT / 'fixture/fixture.private.json'), ISOLATED_RPS_LOAD_TEST='DISPOSABLE_DATABASE_NO_SMS',
         RPS_DOCKER_NETWORK='container:' + BACKEND, K6_RESULT_DIR=str(ROOT / 'results'), MODE=mode,
         VUS='50' if mode == 'register' else '25', DURATION='2m', RPS_OWNED_CONTAINER=name,
-        QA_OWNER=OWNER, QA_DOCKER=DOCKER, K6_IMAGE=IMAGES['k6'],
-        QA_SUPPORT_CPUSET=cpuset_text(AFFINITY['support']))
+        QA_OWNER=OWNER, QA_DOCKER=DOCKER, K6_IMAGE=IMAGES['k6'])
     start = time.monotonic()
     wall_start = dt.datetime.now(dt.timezone.utc).isoformat()
     maxima = {'cpuPercent': {}, 'memoryMiB': {}, 'postgresConnections': 0, 'postgresLockWaiters': 0, 'postgresDeadlocks': 0}
@@ -297,13 +305,14 @@ def phase(mode):
 
 
 def main():
-    global IDENTITIES, DATABASE, IMAGES, NET, PG, REDIS, AFFINITY
+    global IDENTITIES, DATABASE, IMAGES, NET, PG, REDIS, CPU_BUDGET
     assert sys.platform.startswith('linux') and os.environ.get('GITHUB_ACTIONS') == 'true'
     assert os.environ.get('ROOT_CANDIDATE_READY') == 'APPROVED_OFFICIAL_CANDIDATE'
     assert command(['git', '-C', str(SOURCE), 'rev-parse', 'HEAD']).stdout.strip() == os.environ['CANDIDATE_COMMIT']
     assert not os.environ.get('GITHUB_TOKEN') and not os.environ.get('GH_TOKEN'), 'GitHub credentials must not reach runtime step'
-    AFFINITY = cpu_plan(os.sched_getaffinity(0))
-    REPORT['logicalCpuPlacement'] = AFFINITY
+    CPU_BUDGET = cpu_plan(os.sched_getaffinity(0))
+    REPORT['logicalCpuBudget'] = CPU_BUDGET
+    REPORT['numericHostCpuTopology'] = numeric_cpu_topology(pathlib.Path('/proc/cpuinfo').read_text(), CPU_BUDGET['availableLogicalCpuIds'])
     IDENTITIES = json.loads((ROOT / 'artifacts/verified-identities.json').read_text())
     candidate_sources = json.loads((pathlib.Path(IDENTITIES['candidate']['directory']) / 'source-files.json').read_text())
     assert all(hashlib.sha256((SOURCE / name).read_bytes()).hexdigest() == digest for name, digest in candidate_sources.items())
@@ -379,7 +388,7 @@ def main():
         'MEDUSA_SNAPSHOT_INITIAL_DELAY_MS': '86400000', 'SENTRY_DSN': '', 'APP_PUBLIC_BASE_URL': 'http://127.0.0.1:8080',
         'DARIBAR_OTP_BASE_URL': 'http://127.0.0.1:9', 'P1SMS_BASE_URL': 'http://127.0.0.1:9',
         'LOGGING_LEVEL_KZ_EPHARM': 'INFO', 'LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY': 'WARN',
-        'SERVER_ADDRESS': '0.0.0.0', 'JAVA_TOOL_OPTIONS': '-Xmx768m -XX:MaxMetaspaceSize=384m -XX:ActiveProcessorCount=2',
+        'SERVER_ADDRESS': '0.0.0.0', 'JAVA_TOOL_OPTIONS': '-XX:MaxRAMPercentage=65.0',
     }
     for key in ('STANDARDN_DIRECTORY_ENABLED', 'STOREFRONT_CATALOG_ENABLED', 'MEDUSA_ENABLED', 'MERCH_AUTOMATION_ENABLED',
         'MERCH_PLACEMENT_EXPIRY_ENABLED', 'MERCH_TASKS_ENABLED', 'MERCH_REWARDS_ENABLED', 'MERCH_NATIVE_DELIVERY_ENABLED',
@@ -392,7 +401,7 @@ def main():
     (ROOT / 'results').mkdir(mode=0o700)
     (ROOT / 'bin').mkdir(mode=0o700)
     wrapper = ROOT / 'bin/docker'
-    wrapper.write_text('#!/bin/sh\nif [ "$1" = run ]; then\n shift\n exec "$QA_DOCKER" run --name "$RPS_OWNED_CONTAINER" --label "' + LABEL + '=$QA_OWNER" --cpus 2 --memory 1024m --cpuset-cpus "$QA_SUPPORT_CPUSET" "$@"\nfi\nexec "$QA_DOCKER" "$@"\n')
+    wrapper.write_text('#!/bin/sh\nif [ "$1" = run ]; then\n shift\n exec "$QA_DOCKER" run --name "$RPS_OWNED_CONTAINER" --label "' + LABEL + '=$QA_OWNER" --cpus 2 --memory 1024m "$@"\nfi\nexec "$QA_DOCKER" "$@"\n')
     wrapper.chmod(0o700)
     REPORT['stage'] = 'compat-old-before'
     start_backend('old-before', loaded['previous'], env_path)

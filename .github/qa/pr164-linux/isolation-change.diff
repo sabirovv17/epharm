@@ -1,9 +1,12 @@
 --- a/.github/qa/pr164-linux/README.md
 +++ b/.github/qa/pr164-linux/README.md
+@@ -1 +1 @@
+-# Private PR164 Linux acceptance extension
++# Private PR164 production-budget qualification
 @@ -5 +5 @@
 -## One controlled same-host registration comparison
 +## Original fresh-fixture candidate qualification
-@@ -7,8 +7,7 @@
+@@ -7,8 +7,8 @@
 -The first normal old15 stop is intercepted once, after normal Flyway99 and seed
 -verification with zero pharmacist profiles. `paired_registration.py` saves an
 -owner-only private SQL dump of that exact fresh fixture, then calls the unchanged
@@ -17,9 +20,10 @@
 +zero-profile assertion passes; old15 stops; official16 cold-starts. No optional
 +reference registration, SQL snapshot restore or Redis reset runs. All original
 +candidate workload, JWT/security, financial preservation and15→16→15→16 gates
-+remain mandatory, with unchanged thresholds, rate limits, resources and no warmup
-+or retry. Exactly one complete candidate qualification is planned; failure stops.
-@@ -16,8 +15,8 @@
++remain mandatory, with unchanged thresholds and rate limits, no warmup or retry.
++The separately declared production-budget resources below apply to every backend
++version. Exactly one complete qualification is planned; failure stops.
+@@ -16,8 +16,8 @@
 -After stopping old15, restore checks the exact recorded PG/Redis container IDs,
 -owner labels, internal network ID and membership, no published ports, generated
 -database identity, and unchanged owner-only dump digest. Only that disposable
@@ -36,7 +40,7 @@
 +schema99 history matched, while raw DDL and sorted intact-block hashes differed.
 +The cause remains unknown; this evidence is not restore-equivalence proof.
 +Separate production offsite backup/isolated restore has independent scope.
-@@ -25,8 +24,37 @@
+@@ -25,8 +25,52 @@
 -Official16 then cold-starts normally. All original500-fresh-desk registration,
 -login/session, learner JWT/status and15→16→15→16 acceptance gates run once with no
 -threshold/resource/rate-limit changes and no candidate auth warmup. Reference
@@ -52,18 +56,33 @@
 +only diagnostic/offline helpers and are absent from the runtime qualification
 +call path. Original candidate43157241311 latencyFAIL remains preserved as well.
 +
-+## Owned-container placement and failure taxonomy
++The original-flow2CPU candidate43167673998 is also retained as **FAIL**:
++477created,431completed,69DEVICE_REGISTER503,1drop,p95=2541.754ms. A result under
++the new profile cannot supersede that2CPU capacity failure or claim2CPU acceptance.
 +
-+The next run narrows only our containers' CPU affinity: backend uses exactly two
-+available logical CPUs; PostgreSQL, Redis and both generators use two other
-+available logical CPUs. Fewer than four available CPUs is refused. All original
-+`--cpus` quotas, memory/JVM/Hikari settings, workloads, rates and thresholds remain
-+unchanged. This neither allocates physical cores nor prevents host/hypervisor work
-+on those CPUs. BE/PG/Redis actual CPU quota/memory/cpuset are inspected before
-+business load. Generator creation flags enforce the same quotas plus cpuset;
-+actual generator configuration is inspected at the existing first polling
-+opportunity **after start**. Original `docker run --rm`/stdin/exit semantics are
-+retained, and this harness never uses `docker update`.
++## Separately declared production-budget profile
++
++This is **PRODUCTION_BUDGET_NOT_EXACT_REPLICA**, a separate profile motivated by
++the freshly observed production backend2GiB/JVM65% budget on a4CPU host. It is not
++production-capacity certification or an exact reproduction of production hardware,
++data, host contention or configuration. The test backend has an explicit4CPU
++quota; production's backend quota was unset. No physical-core exclusivity is claimed.
++
++The runner must expose exactly4 available logical CPUs. Every backend version uses
++4CPU/2048MiB and exactly `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=65.0`, without
++Xmx/metaspace/ActiveProcessorCount overrides. PostgreSQL stays2CPU/768MiB,
++Redis1CPU/128MiB and both generators2CPU/1024MiB. All containers have unset CPU
++affinity; no cpuset flag or `docker update` is used. Hikari remains10 and admission
++remains4 with the existing2second wait. Workloads, arrival rates and every SLO/error
++gate remain unchanged.
++
++Actual BE/PG/Redis quotas, memory, empty cpuset and exact backend JVM environment
++are inspected before business load. Generators retain the original command/stdin/
++`--rm`/exit behavior and are inspected after start at the first polling opportunity.
++Read-only numeric CPU topology exports only logical/core/package IDs and numeric
++family/model/stepping/core/sibling fields. Backend readiness checks numeric cgroup
++quota/memory, Prometheus systemCPU4 and poolmax10. Positive heap-pool maxima are
++recorded as pool metadata, explicitly **not** a claimed total heap maximum.
 +
 +Before cleanup, phase diagnostics retain CPU/cgroup/Hikari observations and JVM GC
 +numeric counters/phase-end rolling maxima. Prometheus HTTP counter deltas export
@@ -72,7 +91,7 @@
 +parsed only into fixed exception-class counts; messages, raw URIs, HTTP bodies and
 +credentials never enter reports. Log class occurrences are not request counts,
 +and handled `AppException`503 may produce no backend error log. Raw logs remain
-+private and excluded from upload. One original-flow candidate qualification is planned; another
++private and excluded from upload. One production-budget qualification is planned; another
 +candidate failure requires escalation, with previous failed runs retained.
 +
 +Snapshot diagnostics preserve before/after hashes, counts and failed field names
@@ -82,73 +101,92 @@
 +replace the primary order-sensitive `ddlSha256` equality or expose SQL. Run43162105153
 +had a valid reference15 PASS and then an unlocalized snapshot assertion before16;
 +it is retained as a fixture blocker, not a candidate performance failure.
-@@ -72 +100 @@
+@@ -72 +116 @@
 -`legacy-run-isolated.py` derives from the previously reviewed PR160 helper7037b1b5, with owner/run-ID prefixes, owner-prefixed stopped extraction names and the explicit paired-run numeric diagnostics before the existing exit assertion. All46 original assertion ASTs remain identical. `legacy-source-sha256.txt`, cumulative `legacy-scaffold.diff` and `paired-provenance.json` record this controlled change. It retains exact image/JAR extraction/provenance, all98 migration hashes/normal Flyway, original500-desk register/login/staff-session workloads and thresholds, resource caps, nonempty synthetic125KZT wallet/checkpoint preservation, previous-version grant/logout compatibility, and label/ID-scoped cleanup. Original arrival scheduling can count2000 or2001 session iterations; the real cross-version staff check adds1. The report records actual counts and requires at least2001 total, without inventing or overriding metrics.
-+`legacy-run-isolated.py` derives from the previously reviewed PR160 helper7037b1b5, with owner/run-ID prefixes, owner-prefixed stopped extraction names and the explicit paired-run numeric diagnostics before the existing exit assertion. All46 original assertion ASTs remain identical after the intentional unique owner-prefix normalization `pr160`→`pr164`. `legacy-source-sha256.txt`, cumulative `legacy-scaffold.diff` and `paired-provenance.json` record this controlled change. It retains exact image/JAR extraction/provenance, all98 migration hashes/normal Flyway, original500-desk register/login/staff-session workloads and thresholds, resource caps, nonempty synthetic125KZT wallet/checkpoint preservation, previous-version grant/logout compatibility, and label/ID-scoped cleanup. Original arrival scheduling can count2000 or2001 session iterations; the real cross-version staff check adds1. The report records actual counts and requires at least2001 total, without inventing or overriding metrics.
++`legacy-run-isolated.py` derives from the previously reviewed PR160 helper7037b1b5, with owner/run-ID prefixes, owner-prefixed stopped extraction names, numeric diagnostics and the explicit production-budget profile above. All46 original assertion ASTs remain identical after the intentional unique owner-prefix normalization `pr160`→`pr164`. `legacy-source-sha256.txt`, cumulative `legacy-scaffold.diff` and `paired-provenance.json` record this controlled change. It retains exact image/JAR extraction/provenance, all98 migration hashes/normal Flyway, original500-desk register/login/staff-session workloads and thresholds, unchanged support-service caps, nonempty synthetic125KZT wallet/checkpoint preservation, previous-version grant/logout compatibility, and label/ID-scoped cleanup. Original arrival scheduling can count2000 or2001 session iterations; the real cross-version staff check adds1. The report records actual counts and requires at least2001 total, without inventing or overriding metrics.
+@@ -81 +125 @@
+-Backend2CPU/1536MiB, Xmx768MiB/metaspace384MiB/Hikari10; PostgreSQL2CPU/768MiB, Redis1CPU/128MiB, each generator2CPU/1GiB. Containers share only a uniquely labelled **internal** network; no ports or production URLs. Existing integration-disable/SMS-dev settings remain synthetic-only. Source migration changes fail closed and require replanning.
++Backend4CPU/2048MiB, JVMMaxRAMPercentage65%/Hikari10; PostgreSQL2CPU/768MiB, Redis1CPU/128MiB, each generator2CPU/1GiB, all without affinity. Containers share only a uniquely labelled **internal** network; no ports or production URLs. Existing integration-disable/SMS-dev settings remain synthetic-only. Source migration changes fail closed and require replanning.
 --- a/.github/qa/pr164-linux/legacy-run-isolated.py
 +++ b/.github/qa/pr164-linux/legacy-run-isolated.py
 @@ -17,0 +18 @@
-+from runtime_observations import cpu_plan, cpuset_text, require_limits, http_delta, jvm_gc, log_taxonomy
++from runtime_observations import cpu_plan, numeric_cpu_topology, require_limits, backend_preflight, http_delta, jvm_gc, log_taxonomy
 @@ -28,0 +30,2 @@
-+AFFINITY = None
++CPU_BUDGET = None
 +ACTIVE_VERSION = None
-@@ -74,0 +78 @@
-+    require_limits(item, role, AFFINITY)
-@@ -77 +81,2 @@
+@@ -30 +33,2 @@
+-    'backendCpu': 2, 'backendMemoryMiB': 1536, 'jvmXmxMiB': 768, 'metaspaceMiB': 384, 'hikariMaximumPoolSize': 10,
++    'backendCpu': 4, 'backendMemoryMiB': 2048, 'javaToolOptions': '-XX:MaxRAMPercentage=65.0', 'hikariMaximumPoolSize': 10,
++    'admissionMaximumConcurrent': 4, 'admissionWaitSeconds': 2, 'cpuAffinityApplied': False,
+@@ -33 +37,4 @@
+-}, 'limitations': [
++}, 'qualificationProfile': 'PRODUCTION_BUDGET_NOT_EXACT_REPLICA',
++   'priorTwoCpuCandidateFailure': {'runId': 43167673998, 'outcome': 'FAIL', 'created': 477, 'completed': 431,
++                                   'deviceRegister503': 69, 'droppedIterations': 1, 'registrationP95Ms': 2541.75407725},
++   'limitations': [
+@@ -37 +44 @@
+-    'k6 capped at 2 CPU/1024MiB; prior PR158 generator was uncapped. Backend limits and all workload/latency/error thresholds remain unchanged.',
++    'Separate production-budget qualification: backend 4 CPU/2048MiB/JVM65%, no affinity; not an exact production replica. Prior2CPU capacity FAIL is retained, and all workload/latency/error thresholds are unchanged.',
+@@ -74,0 +82 @@
++    require_limits(item, role, CPU_BUDGET)
+@@ -77 +85,2 @@
 -                                'memoryBytes': item['HostConfig']['Memory'], 'nanoCpus': item['HostConfig']['NanoCpus']})
 +                                'memoryBytes': item['HostConfig']['Memory'], 'nanoCpus': item['HostConfig']['NanoCpus'],
 +                                'cpusetCpus': item['HostConfig'].get('CpusetCpus', '')})
-@@ -82,0 +88 @@
-+    placement = 'backend' if role.startswith('backend-') else 'support'
-@@ -84 +90 @@
--                        '--label', LABEL + '=' + OWNER, *args).stdout.strip()
-+                        '--label', LABEL + '=' + OWNER, '--cpuset-cpus', cpuset_text(AFFINITY[placement]), *args).stdout.strip()
-@@ -110 +116 @@
+@@ -110 +119 @@
 -    global BACKEND
 +    global BACKEND, ACTIVE_VERSION
-@@ -121,0 +128,2 @@
+@@ -112 +121 @@
+-        '--memory', '1536m', '--cpus', '2', '--read-only', '--tmpfs', '/tmp:rw,nosuid,size=128m',
++        '--memory', '2048m', '--cpus', '4', '--read-only', '--tmpfs', '/tmp:rw,nosuid,size=128m',
+@@ -120,0 +130,6 @@
++            require_limits(inspect(BACKEND), 'backend-' + which, CPU_BUDGET)
++            preflight = backend_preflight(
++                docker('exec', BACKEND, 'curl', '-fsS', 'http://127.0.0.1:8080/actuator/prometheus').stdout,
++                docker('exec', BACKEND, 'cat', '/sys/fs/cgroup/cpu.max').stdout,
++                docker('exec', BACKEND, 'cat', '/sys/fs/cgroup/memory.max').stdout)
++            REPORT.setdefault('backendBudgetPreflight', {})[which] = preflight
+@@ -121,0 +137,2 @@
 +            ACTIVE_VERSION = expected['version']
 +            print(json.dumps({'stage': 'backend-ready', 'version': int(ACTIVE_VERSION.rsplit('.', 1)[1]), 'schema': 99}), flush=True)
-@@ -173,0 +182 @@
+@@ -173,0 +191 @@
 +    print(json.dumps({'stage': 'phase-start-' + mode, 'version': int(ACTIVE_VERSION.rsplit('.', 1)[1]), 'completed': 0, 'created': 0}), flush=True)
-@@ -183 +192,2 @@
--        QA_OWNER=OWNER, QA_DOCKER=DOCKER, K6_IMAGE=IMAGES['k6'])
-+        QA_OWNER=OWNER, QA_DOCKER=DOCKER, K6_IMAGE=IMAGES['k6'],
-+        QA_SUPPORT_CPUSET=cpuset_text(AFFINITY['support']))
-@@ -184,0 +195 @@
+@@ -184,0 +203 @@
 +    wall_start = dt.datetime.now(dt.timezone.utc).isoformat()
-@@ -186,0 +198 @@
+@@ -186,0 +206 @@
 +    prometheus_before = docker('exec', BACKEND, 'curl', '-fsS', 'http://127.0.0.1:8080/actuator/prometheus').stdout
-@@ -232,0 +245 @@
+@@ -232,0 +253 @@
 +            backend_logs = docker('logs', '--since', wall_start, BACKEND, check=False)
-@@ -235,0 +249,3 @@
+@@ -235,0 +257,3 @@
 +                'httpRouteStatusDelta': http_delta(prometheus_before, pool_observed),
 +                'ownedBackendExceptionClassCounts': log_taxonomy(backend_logs.stdout + backend_logs.stderr),
 +                'jvmGcBefore': jvm_gc(prometheus_before), 'jvmGcAtPhaseEndRollingMax': jvm_gc(pool_observed),
-@@ -241,0 +258,6 @@
+@@ -241,0 +266,6 @@
 +            observed_summary = sorted((ROOT / 'results').glob('rps-' + mode + '-*.json'))
 +            public_metrics = json.loads(observed_summary[0].read_text())['metrics'] if len(observed_summary) == 1 else {}
 +            print(json.dumps({'stage': 'phase-observed-' + mode, 'version': int(ACTIVE_VERSION.rsplit('.', 1)[1]),
 +                              'completed': public_metrics.get('rps_completed', {}).get('values', {}).get('count', 0),
 +                              'created': public_metrics.get('rps_registration_created', {}).get('values', {}).get('count', 0),
 +                              'errors': public_metrics.get('rps_errors', {}).get('values', {}).get('count', 0)}), flush=True)
-@@ -278 +300 @@
+@@ -278 +308 @@
 -    global IDENTITIES, DATABASE, IMAGES, NET, PG, REDIS
-+    global IDENTITIES, DATABASE, IMAGES, NET, PG, REDIS, AFFINITY
-@@ -282,0 +305,2 @@
-+    AFFINITY = cpu_plan(os.sched_getaffinity(0))
-+    REPORT['logicalCpuPlacement'] = AFFINITY
-@@ -371 +395 @@
--    wrapper.write_text('#!/bin/sh\nif [ "$1" = run ]; then\n shift\n exec "$QA_DOCKER" run --name "$RPS_OWNED_CONTAINER" --label "' + LABEL + '=$QA_OWNER" --cpus 2 --memory 1024m "$@"\nfi\nexec "$QA_DOCKER" "$@"\n')
-+    wrapper.write_text('#!/bin/sh\nif [ "$1" = run ]; then\n shift\n exec "$QA_DOCKER" run --name "$RPS_OWNED_CONTAINER" --label "' + LABEL + '=$QA_OWNER" --cpus 2 --memory 1024m --cpuset-cpus "$QA_SUPPORT_CPUSET" "$@"\nfi\nexec "$QA_DOCKER" "$@"\n')
++    global IDENTITIES, DATABASE, IMAGES, NET, PG, REDIS, CPU_BUDGET
+@@ -282,0 +313,3 @@
++    CPU_BUDGET = cpu_plan(os.sched_getaffinity(0))
++    REPORT['logicalCpuBudget'] = CPU_BUDGET
++    REPORT['numericHostCpuTopology'] = numeric_cpu_topology(pathlib.Path('/proc/cpuinfo').read_text(), CPU_BUDGET['availableLogicalCpuIds'])
+@@ -358 +391 @@
+-        'SERVER_ADDRESS': '0.0.0.0', 'JAVA_TOOL_OPTIONS': '-Xmx768m -XX:MaxMetaspaceSize=384m -XX:ActiveProcessorCount=2',
++        'SERVER_ADDRESS': '0.0.0.0', 'JAVA_TOOL_OPTIONS': '-XX:MaxRAMPercentage=65.0',
 --- a/.github/qa/pr164-linux/legacy-source-sha256.txt
 +++ b/.github/qa/pr164-linux/legacy-source-sha256.txt
-@@ -2,2 +2,3 @@
+@@ -2,2 +2,4 @@
 -8373f42169661603a7f995eb679e942d175d939fb12da8c199cf6777f7a8b650 prior-frozen-PR164-prefix-and-extraction-name-only
 -e40b2fe1c88b41dcb56114795b8c67c13e10faf84a1994ab9c6eba4434b4bf82 paired-numeric-diagnostics-only-all-original-asserts-identical
 +8373f42169661603a7f995eb679e942d175d939fb12da8c199cf6777f7a8b650 prior-prefix-and-extraction-only
 +e40b2fe1c88b41dcb56114795b8c67c13e10faf84a1994ab9c6eba4434b4bf82 previous-paired-qa-c47f5b388ce5db2723e1439e7ddee882956639fe
 +9564a75bbdfe759d38af0ae4d26dc372c94e7d2d47af29f0fae000eb5b98197f owned-logical-affinity-and-fixed-numeric-observations-all46original-asserts-identical
++3e22ace8853efc733eabcb14828f5e001abca2725a5665d31685e0c854dd7cf6 production-budget4CPU-2048MiB-JVM65-noaffinity-original46asserts-ownerprefixnormalized
 --- a/.github/qa/pr164-linux/run-linux-acceptance.py
 +++ b/.github/qa/pr164-linux/run-linux-acceptance.py
 @@ -11 +11 @@
@@ -176,7 +214,7 @@
 @@ -13 +13,2 @@
 -from paired_registration import PairedRegistration, canonical_schema, checked_snapshot, numeric_cpu_model, validate_reference
 +from paired_registration import SnapshotRoundtrip, canonical_schema, checked_snapshot, numeric_cpu_model, validate_reference
-+from runtime_observations import cpu_plan, cpuset_values, require_limits, http_delta, log_taxonomy, jvm_gc, safe_helper_traceback, fingerprint_comparison, ddl_block_fingerprints
++from runtime_observations import cpu_plan, numeric_cpu_topology, require_limits, backend_preflight, http_delta, log_taxonomy, jvm_gc, safe_helper_traceback, fingerprint_comparison, ddl_block_fingerprints
 @@ -107 +108,3 @@
 -                                  'HostConfig': {'PortBindings': {}}, 'NetworkSettings': {'Networks': {'own': {'NetworkID': self.NET}}}} for identifier in self.OWNED}
 +                                  'State': {'Running': True}, 'HostConfig': {'PortBindings': {}},
@@ -310,7 +348,7 @@
 +            self.assertEqual(saved['stage'], 'restored-fingerprint')
 +            self.assertEqual(saved['outcome'], 'FAIL')
 +            self.assertFalse(snapshot.completed)
-@@ -286,0 +316,76 @@
+@@ -286,0 +316,105 @@
 +class ObservationContracts(unittest.TestCase):
 +    def test_ddl_block_diagnostic_preserves_complete_sql_and_does_not_replace_strict_hash(self):
 +        header = '-- dump header\nSET search_path = public;\n'
@@ -344,21 +382,50 @@
 +        self.assertEqual(comparison['failedFields'], ['ddlSha256'])
 +        self.assertEqual(comparison['unexpectedFieldCount'], 1)
 +
-+    def test_affinity_is_disjoint_and_never_increases_existing_limits(self):
-+        plan = cpu_plan({3, 5, 7, 9, 11, 13})
-+        self.assertEqual((plan['backend'], plan['support']), ([3, 5], [7, 9]))
++    def test_production_budget_requires_exact_host_caps_jvm_and_unset_affinity(self):
++        plan = cpu_plan({3, 5, 7, 9})
++        self.assertEqual(plan['availableLogicalCpuCount'], 4)
++        self.assertFalse(plan['affinityApplied'])
 +        self.assertFalse(plan['physicalIsolationClaimed'])
-+        with self.assertRaises(AssertionError):
-+            cpu_plan({0, 1, 2})
-+        self.assertEqual(cpuset_values('0-1,4'), {0, 1, 4})
-+        for role, memory, cpus, placement in (('backend-old-before',1536,2,'backend'), ('backend-candidate',1536,2,'backend'),
-+                                             ('postgres',768,2,'support'), ('redis',128,1,'support'), ('k6-register',1024,2,'support'), ('k6-learner',1024,2,'support')):
-+            item = {'HostConfig': {'Memory': memory*1024**2, 'NanoCpus': cpus*1_000_000_000, 'CpusetCpus': ','.join(map(str, plan[placement]))}}
++        for available in ({0, 1, 2}, {0, 1, 2, 3, 4}, {-1, 1, 2, 3}):
++            with self.assertRaises(AssertionError):
++                cpu_plan(available)
++        for role, memory, cpus in (('backend-old-before',2048,4), ('backend-candidate',2048,4),
++                                   ('backend-old-after',2048,4), ('backend-final',2048,4),
++                                   ('postgres',768,2), ('redis',128,1), ('k6-register',1024,2), ('k6-learner',1024,2)):
++            item = {'HostConfig': {'Memory': memory*1024**2, 'NanoCpus': cpus*1_000_000_000, 'CpusetCpus': ''},
++                    'Config': {'Env': ['JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=65.0']}}
 +            require_limits(item, role, plan)
 +            for key, bad in (('Memory', memory*1024**2+1), ('NanoCpus', cpus*1_000_000_000+1), ('CpusetCpus','0,1')):
 +                invalid = copy.deepcopy(item); invalid['HostConfig'][key] = bad
 +                with self.assertRaises(AssertionError):
 +                    require_limits(invalid, role, plan)
++            if role.startswith('backend-'):
++                for options in ([], ['JAVA_TOOL_OPTIONS=-Xmx768m'], ['JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=65.0 -XX:ActiveProcessorCount=2'],
++                                ['JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=65.0', '_JAVA_OPTIONS=-Xmx768m'],
++                                ['JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=65.0', 'SMS_MAX_CONCURRENT_TRANSACTIONS=5']):
++                    invalid = copy.deepcopy(item); invalid['Config']['Env'] = options
++                    with self.assertRaises(AssertionError):
++                        require_limits(invalid, role, plan)
++
++    def test_numeric_topology_and_backend_preflight_export_no_raw_metadata(self):
++        text = '\n\n'.join(f'processor : {i}\nphysical id : 0\ncore id : {i}\ncpu family : 25\nmodel : 1\nstepping : 1\nsiblings : 4\nmodel name : PRIVATE_HOST_NAME' for i in range(4))
++        topology = numeric_cpu_topology(text, [0, 1, 2, 3])
++        self.assertEqual(len(topology), 4)
++        self.assertNotIn('PRIVATE', json.dumps(topology))
++        self.assertTrue(all(type(value) is int for row in topology for value in row.values()))
++        prom = 'system_cpu_count 4.0\nhikaricp_connections_max{pool="PRIVATE_POOL"} 10.0\njvm_memory_max_bytes{area="heap",id="PRIVATE_POOL"} 1396703232\n'
++        proof = backend_preflight(prom, '400000 100000', '2147483648')
++        self.assertEqual(proof['systemCpuCount'], 4)
++        self.assertTrue(proof['heapPoolValuesAreNotTotalHeapMax'])
++        self.assertNotIn('PRIVATE', json.dumps(proof))
++        for metrics, cpu, memory in ((prom.replace('4.0', '2.0'), '400000 100000', '2147483648'),
++                                     (prom.replace('10.0', '20.0'), '400000 100000', '2147483648'),
++                                     (prom, '200000 100000', '2147483648'), (prom, '400000 100000', '1610612736'),
++                                     (prom.replace('1396703232', '-1.0'), '400000 100000', '2147483648'),
++                                     (prom.replace('1396703232', '1e999'), '400000 100000', '2147483648')):
++            with self.assertRaises(AssertionError):
++                backend_preflight(metrics, cpu, memory)
 +
 +    def test_route_taxonomy_distinguishes_503_without_exporting_dynamic_labels(self):
 +        prefix = 'http_server_requests_seconds_count'
@@ -543,11 +610,12 @@
 +            raise
 --- a/.github/qa/pr164-linux/runtime_observations.py
 +++ b/.github/qa/pr164-linux/runtime_observations.py
-@@ -0,0 +1,143 @@
-+"""Owned-run CPU placement and numeric diagnostics; no product instrumentation."""
+@@ -0,0 +1,167 @@
++"""Owned-run production-budget checks and numeric diagnostics; no product instrumentation."""
 +import re
 +import pathlib
 +import hashlib
++import math
 +
 +
 +def ddl_block_fingerprints(canonical_sql):
@@ -597,39 +665,62 @@
 +
 +def cpu_plan(available):
 +    cpus = sorted(set(available))
-+    assert len(cpus) >= 4 and all(type(x) is int and x >= 0 for x in cpus), 'Four available logical CPUs required'
-+    return {'backend': cpus[:2], 'support': cpus[2:4], 'availableLogicalCpuCount': len(cpus), 'physicalIsolationClaimed': False}
++    assert len(cpus) == 4 and all(type(x) is int and x >= 0 for x in cpus), 'Exactly four available logical CPUs required'
++    return {'availableLogicalCpuIds': cpus, 'availableLogicalCpuCount': 4,
++            'affinityApplied': False, 'physicalIsolationClaimed': False}
 +
 +
-+def cpuset_text(cpus):
-+    return ','.join(map(str, cpus))
-+
-+
-+def cpuset_values(text):
-+    assert re.fullmatch(r'[0-9]+(?:-[0-9]+)?(?:,[0-9]+(?:-[0-9]+)?)*', text)
-+    result = set()
-+    for part in text.split(','):
-+        bounds = list(map(int, part.split('-')))
-+        assert len(bounds) == 1 or bounds[0] <= bounds[1] <= bounds[0] + 256
-+        result.update(range(bounds[0], bounds[-1] + 1))
++def numeric_cpu_topology(text, available):
++    result = []
++    fields = {'processor': 'logicalCpu', 'physical id': 'packageId', 'core id': 'coreId',
++              'cpu family': 'family', 'model': 'model', 'stepping': 'stepping',
++              'cpu cores': 'reportedCores', 'siblings': 'reportedSiblings'}
++    for block in text.split('\n\n'):
++        values = dict((key.strip(), value.strip()) for line in block.splitlines() if ':' in line for key, value in [line.split(':', 1)])
++        if values.get('processor', '').isdigit() and int(values['processor']) in available:
++            result.append({name: int(values[key]) for key, name in fields.items() if values.get(key, '').isdigit()})
++    assert sorted(row['logicalCpu'] for row in result) == sorted(available)
 +    return result
 +
 +
 +def require_limits(item, role, plan):
 +    if role.startswith('artifact-extraction-'):
 +        return
++    assert plan['availableLogicalCpuCount'] == 4 and plan['affinityApplied'] is False
 +    if role.startswith('backend-'):
-+        memory, cpus, placement = 1536, 2, 'backend'
++        memory, cpus = 2048, 4
++        options = [entry for entry in item['Config']['Env'] if entry.startswith('JAVA_TOOL_OPTIONS=')]
++        assert options == ['JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=65.0'], 'Unexpected backend JVM budget'
++        assert not any(entry.split('=', 1)[0] in ('JDK_JAVA_OPTIONS', '_JAVA_OPTIONS') and entry.split('=', 1)[-1]
++                       for entry in item['Config']['Env']), 'Unexpected additional JVM options'
++        env = dict(entry.split('=', 1) for entry in item['Config']['Env'] if '=' in entry)
++        assert env.get('SMS_MAX_CONCURRENT_TRANSACTIONS', '4') == '4', 'Admission must retain its four permits'
 +    elif role == 'postgres':
-+        memory, cpus, placement = 768, 2, 'support'
++        memory, cpus = 768, 2
 +    elif role == 'redis':
-+        memory, cpus, placement = 128, 1, 'support'
++        memory, cpus = 128, 1
 +    else:
 +        assert role.startswith('k6-'), 'Unknown runtime role'
-+        memory, cpus, placement = 1024, 2, 'support'
++        memory, cpus = 1024, 2
 +    limits = item['HostConfig']
 +    assert limits['Memory'] == memory * 1024**2 and limits['NanoCpus'] == cpus * 1_000_000_000
-+    assert cpuset_values(limits['CpusetCpus']) == set(plan[placement]), 'Actual CPU placement mismatch'
++    assert limits['CpusetCpus'] == '', 'CPU affinity must remain unset'
++
++
++def backend_preflight(prometheus, cpu_max, memory_max):
++    def metric(name):
++        return list(map(float, re.findall(r'^' + name + r'(?:\{[^\n]*\})? ([0-9.eE+-]+)$', prometheus, re.M)))
++    quota, period = map(int, cpu_max.split())
++    memory = int(memory_max.strip())
++    assert quota > 0 and period > 0 and quota == 4 * period and memory == 2048 * 1024**2
++    assert metric('system_cpu_count') == [4.0]
++    assert metric('hikaricp_connections_max') == [10.0]
++    heap = [float(value) for labels, value in re.findall(r'^jvm_memory_max_bytes\{([^\n]*)\} ([0-9.eE+-]+)$', prometheus, re.M)
++            if re.search(r'(?:^|,)area="heap"(?:,|$)', labels) and float(value) > 0]
++    assert heap and all(math.isfinite(value) for value in heap), 'Finite positive heap pool maximum evidence required'
++    return {'systemCpuCount': 4, 'hikariMaximumPoolSize': 10, 'cgroupCpuQuota': quota,
++            'cgroupCpuPeriod': period, 'cgroupMemoryMaxBytes': memory, 'positiveHeapPoolMaxBytes': heap,
++            'heapPoolValuesAreNotTotalHeapMax': True}
 +
 +
 +ROUTES = {
