@@ -9,6 +9,7 @@ import sys
 
 from jwt_workload import JwtAcceptance
 from paired_registration import PairedRegistration
+from runtime_observations import safe_helper_traceback
 
 
 def load_legacy():
@@ -133,6 +134,7 @@ def main():
     except Exception as error:
         qa.REPORT['outcome'] = 'FAIL'
         qa.REPORT['failureType'] = type(error).__name__
+        qa.REPORT['failureHelperTraceback'] = safe_helper_traceback(error)
         # Neither command arguments nor request/response objects are public diagnostics.
         print('Private isolated acceptance failed: ' + type(error).__name__, file=sys.stderr)
     finally:

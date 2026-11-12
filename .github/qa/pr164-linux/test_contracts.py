@@ -11,7 +11,7 @@ from unittest import mock
 
 from jwt_workload import JwtAcceptance, literal, memory_mib, overview_valid, prometheus_values, token_shape, validate_fixture
 from paired_registration import PairedRegistration, canonical_schema, checked_snapshot, numeric_cpu_model, validate_reference
-from runtime_observations import cpu_plan, cpuset_values, require_limits, http_delta, log_taxonomy, jvm_gc
+from runtime_observations import cpu_plan, cpuset_values, require_limits, http_delta, log_taxonomy, jvm_gc, safe_helper_traceback, fingerprint_comparison, ddl_block_fingerprints
 
 
 class FakeQa:
@@ -279,6 +279,26 @@ class PairedContracts(unittest.TestCase):
             self.assertFalse(any(call[0] == 'sql' and call[1].startswith('DO $$') for call in q.calls))
             self.assertFalse(any('FLUSHDB' in repr(call) for call in q.calls))
 
+    def test_restore_mismatch_is_recorded_before_unchanged_strict_refusal(self):
+        with tempfile.TemporaryDirectory() as root:
+            q = OwnedFixtureQa(root)
+            paired = PairedRegistration(q)
+            baseline = paired.fingerprint()
+            changed = dict(baseline, ddlSha256='f' * 64)
+            def phase(mode):
+                q.rows = 500
+                q.REPORT['phaseDiagnostics']['register'] = {'k6ExitCode': 0, 'backendState': {'OOMKilled': False, 'Running': True}}
+                (q.ROOT / 'results/rps-register-offline.json').write_text(json.dumps(self.reference_summary(q)))
+            def stop():
+                q.BACKEND = None
+            with mock.patch('paired_registration.host_cpu_model', return_value={}), mock.patch.object(paired, 'fingerprint', side_effect=[baseline, baseline, changed]), self.assertRaises(AssertionError):
+                paired.run(phase, stop)
+            saved = json.loads((q.ROOT / 'assessment.json').read_text())['pairedRegistration15']
+            self.assertEqual(saved['snapshotRestoreComparison']['failedFields'], ['ddlSha256'])
+            self.assertEqual(saved['snapshotRestoreComparison']['before']['ddlSha256'], baseline['ddlSha256'])
+            self.assertEqual(saved['snapshotRestoreComparison']['after']['ddlSha256'], changed['ddlSha256'])
+            self.assertFalse(paired.completed)
+
     def test_dump_nonce_is_not_schema_but_schema_changes_remain_visible(self):
         self.assertEqual(canonical_schema('\\restrict abc\nCREATE TABLE t();\n\\unrestrict abc'), canonical_schema('\\restrict xyz\nCREATE TABLE t();\n\\unrestrict xyz'))
         self.assertNotEqual(canonical_schema('CREATE TABLE t();'), canonical_schema('CREATE TABLE changed();'))
@@ -286,6 +306,38 @@ class PairedContracts(unittest.TestCase):
 
 
 class ObservationContracts(unittest.TestCase):
+    def test_ddl_block_diagnostic_preserves_complete_sql_and_does_not_replace_strict_hash(self):
+        header = '-- dump header\nSET search_path = public;\n'
+        a = '--\n-- Name: a; Type: TABLE; Schema: public; Owner: -\n--\nCREATE TABLE a(v integer);\n\n'
+        b = '--\n-- Name: b; Type: TABLE; Schema: public; Owner: -\n--\nCREATE TABLE b(v text);\n\n'
+        footer = '--\n-- PostgreSQL database dump complete\n--\n'
+        first, reordered = header+a+b+footer, header+b+a+footer
+        self.assertNotEqual(hashlib.sha256(first.encode()).hexdigest(), hashlib.sha256(reordered.encode()).hexdigest())
+        self.assertEqual(ddl_block_fingerprints(first), ddl_block_fingerprints(reordered))
+        self.assertEqual(ddl_block_fingerprints(first)['objectBlockCount'], 2)
+        self.assertNotEqual(ddl_block_fingerprints(first), ddl_block_fingerprints(first.replace('v text','v integer')))
+        self.assertNotEqual(ddl_block_fingerprints(first), ddl_block_fingerprints(first.replace('dump header','changed header')))
+        self.assertEqual(ddl_block_fingerprints('Unsupported private SQL')['supportedDumpBlockLayout'], False)
+        self.assertNotIn('CREATE TABLE', json.dumps(ddl_block_fingerprints(first)))
+
+    def test_failure_location_excludes_paths_body_args_and_locals(self):
+        secret_local = 'PRIVATE_LOCAL_SECRET'
+        try:
+            raise AssertionError('PRIVATE_EXCEPTION_BODY_SECRET')
+        except AssertionError as error:
+            frames = safe_helper_traceback(error)
+        self.assertTrue(frames)
+        self.assertEqual(set(frames[-1]), {'helper', 'function', 'line'})
+        self.assertEqual(frames[-1]['helper'], 'test_contracts.py')
+        self.assertIs(type(frames[-1]['line']), int)
+        self.assertNotIn('SECRET', json.dumps(frames))
+        self.assertNotIn('/', json.dumps(frames))
+        self.assertEqual(secret_local, 'PRIVATE_LOCAL_SECRET')
+        comparison = fingerprint_comparison({'password':'PRIVATE_SECRET','ddlSha256':'PRIVATE_SECRET'}, {'ddlSha256':'a'*64})
+        self.assertNotIn('PRIVATE_SECRET', json.dumps(comparison))
+        self.assertEqual(comparison['failedFields'], ['ddlSha256'])
+        self.assertEqual(comparison['unexpectedFieldCount'], 1)
+
     def test_affinity_is_disjoint_and_never_increases_existing_limits(self):
         plan = cpu_plan({3, 5, 7, 9, 11, 13})
         self.assertEqual((plan['backend'], plan['support']), ([3, 5], [7, 9]))

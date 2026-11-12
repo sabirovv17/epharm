@@ -1,8 +1,8 @@
 {
-  "state": "FROZEN_PAIRED_LOGICAL_AFFINITY_DIAGNOSTIC_NOT_RUNTIME_ACCEPTED",
-  "createdUtc": "2026-11-12T05:30:40.362128+00:00",
+  "state": "FROZEN_SNAPSHOT_DIAGNOSTICS_NOT_RUNTIME_ACCEPTED",
+  "createdUtc": "2026-11-12T05:57:30.688225+00:00",
   "offlineChecks": [
-    "15 unittest trust-boundary/snapshot/pair/completion/SQL/affinity/taxonomy checks PASS",
+    "18 unittest trust-boundary/snapshot/pair/completion/SQL/affinity/taxonomy/safe-location/DDL-block checks PASS",
     "all original legacy assert ASTs identical; all wrapper original asserts retained",
     "unchanged fetch/JWT/k6/workload/rate/threshold source PASS",
     "Python AST PASS",
@@ -13,24 +13,30 @@
   "gitCommitPushOrDispatchPerformed": false,
   "productSourceChanged": false,
   "files": {
-    "README.md": "65c8739b7b5fa5102d684f666b8ab3b064ea8087922eefb36132e38470bb1f1a",
+    "README.md": "8daec04986944d29b7ee2ac3f0aa683c838d83401ea56ac6290055b8a30d809e",
     "fetch-official.py": "c9b3d30d5befd968f19c701134369d0c2cb6c0b875f4b866138738373437fccf",
-    "isolation-change.diff": "3ee6bfba3c571bf1930fe62da08e3a35f2350fb2264dacf8e781b191f4f9f765",
+    "isolation-change.diff": "06c264d73fb462fefcd8ef32938f64c3dba0394d87037c2beda64a61f2c79b19",
     "job-snippet.yml": "d0abededdbff6e1fb94be0f03bead8dc504818e9f958a9e7978140c8c4ec7a13",
     "jwt_workload.py": "b41768166a464050e8690a8be9813618591a08fdb1c0f5f842d29ccb842a1fa8",
     "learner-jwt.mjs": "090d324b9d8d2d045e726f322aa2cc08fb094b4fa3a65b83cfaa94c7e2b42cae",
     "legacy-run-isolated.py": "9564a75bbdfe759d38af0ae4d26dc372c94e7d2d47af29f0fae000eb5b98197f",
     "legacy-scaffold.diff": "dd982e4ffd557374d3557a4e0dcb87438a7cf395f3e65ee1373c68b9e21b1d1d",
     "legacy-source-sha256.txt": "d0da4aee4ac0334cbeb24c301066e2881bb504fccd72653ac8e5120efc8fafc0",
-    "paired-change.diff": "bb36446bdeb0d98befa616888f1bff90023253728c8c4b32ce68febda1370dc6",
-    "paired-provenance.json": "381a77376b722618d996c3efaf12b7d923766f9956c55b5b5bde39d8b0f530f2",
-    "paired_registration.py": "ed16f9d9642f0e2d268084371eed464fc17950a3ec53c2dfc703078cc7cca774",
-    "run-linux-acceptance.py": "0af28bdec4145ece8949090d9d453dee99e5d12fa01db865869aaad099bd6f5b",
-    "runtime_observations.py": "9236f11646f18310472ea9356e4ce31a4478152f3eef6517fe3c922b311a2ea6",
-    "test_contracts.py": "4b4a994471c56e2b838f5380508ec7f36390892018dcfe82bc74e631efd50cd7"
+    "paired-change.diff": "0db119da473a35ced7ddbb5f73a1c4ae09a9b9cf9717b6c3ca9a349ac8e5e42d",
+    "paired-provenance.json": "935c2a1aacce48458fa2ddc73dc3301fa61d95395826ba59d6c12829b3f0296e",
+    "paired_registration.py": "d7196201ef76340242c7d2390124698b48d6ebede76b01c9500fffc654446884",
+    "run-linux-acceptance.py": "618cbb38c808d5f0c7cf1c154e399fdd8a066edbe1199d3863a06a31e32c94da",
+    "runtime_observations.py": "e84faf256af9980bd0e3c981c29ccac2f58893d2a48c3c9106e3575dba407b2b",
+    "snapshot-diagnostics-change.diff": "b47747af7278ba9c32b67569df6ae6c473130ae9809df2aa93e93e32dcf0aa26",
+    "test_contracts.py": "2af8b06cd9672bdad44a8cd388e6d68391bfe0b6bb11b96dfac8e6d9c25c714e"
   },
   "priorFailedRunsPreserved": [
     43157241311,
     43159736797
+  ],
+  "priorQualificationRunsPreserved": [
+    43157241311,
+    43159736797,
+    43162105153
   ]
 }

@@ -19,7 +19,7 @@
   "candidateWarmup": false,
   "snapshotAndRawDataUploadAllowed": false,
   "privateSnapshotBoundBytes": 33554432,
-  "offlineTests": "15 PASS",
+  "offlineTests": "18 PASS",
   "pythonAst": "PASS",
   "applicationDockerVmServerExecutionByPreparer": false,
   "newRuntimeAcceptance": "PENDING_ROOT_RUN",
@@ -68,5 +68,28 @@
     "load-tests/run-rps-registration.sh": "91abd6e43dac6e201814a08753339576471bf9ae80b0b8145df92a77e4bbcead",
     "load-tests/k6/rps-registration.js": "76b743a96efb3ae2784e715f2064398381ae6e3b85cea279cb2608cd4efc6993",
     "load-tests/k6/rps-contract.mjs": "b3387f3010f2fd3e13fbfe281687992fdefa0c4c8a8ff89879d3b3118c12061a"
+  },
+  "snapshotDiagnosticBaseQaCommit": "0a56494659b1d03d95f0c1836e25c877a3e70ce0",
+  "preservedQualificationRuns": [
+    43157241311,
+    43159736797,
+    43162105153
+  ],
+  "snapshotDiagnostic": {
+    "comparisonWrittenBeforeBothStrictEqualities": true,
+    "strictOriginalBaselineAndDdlShaEqualityRetained": true,
+    "intactObjectBlockSortingDiagnosticOnlyNeverEqualityInput": true,
+    "headerFooterDigestsSeparate": true,
+    "failureLocationMetadata": [
+      "helperBasename",
+      "functionName",
+      "lineNumber"
+    ],
+    "localsArgsSourceLinesExceptionBodyExported": false,
+    "rawSqlExported": false,
+    "prior43162105153Reference15": "PASS",
+    "prior43162105153Candidate16Started": false,
+    "exactPriorFailureLocation": "UNKNOWN_UNTIL_NEW_DIAGNOSTIC_EVIDENCE",
+    "unsupportedBlockLayoutDoesNotAlterStrictEquality": true
   }
 }

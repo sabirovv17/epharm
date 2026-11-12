@@ -54,6 +54,14 @@ and handled `AppException`503 may produce no backend error log. Raw logs remain
 private and excluded from upload. One next paired run is permitted; another
 candidate failure requires escalation, with previous failed runs retained.
 
+Snapshot diagnostics preserve before/after hashes, counts and failed field names
+before the unchanged strict comparisons. Safe failure locations contain only
+helper basename/function/line. Optional dump diagnostics hash intact complete
+object blocks in sorted order, with header/footer hashes separately; they never
+replace the primary order-sensitive `ddlSha256` equality or expose SQL. Run43162105153
+had a valid reference15 PASS and then an unlocalized snapshot assertion before16;
+it is retained as a fixture blocker, not a candidate performance failure.
+
 ## Root integration interface
 
 Copy these helpers to `.github/qa/pr164-linux/` on a disposable QA branch. Do not copy the old QA `ci.yml`, disable mandatory checks, or merge this harness branch. Root owns the workflow, artifact coordinates, all downloads and launch. `job-snippet.yml` is a job fragment, not a complete workflow or authorization.

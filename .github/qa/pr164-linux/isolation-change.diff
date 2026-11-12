@@ -1,6 +1,6 @@
 --- a/.github/qa/pr164-linux/README.md
 +++ b/.github/qa/pr164-linux/README.md
-@@ -32,0 +33,23 @@
+@@ -32,0 +33,31 @@
 +
 +## Owned-container placement and failure taxonomy
 +
@@ -24,6 +24,14 @@
 +and handled `AppException`503 may produce no backend error log. Raw logs remain
 +private and excluded from upload. One next paired run is permitted; another
 +candidate failure requires escalation, with previous failed runs retained.
++
++Snapshot diagnostics preserve before/after hashes, counts and failed field names
++before the unchanged strict comparisons. Safe failure locations contain only
++helper basename/function/line. Optional dump diagnostics hash intact complete
++object blocks in sorted order, with header/footer hashes separately; they never
++replace the primary order-sensitive `ddlSha256` equality or expose SQL. Run43162105153
++had a valid reference15 PASS and then an unlocalized snapshot assertion before16;
++it is retained as a fixture blocker, not a candidate performance failure.
 --- a/.github/qa/pr164-linux/legacy-run-isolated.py
 +++ b/.github/qa/pr164-linux/legacy-run-isolated.py
 @@ -17,0 +18 @@
@@ -88,12 +96,71 @@
 +8373f42169661603a7f995eb679e942d175d939fb12da8c199cf6777f7a8b650 prior-prefix-and-extraction-only
 +e40b2fe1c88b41dcb56114795b8c67c13e10faf84a1994ab9c6eba4434b4bf82 previous-paired-qa-c47f5b388ce5db2723e1439e7ddee882956639fe
 +9564a75bbdfe759d38af0ae4d26dc372c94e7d2d47af29f0fae000eb5b98197f owned-logical-affinity-and-fixed-numeric-observations-all46original-asserts-identical
+--- a/.github/qa/pr164-linux/run-linux-acceptance.py
++++ b/.github/qa/pr164-linux/run-linux-acceptance.py
+@@ -11,0 +12 @@
++from runtime_observations import safe_helper_traceback
+@@ -135,0 +137 @@
++        qa.REPORT['failureHelperTraceback'] = safe_helper_traceback(error)
 --- a/.github/qa/pr164-linux/test_contracts.py
 +++ b/.github/qa/pr164-linux/test_contracts.py
 @@ -13,0 +14 @@
-+from runtime_observations import cpu_plan, cpuset_values, require_limits, http_delta, log_taxonomy, jvm_gc
-@@ -286,0 +288,44 @@
++from runtime_observations import cpu_plan, cpuset_values, require_limits, http_delta, log_taxonomy, jvm_gc, safe_helper_traceback, fingerprint_comparison, ddl_block_fingerprints
+@@ -280,0 +282,20 @@
++    def test_restore_mismatch_is_recorded_before_unchanged_strict_refusal(self):
++        with tempfile.TemporaryDirectory() as root:
++            q = OwnedFixtureQa(root)
++            paired = PairedRegistration(q)
++            baseline = paired.fingerprint()
++            changed = dict(baseline, ddlSha256='f' * 64)
++            def phase(mode):
++                q.rows = 500
++                q.REPORT['phaseDiagnostics']['register'] = {'k6ExitCode': 0, 'backendState': {'OOMKilled': False, 'Running': True}}
++                (q.ROOT / 'results/rps-register-offline.json').write_text(json.dumps(self.reference_summary(q)))
++            def stop():
++                q.BACKEND = None
++            with mock.patch('paired_registration.host_cpu_model', return_value={}), mock.patch.object(paired, 'fingerprint', side_effect=[baseline, baseline, changed]), self.assertRaises(AssertionError):
++                paired.run(phase, stop)
++            saved = json.loads((q.ROOT / 'assessment.json').read_text())['pairedRegistration15']
++            self.assertEqual(saved['snapshotRestoreComparison']['failedFields'], ['ddlSha256'])
++            self.assertEqual(saved['snapshotRestoreComparison']['before']['ddlSha256'], baseline['ddlSha256'])
++            self.assertEqual(saved['snapshotRestoreComparison']['after']['ddlSha256'], changed['ddlSha256'])
++            self.assertFalse(paired.completed)
++
+@@ -286,0 +308,76 @@
 +class ObservationContracts(unittest.TestCase):
++    def test_ddl_block_diagnostic_preserves_complete_sql_and_does_not_replace_strict_hash(self):
++        header = '-- dump header\nSET search_path = public;\n'
++        a = '--\n-- Name: a; Type: TABLE; Schema: public; Owner: -\n--\nCREATE TABLE a(v integer);\n\n'
++        b = '--\n-- Name: b; Type: TABLE; Schema: public; Owner: -\n--\nCREATE TABLE b(v text);\n\n'
++        footer = '--\n-- PostgreSQL database dump complete\n--\n'
++        first, reordered = header+a+b+footer, header+b+a+footer
++        self.assertNotEqual(hashlib.sha256(first.encode()).hexdigest(), hashlib.sha256(reordered.encode()).hexdigest())
++        self.assertEqual(ddl_block_fingerprints(first), ddl_block_fingerprints(reordered))
++        self.assertEqual(ddl_block_fingerprints(first)['objectBlockCount'], 2)
++        self.assertNotEqual(ddl_block_fingerprints(first), ddl_block_fingerprints(first.replace('v text','v integer')))
++        self.assertNotEqual(ddl_block_fingerprints(first), ddl_block_fingerprints(first.replace('dump header','changed header')))
++        self.assertEqual(ddl_block_fingerprints('Unsupported private SQL')['supportedDumpBlockLayout'], False)
++        self.assertNotIn('CREATE TABLE', json.dumps(ddl_block_fingerprints(first)))
++
++    def test_failure_location_excludes_paths_body_args_and_locals(self):
++        secret_local = 'PRIVATE_LOCAL_SECRET'
++        try:
++            raise AssertionError('PRIVATE_EXCEPTION_BODY_SECRET')
++        except AssertionError as error:
++            frames = safe_helper_traceback(error)
++        self.assertTrue(frames)
++        self.assertEqual(set(frames[-1]), {'helper', 'function', 'line'})
++        self.assertEqual(frames[-1]['helper'], 'test_contracts.py')
++        self.assertIs(type(frames[-1]['line']), int)
++        self.assertNotIn('SECRET', json.dumps(frames))
++        self.assertNotIn('/', json.dumps(frames))
++        self.assertEqual(secret_local, 'PRIVATE_LOCAL_SECRET')
++        comparison = fingerprint_comparison({'password':'PRIVATE_SECRET','ddlSha256':'PRIVATE_SECRET'}, {'ddlSha256':'a'*64})
++        self.assertNotIn('PRIVATE_SECRET', json.dumps(comparison))
++        self.assertEqual(comparison['failedFields'], ['ddlSha256'])
++        self.assertEqual(comparison['unexpectedFieldCount'], 1)
++
 +    def test_affinity_is_disjoint_and_never_increases_existing_limits(self):
 +        plan = cpu_plan({3, 5, 7, 9, 11, 13})
 +        self.assertEqual((plan['backend'], plan['support']), ([3, 5], [7, 9]))
@@ -137,11 +204,82 @@
 +        self.assertNotIn('PRIVATE_VALUE', json.dumps(gc))
 +
 +
+--- a/.github/qa/pr164-linux/paired_registration.py
++++ b/.github/qa/pr164-linux/paired_registration.py
+@@ -7,0 +8 @@
++from runtime_observations import fingerprint_comparison, ddl_block_fingerprints
+@@ -68,0 +70 @@
++        self.last_ddl_diagnostics = None
+@@ -108 +110,3 @@
+-        return {'schema99': q.schema(), 'ddlSha256': hashlib.sha256(canonical_schema(self.dump(True)).encode()).hexdigest(),
++        ddl = canonical_schema(self.dump(True))
++        self.last_ddl_diagnostics = ddl_block_fingerprints(ddl)
++        return {'schema99': q.schema(), 'ddlSha256': hashlib.sha256(ddl.encode()).hexdigest(),
+@@ -127,0 +132 @@
++        baseline_ddl_diagnostics = self.last_ddl_diagnostics
+@@ -134 +139,5 @@
+-        assert self.fingerprint() == baseline, 'Snapshot was not taken from a stable fresh fixture'
++        stable = self.fingerprint()
++        q.REPORT['pairedSnapshotStabilityComparison'] = fingerprint_comparison(baseline, stable)
++        q.REPORT['pairedSnapshotStabilityComparison']['ddlBlockDiagnostics'] = {'before': baseline_ddl_diagnostics, 'after': self.last_ddl_diagnostics}
++        q.write('assessment.json', q.REPORT)
++        assert stable == baseline, 'Snapshot was not taken from a stable fresh fixture'
+@@ -179,0 +189,3 @@
++        reference['snapshotRestoreComparison'] = fingerprint_comparison(baseline, restored)
++        reference['snapshotRestoreComparison']['ddlBlockDiagnostics'] = {'before': baseline_ddl_diagnostics, 'after': self.last_ddl_diagnostics}
++        q.write('assessment.json', q.REPORT)
 --- a/.github/qa/pr164-linux/runtime_observations.py
 +++ b/.github/qa/pr164-linux/runtime_observations.py
-@@ -0,0 +1,96 @@
+@@ -0,0 +1,143 @@
 +"""Owned-run CPU placement and numeric diagnostics; no product instrumentation."""
 +import re
++import pathlib
++import hashlib
++
++
++def ddl_block_fingerprints(canonical_sql):
++    headers = list(re.finditer(r'(?m)^--\n-- Name: [^\n]+; Type: [^\n]+; Schema: [^\n]+; Owner: [^\n]*\n--\n', canonical_sql))
++    footers = list(re.finditer(r'(?m)^--\n-- PostgreSQL database dump complete\n--(?:\n|$)', canonical_sql))
++    if not headers or len(footers) != 1 or footers[0].start() <= headers[-1].start():
++        return {'supportedDumpBlockLayout': False}
++    footer = footers[0].start()
++    blocks = [canonical_sql[header.start():headers[i+1].start() if i+1 < len(headers) else footer].encode('utf-8') for i, header in enumerate(headers)]
++    digest = hashlib.sha256()
++    for block in sorted(blocks):
++        digest.update(len(block).to_bytes(8, 'big'))
++        digest.update(block)
++    return {'supportedDumpBlockLayout': True, 'objectBlockCount': len(blocks), 'sortedIntactObjectBlocksSha256': digest.hexdigest(),
++            'headerSha256': hashlib.sha256(canonical_sql[:headers[0].start()].encode('utf-8')).hexdigest(),
++            'footerSha256': hashlib.sha256(canonical_sql[footer:].encode('utf-8')).hexdigest()}
++
++
++def safe_helper_traceback(error):
++    root = pathlib.Path(__file__).resolve().parent
++    frames = []
++    cursor = error.__traceback__
++    while cursor is not None:
++        code = cursor.tb_frame.f_code
++        path = pathlib.Path(code.co_filename).resolve()
++        if path.parent == root and re.fullmatch(r'[A-Za-z0-9_-]+\.py', path.name) and re.fullmatch(r'[A-Za-z0-9_<>-]{1,128}', code.co_name):
++            frames.append({'helper': path.name, 'function': code.co_name, 'line': cursor.tb_lineno})
++        cursor = cursor.tb_next
++    return frames[-32:]
++
++
++def fingerprint_comparison(before, after):
++    fields = ('schema99', 'ddlSha256', 'allPublicDataSha256', 'sequenceCountersSha256',
++              'publicTableCount', 'publicRowCount', 'sequenceCount', 'pharmacists', 'deviceSessions')
++    def safe(values):
++        result = dict.fromkeys(fields)
++        for key, value in values.items():
++            if key in fields[:4] and isinstance(value, str) and re.fullmatch('[a-f0-9]{64}', value):
++                result[key] = value
++            if key in fields[4:] and type(value) is int and value >= 0:
++                result[key] = value
++        return result
++    return {'before': safe(before), 'after': safe(after),
++            'failedFields': [key for key in fields if before.get(key) != after.get(key)],
++            'unexpectedFieldCount': len((set(before) | set(after)) - set(fields))}
 +
 +
 +def cpu_plan(available):

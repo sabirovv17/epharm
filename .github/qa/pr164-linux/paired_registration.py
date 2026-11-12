@@ -5,6 +5,7 @@ import os
 import re
 import stat
 import time
+from runtime_observations import fingerprint_comparison, ddl_block_fingerprints
 
 
 def owned_identity(item, identifier, owner, label, network):
@@ -66,6 +67,7 @@ class PairedRegistration:
     def __init__(self, qa):
         self.q = qa
         self.completed = False
+        self.last_ddl_diagnostics = None
 
     def guard(self):
         q = self.q
@@ -105,7 +107,9 @@ class PairedRegistration:
             counters[name] = json.loads(q.sql('SELECT json_build_array(last_value,is_called) FROM public."' + name + '";'))
         counts = {name: len(rows) for name, rows in data.items()}
         assert counts['pharmacists'] == 0 and counts['posm_device_staff_sessions'] == 0
-        return {'schema99': q.schema(), 'ddlSha256': hashlib.sha256(canonical_schema(self.dump(True)).encode()).hexdigest(),
+        ddl = canonical_schema(self.dump(True))
+        self.last_ddl_diagnostics = ddl_block_fingerprints(ddl)
+        return {'schema99': q.schema(), 'ddlSha256': hashlib.sha256(ddl.encode()).hexdigest(),
                 'allPublicDataSha256': hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(),
                 'sequenceCountersSha256': hashlib.sha256(json.dumps(counters, sort_keys=True).encode()).hexdigest(),
                 'publicTableCount': len(names), 'publicRowCount': sum(counts.values()), 'sequenceCount': len(sequences),
@@ -125,13 +129,18 @@ class PairedRegistration:
         self.guard()
         assert q.docker('exec', q.REDIS, 'redis-cli', '-n', '0', 'DBSIZE').stdout.strip() == '0'
         baseline = self.fingerprint()
+        baseline_ddl_diagnostics = self.last_ddl_diagnostics
         cpu = host_cpu_model()
         snapshot = q.ROOT / 'paired-registration.private.sql'
         with snapshot.open('x') as output:
             output.write(self.dump())
         snapshot.chmod(0o600)
         snapshot_hash = hashlib.sha256(snapshot.read_bytes()).hexdigest()
-        assert self.fingerprint() == baseline, 'Snapshot was not taken from a stable fresh fixture'
+        stable = self.fingerprint()
+        q.REPORT['pairedSnapshotStabilityComparison'] = fingerprint_comparison(baseline, stable)
+        q.REPORT['pairedSnapshotStabilityComparison']['ddlBlockDiagnostics'] = {'before': baseline_ddl_diagnostics, 'after': self.last_ddl_diagnostics}
+        q.write('assessment.json', q.REPORT)
+        assert stable == baseline, 'Snapshot was not taken from a stable fresh fixture'
         assert not list((q.ROOT / 'results').glob('rps-register-*.json'))
         old_phases, old_diagnostics = q.REPORT['phases'], q.REPORT.get('phaseDiagnostics', {})
         q.REPORT['phases'], q.REPORT['phaseDiagnostics'] = {}, {}
@@ -177,6 +186,9 @@ class PairedRegistration:
         q.sql(guard + restore_text)
         self.reset_redis()
         restored = self.fingerprint()
+        reference['snapshotRestoreComparison'] = fingerprint_comparison(baseline, restored)
+        reference['snapshotRestoreComparison']['ddlBlockDiagnostics'] = {'before': baseline_ddl_diagnostics, 'after': self.last_ddl_diagnostics}
+        q.write('assessment.json', q.REPORT)
         assert restored == baseline, 'Reference experiment changed the candidate fresh fixture'
         reference['snapshotRestore'] = {'outcome': 'PASS', 'snapshotSha256': snapshot_hash, 'before': baseline, 'after': restored,
                                         'ownedRedisDb0Keys': 0, 'candidateAuthWarmup': False, 'candidateFreshProfiles': 0,

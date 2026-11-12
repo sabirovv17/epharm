@@ -1,5 +1,52 @@
 """Owned-run CPU placement and numeric diagnostics; no product instrumentation."""
 import re
+import pathlib
+import hashlib
+
+
+def ddl_block_fingerprints(canonical_sql):
+    headers = list(re.finditer(r'(?m)^--\n-- Name: [^\n]+; Type: [^\n]+; Schema: [^\n]+; Owner: [^\n]*\n--\n', canonical_sql))
+    footers = list(re.finditer(r'(?m)^--\n-- PostgreSQL database dump complete\n--(?:\n|$)', canonical_sql))
+    if not headers or len(footers) != 1 or footers[0].start() <= headers[-1].start():
+        return {'supportedDumpBlockLayout': False}
+    footer = footers[0].start()
+    blocks = [canonical_sql[header.start():headers[i+1].start() if i+1 < len(headers) else footer].encode('utf-8') for i, header in enumerate(headers)]
+    digest = hashlib.sha256()
+    for block in sorted(blocks):
+        digest.update(len(block).to_bytes(8, 'big'))
+        digest.update(block)
+    return {'supportedDumpBlockLayout': True, 'objectBlockCount': len(blocks), 'sortedIntactObjectBlocksSha256': digest.hexdigest(),
+            'headerSha256': hashlib.sha256(canonical_sql[:headers[0].start()].encode('utf-8')).hexdigest(),
+            'footerSha256': hashlib.sha256(canonical_sql[footer:].encode('utf-8')).hexdigest()}
+
+
+def safe_helper_traceback(error):
+    root = pathlib.Path(__file__).resolve().parent
+    frames = []
+    cursor = error.__traceback__
+    while cursor is not None:
+        code = cursor.tb_frame.f_code
+        path = pathlib.Path(code.co_filename).resolve()
+        if path.parent == root and re.fullmatch(r'[A-Za-z0-9_-]+\.py', path.name) and re.fullmatch(r'[A-Za-z0-9_<>-]{1,128}', code.co_name):
+            frames.append({'helper': path.name, 'function': code.co_name, 'line': cursor.tb_lineno})
+        cursor = cursor.tb_next
+    return frames[-32:]
+
+
+def fingerprint_comparison(before, after):
+    fields = ('schema99', 'ddlSha256', 'allPublicDataSha256', 'sequenceCountersSha256',
+              'publicTableCount', 'publicRowCount', 'sequenceCount', 'pharmacists', 'deviceSessions')
+    def safe(values):
+        result = dict.fromkeys(fields)
+        for key, value in values.items():
+            if key in fields[:4] and isinstance(value, str) and re.fullmatch('[a-f0-9]{64}', value):
+                result[key] = value
+            if key in fields[4:] and type(value) is int and value >= 0:
+                result[key] = value
+        return result
+    return {'before': safe(before), 'after': safe(after),
+            'failedFields': [key for key in fields if before.get(key) != after.get(key)],
+            'unexpectedFieldCount': len((set(before) | set(after)) - set(fields))}
 
 
 def cpu_plan(available):
