@@ -3,7 +3,7 @@
   "createdUtc": "2026-11-12T06:17:39.752957+00:00",
   "offlineChecks": [
     "19 offline trust-boundary/snapshot-only/no-phase/stopped-backend/mutation/strict-DDL/affinity/taxonomy checks PASS",
-    "all46 original legacy assertion ASTs identical; candidate workload gates unchanged",
+    "all46 original legacy assertion ASTs identical after intentional owner-prefix pr160\u2192pr164 normalization; candidate workload gates unchanged",
     "unchanged fetch/JWT/k6/workload/rate/threshold source PASS",
     "Python AST PASS",
     "node syntax PASS"
@@ -13,21 +13,21 @@
   "gitCommitPushOrDispatchPerformed": false,
   "productSourceChanged": false,
   "files": {
-    "README.md": "e285ca1f59f8270795c103ee0c7c1a3905edde215527fa9c516703e2bbe7baac",
+    "README.md": "52849d20db068296d7299fa908b4619850cf3dc15018b057ed051feaf0dc342a",
     "fetch-official.py": "c9b3d30d5befd968f19c701134369d0c2cb6c0b875f4b866138738373437fccf",
-    "isolation-change.diff": "5bbd08e38471609b00a2a1e411f407c2c27ef99b4c1e2aad550461876815ff80",
+    "isolation-change.diff": "f78f79c1bc1f541419b444a5bbbdcfde8962eeb116ea30737324129e4c3d735b",
     "job-snippet.yml": "d0abededdbff6e1fb94be0f03bead8dc504818e9f958a9e7978140c8c4ec7a13",
     "jwt_workload.py": "b41768166a464050e8690a8be9813618591a08fdb1c0f5f842d29ccb842a1fa8",
     "learner-jwt.mjs": "090d324b9d8d2d045e726f322aa2cc08fb094b4fa3a65b83cfaa94c7e2b42cae",
     "legacy-run-isolated.py": "9564a75bbdfe759d38af0ae4d26dc372c94e7d2d47af29f0fae000eb5b98197f",
     "legacy-scaffold.diff": "dd982e4ffd557374d3557a4e0dcb87438a7cf395f3e65ee1373c68b9e21b1d1d",
     "legacy-source-sha256.txt": "d0da4aee4ac0334cbeb24c301066e2881bb504fccd72653ac8e5120efc8fafc0",
-    "paired-change.diff": "73ae47402193b3d78d0c33527bee499851dc6261077a2605c37647486c18ff0d",
+    "paired-change.diff": "95ffbf9821bccb21c7290d604648235ed6d012beaa8df7d77c93a7f1e2c678f1",
     "paired-provenance.json": "bc7242732c8fe8e8723dab9403e31c5d1843e0e79f9d4072d2de2c2f800e7f69",
     "paired_registration.py": "14ff24b17762c281a082eb8c4029a65bdb6cb550b6dfb273079e8b96213485fd",
     "run-linux-acceptance.py": "f066a2ee92b0af2eb3c4617fcdef25c9033dde367cad5e202b5846716eb5e975",
     "runtime_observations.py": "e84faf256af9980bd0e3c981c29ccac2f58893d2a48c3c9106e3575dba407b2b",
-    "snapshot-diagnostics-change.diff": "8a6420f0b2e9dca99da087c5ab06e0e963ea19ee7622e0d636d68ce2839d27bb",
+    "snapshot-diagnostics-change.diff": "70f99e02aa8fc6d6cdcc3f19fb8d33863304ef6670d52bb5cb18f8791ebf54cf",
     "test_contracts.py": "822f3888d2c456189d994690bed7e13ddea7519d1892e4fd12df61c390f446a1"
   },
   "priorFailedRunsPreserved": [
