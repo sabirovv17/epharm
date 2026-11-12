@@ -1,5 +1,5 @@
 {
-  "state": "FROZEN_SNAPSHOT_ONLY_NOT_RUNTIME_ACCEPTED",
+  "state": "FROZEN_ORIGINAL_FRESH_FLOW_NOT_RUNTIME_ACCEPTED",
   "baseQaCommit": "5852f56ae52a9689c610c968942189a9f83ebbba",
   "officialCandidateMain": "addb2c97bf752038688e91a6902369da5194009b",
   "preservedFailureRun": 43157241311,
@@ -93,7 +93,7 @@
     "unsupportedBlockLayoutDoesNotAlterStrictEquality": true
   },
   "assertNormalization": "Only expected uniqueowner regex pr160\u2192pr164; all46 normalized ASTs/order equal",
-  "nextSnapshotRoundtripAttempts": 1,
+  "nextSnapshotRoundtripAttempts": 0,
   "priorQualificationRunsPreserved": [
     43157241311,
     43159736797,
@@ -110,5 +110,12 @@
     "candidateRegistrationAttempts": 1,
     "authWarmup": false,
     "review": "authimplementation+releaseauditreadonly+rootintegration"
-  }
+  },
+  "nextOriginalFlowCandidateAttempts": 1,
+  "originalWrapperAllAssertTreesRetained": true,
+  "originalWrapperBase": "5852f56a",
+  "originalWrapperOnlyChanges": "safe_helper_traceback import and metadata on failure",
+  "optionalRestoreFailedRun": 43167159318,
+  "optionalRestoreOutcome": "FAIL_DDL_HASH_DIFFERENCE_CAUSE_UNKNOWN_CANDIDATE_NOT_RUN",
+  "removeOptionalReferenceAndRestoreReason": "No reference workload/business mutations remain to undo; return original fresh fixture path, not a restore waiver"
 }

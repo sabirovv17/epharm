@@ -2,43 +2,31 @@
 
 This directory is a **harness deliverable only**. No Docker, VM, server or application was executed locally while preparing it. It never changes product source or production configuration. Original private CI43157241311 remains a recorded failed registration latency gate (p95=2110.50ms versus<2000ms); it is not replaced by a later result.
 
-## One snapshot-only roundtrip before candidate acceptance
+## Original fresh-fixture candidate qualification
 
-The first normal old15 stop is intercepted once, after normal Flyway99 and seed
-verification with zero pharmacist profiles. `paired_registration.py` stops that
-exact owned backend, verifies it remains stopped, and saves an owner-only private
-SQL dump of the stable fresh fixture. It performs one actual dump/restore
-roundtrip and Redis DB0 reset before any business workload. It does not call a
-registration phase, start another old backend, warm candidate auth, or retry.
+Runtime follows the original frozen5852f56a wrapper, with only safe failure-location
+metadata added: official15 starts once for normal Flyway99 and seed; the original
+zero-profile assertion passes; old15 stops; official16 cold-starts. No optional
+reference registration, SQL snapshot restore or Redis reset runs. All original
+candidate workload, JWT/security, financial preservation and15→16→15→16 gates
+remain mandatory, with unchanged thresholds, rate limits, resources and no warmup
+or retry. Exactly one complete candidate qualification is planned; failure stops.
 
-Before each snapshot/restore operation, guards check the exact recorded PG/Redis container IDs,
-owner labels, internal network ID and membership, no published ports, generated
-database identity, and unchanged owner-only dump digest. Only that disposable
-database is restored; only its owned Redis logical DB0 is reset. Full public table
-data, canonical schema, schema99 history, sequence counters and zero pharmacist/
-device-session counts must exactly equal the saved baseline. Redis DB0 must have
-zero keys; another populated logical DB is refused. Snapshot SQL/auth data never
-enter uploaded artifacts.
+The snapshot/restore helper was introduced only to undo the additional old15
+reference workload. With that workload removed there are no such business writes
+to undo. Removing both optional operations restores the original fresh-fixture
+path; it does not declare the optional restore passed. Run43167159318 remains a
+snapshot FAIL with candidate NOT_RUN: public data, sequence counters, counts and
+schema99 history matched, while raw DDL and sorted intact-block hashes differed.
+The cause remains unknown; this evidence is not restore-equivalence proof.
+Separate production offsite backup/isolated restore has independent scope.
 
-Every guard, fingerprint, dump, restore and Redis reset has a fixed safe report
-stage under `snapshotRoundtrip`. Stability and restore comparisons, including raw
-order-sensitive DDL hashes, are written before their strict equality assertions.
-Any mismatch or operation failure aborts and leaves candidate untested.
-
-Official16 then cold-starts normally. All original500-fresh-desk registration,
-login/session, learner JWT/status and15→16→15→16 acceptance gates run once with no
-threshold/resource/rate-limit changes and no candidate auth warmup. Candidate
-summaries remain `results/rps-register-*.json`. A candidate failure stops the run;
-there is no rerun loop or automatic acceptance retry. A successful roundtrip is
-fixture evidence only and cannot substitute for any candidate acceptance gate.
-
-Previous measurements remain separate historical evidence: reference15 failed in
-43159736797 (485 created, 454 completed, 46 HTTP5xx, one dropped iteration) and
-43165054420 (482 created, 441 completed, 59 DEVICE_REGISTER HTTP503, two drops).
-Reference15 passed all500 in43162105153 before a snapshot assertion blocked16.
-None of those reference results becomes candidate acceptance. The retained
-`validate_reference` helper/tests describe historical classification only and are
-absent from the runtime path.
+Prior reference15 measurements remain historical:43159736797 FAIL (485created,
+454completed,46HTTP5xx,1drop),43162105153 PASS500/500 then snapshot blocker,
+43165054420 FAIL (482created,441completed,59DEVICE_REGISTER503,2drops). They never
+become candidate acceptance. SnapshotRoundtrip and validate_reference remain
+only diagnostic/offline helpers and are absent from the runtime qualification
+call path. Original candidate43157241311 latencyFAIL remains preserved as well.
 
 ## Owned-container placement and failure taxonomy
 
@@ -60,7 +48,7 @@ distinguishes observed503 responses from unhandled500. Backend logs are
 parsed only into fixed exception-class counts; messages, raw URIs, HTTP bodies and
 credentials never enter reports. Log class occurrences are not request counts,
 and handled `AppException`503 may produce no backend error log. Raw logs remain
-private and excluded from upload. One snapshot-only qualification is planned; another
+private and excluded from upload. One original-flow candidate qualification is planned; another
 candidate failure requires escalation, with previous failed runs retained.
 
 Snapshot diagnostics preserve before/after hashes, counts and failed field names

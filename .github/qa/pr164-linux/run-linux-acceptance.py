@@ -8,7 +8,6 @@ import re
 import sys
 
 from jwt_workload import JwtAcceptance
-from paired_registration import SnapshotRoundtrip
 from runtime_observations import safe_helper_traceback
 
 
@@ -85,9 +84,7 @@ def main():
     validate_identities(qa.ROOT)
     phase = qa.phase
     start_backend = qa.start_backend
-    stop_backend = qa.stop_backend
     extension = JwtAcceptance(qa, pathlib.Path(__file__).resolve().parent)
-    snapshot = SnapshotRoundtrip(qa)
     seen = {'learner': 0, 'oldAfter': 0}
 
     def phase_with_learner(mode):
@@ -107,22 +104,14 @@ def main():
             assert seen['oldAfter'] == 1
             extension.old_baseline()
 
-    def stop_with_snapshot_roundtrip():
-        if not snapshot.completed and qa.REPORT['stage'] == 'compat-old-before':
-            snapshot.run(stop_backend)
-        else:
-            stop_backend()
-
     qa.phase = phase_with_learner
     qa.start_backend = start_with_baseline
-    qa.stop_backend = stop_with_snapshot_roundtrip
     qa.REPORT['limitations'] = [value.replace('Flutter/mobile', 'Flutter/Android/iOS application builds') for value in qa.REPORT['limitations']]
     qa.REPORT['limitations'].append('New learner path uses real API-issued pharmacist Bearer JWTs and protected training overview; it remains a bounded synthetic API scenario, not a production-capacity or full curriculum/browser certification.')
     # Persist the exact owner before the first resource can be created.
     qa.write('assessment.json', qa.REPORT)
     try:
         qa.main()
-        assert snapshot.completed, 'Exactly one fresh-fixture snapshot roundtrip is required'
         assert seen == {'learner': 1, 'oldAfter': 1}
         extension.final_candidate()
         count = qa.REPORT['phases']['sessions']['summary']['metrics']['rps_session_checks']['values']['count']
