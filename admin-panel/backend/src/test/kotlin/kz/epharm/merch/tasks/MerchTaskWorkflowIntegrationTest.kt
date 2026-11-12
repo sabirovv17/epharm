@@ -1159,7 +1159,9 @@ class MerchTaskWorkflowIntegrationTest {
         mvc.perform(post("/api/public/merch/tasks/items/${second.items.single().id}/stock").header("X-Merch-Task-Token",token)
             .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(mapOf("expectedAttempt" to a.number,"counts" to mapOf("a" to 5,"b" to 5)))))
             .andExpect(status().is4xxClientError)
-        val otherAuth="Bearer ${jwt.issuePharmacistToken("missing-pharmacist","Synthetic other","+77000000999")}"
+        jdbc.update("""INSERT INTO pharmacists(id,name,iin,phone,city,tier,status,joined_at)
+            VALUES('other-pharmacist','Synthetic other','000000000999','+77000000999','','Silver','active',current_date)""")
+        val otherAuth="Bearer ${jwt.issuePharmacistToken("other-pharmacist","Synthetic other","+77000000999")}"
         stock(item.id,a.number,mapOf("a" to 5,"b" to 5),auth=otherAuth).andExpect(status().isForbidden)
         grants(admin.id,"view")
         mvc.perform(post("/api/admin/merch/tasks/items/${item.id}/stock").header("Authorization",adminAuth)

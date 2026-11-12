@@ -126,9 +126,15 @@ class AdminPasswordIntegrationTest {
         mvc.perform(post("/api/admin/auth/password").contentType(MediaType.APPLICATION_JSON).content(body()))
             .andExpect(status().isUnauthorized)
         val pharmacist = jwt.issuePharmacistToken(user.id.toString(), "Synthetic", "+77000000000")
-        mvc.perform(post("/api/admin/auth/password").header("Authorization", "Bearer $pharmacist")
-            .contentType(MediaType.APPLICATION_JSON).content(body()))
-            .andExpect(status().isForbidden)
+        jdbc.update("""insert into pharmacists(id,name,iin,phone,city,tier,status,joined_at)
+            values(?,'Synthetic','900101400098','+77000000000','','Silver','active',current_date)""", user.id.toString())
+        try {
+            mvc.perform(post("/api/admin/auth/password").header("Authorization", "Bearer $pharmacist")
+                .contentType(MediaType.APPLICATION_JSON).content(body()))
+                .andExpect(status().isForbidden)
+        } finally {
+            jdbc.update("delete from pharmacists where id=?", user.id.toString())
+        }
         assertThat(users.findById(user.id).orElseThrow().sessionVersion).isZero()
         assertThat(auditCount()).isZero()
     }

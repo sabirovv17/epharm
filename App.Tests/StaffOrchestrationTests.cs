@@ -107,13 +107,13 @@ namespace CustomerDisplay.Core.Tests
         }
 
         [Fact]
-        public void ServiceRecoveryWithNoGrantOrOpenFormOffersOneOrdinaryPrompt()
+        public void ServiceRecoveryWithNoGrantOrOpenFormDoesNotRepeatTheRecentPrompt()
         {
             using var http = new StaffHttp(); using var shell = new MainWindow(); shell.ConfigureStaffTest(http);
             shell.StaffWindowTest!.Dismiss(); shell.StaffCapabilityOutageTest();
             shell.ObserveStaffTest(); Assert.Null(shell.StaffWindowTest);
             shell.StaffCapabilityHealthyTest(); shell.ObserveStaffTest(); var prompt = shell.StaffWindowTest;
-            Assert.NotNull(prompt); Assert.False(prompt.Required); Assert.Null(shell.StaffStateTest.Grant);
+            Assert.Null(prompt); Assert.Null(shell.StaffStateTest.Grant);
             shell.StaffCapabilityHealthyTest(); shell.ObserveStaffTest(); Assert.Same(prompt, shell.StaffWindowTest);
             shell.StopStaffTest();
         }
@@ -130,13 +130,54 @@ namespace CustomerDisplay.Core.Tests
         [Theory]
         [InlineData(401)]
         [InlineData(403)]
-        public async Task DefinitiveDenialClearsTheGrantAndReprompts(int status)
+        public async Task DefinitiveDenialClearsTheGrantWithoutRepeatingTheRecentPrompt(int status)
         {
             using var http = new StaffHttp(); using var shell = new MainWindow();
             shell.ConfigureStaffTest(http); await shell.AcceptStaffTest(); http.Status = (HttpStatusCode)status;
             await shell.ValidateStaffTest();
-            Assert.Null(shell.StaffStateTest.Grant); Assert.NotNull(shell.StaffWindowTest);
+            Assert.Null(shell.StaffStateTest.Grant); Assert.Null(shell.StaffWindowTest);
+            shell.OpenStaffManuallyTest(); Assert.NotNull(shell.StaffWindowTest);
             shell.StopStaffTest();
+        }
+
+        [Fact]
+        public void ComparableIdentityNeverRequestsABlockingWindow()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http, knownSource: true);
+            Assert.False(shell.StaffWindowTest!.Required);
+            shell.StaffWindowTest.Close(); shell.ObserveStaffTest();
+            Assert.Null(shell.StaffWindowTest); Assert.Null(shell.StaffStateTest.Grant);
+        }
+
+        [Fact]
+        public async Task ProcessFlappingInvalidatesGrantImmediatelyWithoutPopupStormOrDelayedPrompt()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http, knownSource: true); await shell.AcceptStaffTest();
+            shell.InvalidateStaffTest("process");
+            Assert.False(shell.StaffVerifiedTest); Assert.Null(shell.StaffStateTest.Grant);
+            Assert.Equal(1, http.Logouts);
+            for (var i = 0; i < 10; i++) {
+                shell.ObserveStaffTest(); shell.InvalidateStaffTest("process");
+                shell.AdvanceStaffTest(TimeSpan.FromSeconds(5));
+                Assert.Null(shell.StaffWindowTest);
+            }
+            shell.ObserveStaffTest();
+            shell.AdvanceStaffTest(TimeSpan.FromMinutes(3)); shell.ObserveStaffTest();
+            Assert.Null(shell.StaffWindowTest); // No queued surprise when the cooldown expires.
+            shell.OpenStaffManuallyTest(); Assert.NotNull(shell.StaffWindowTest);
+            shell.StopStaffTest();
+        }
+
+        [Fact]
+        public void NewSessionAfterCooldownOffersExactlyOneOptionalPrompt()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http); shell.StaffWindowTest!.Close();
+            shell.AdvanceStaffTest(TimeSpan.FromMinutes(2)); shell.InvalidateStaffTest("process");
+            var prompt = shell.StaffWindowTest; Assert.NotNull(prompt); Assert.False(prompt.Required);
+            prompt.Close(); shell.InvalidateStaffTest("process"); Assert.Null(shell.StaffWindowTest);
         }
 
         [Fact]
@@ -172,6 +213,36 @@ namespace CustomerDisplay.Core.Tests
             shell.StaffWindowTest!.Close();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => result);
             Assert.Null(shell.StaffStateTest.Grant); Assert.Equal(1, http.Logouts); shell.StopStaffTest();
+        }
+
+        [Fact]
+        public async Task SuccessfulCheckCannotRestoreGrantAfterUnobservedOsProcessChange()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http); await shell.AcceptStaffTest();
+            http.Hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            var check = shell.ValidateStaffTest(); await http.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            shell.StaffProbeTest = () => new("resolved", "new-process-after-http-started");
+            http.Hold.SetResult(); await check;
+            Assert.False(shell.StaffVerifiedTest); Assert.Null(shell.StaffStateTest.Grant);
+            Assert.Equal(1, http.Logouts); Assert.Null(shell.StaffWindowTest);
+        }
+
+        [Theory]
+        [InlineData("process_unavailable")]
+        [InlineData("no_process")]
+        public async Task UncertainOsProcessAfterCheckRetainsOnlyUnverifiedProofForRecovery(string status)
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http); await shell.AcceptStaffTest();
+            shell.StaffProbeTest = () => new(status);
+            await shell.ValidateStaffTest();
+            Assert.False(shell.StaffVerifiedTest); Assert.NotNull(shell.StaffStateTest.Grant);
+            Assert.Equal("session_revalidating", shell.StaffAuthenticationStatus);
+            Assert.Equal(0, http.Logouts);
+            shell.StaffProbeTest = () => shell.StaffPresenceTest;
+            shell.AdvanceStaffTest(TimeSpan.FromSeconds(31)); await shell.ValidateStaffTest();
+            Assert.True(shell.StaffVerifiedTest); Assert.Null(shell.StaffWindowTest);
         }
 
         [Fact]
@@ -223,6 +294,7 @@ namespace CustomerDisplay
     public partial class MainWindow
     {
         private DateTimeOffset _staffTestNow = DateTimeOffset.Parse("2026-11-10T00:00:00Z");
+        private readonly StaffTestMonotonicTime _staffTestTime = new();
         private StaffSessionObservation _staffTestObservation = new("database_unavailable");
         private const string StaffTestProcess = "42:639296064000000000";
         private System.Windows.Forms.Screen PharmacistScreen() => new();
@@ -234,6 +306,7 @@ namespace CustomerDisplay
         internal void ConfigureStaffTest(Core.Tests.StaffHttp http, bool knownSource = false)
         {
             _staffClock = () => _staffTestNow; _staffProcessProbe = () => StaffPresenceTest;
+            _staffPromptThrottle = new(_staffTestTime);
             if (knownSource) _staffTestObservation = new("resolved", new(StaffTestProcess, "user-1", "session-1", "workstation-1", "000101500011", "available"));
             http.ExpiresAt = _staffTestNow.AddHours(8);
             _staffClient = new StaffAuthClient(new EpharmConfig {
@@ -257,8 +330,16 @@ namespace CustomerDisplay
         internal void StaffCapabilityOutageTest() => ApplyStaffCapability(new(false, "endpoint_unavailable"));
         internal void StaffCapabilityHealthyTest() => ApplyStaffCapability(new(true, "enabled", false));
         internal Task LogoutStaffTest() => LogoutStaff();
-        internal void AdvanceStaffTest(TimeSpan elapsed) => _staffTestNow += elapsed;
+        internal void AdvanceStaffTest(TimeSpan elapsed) { _staffTestNow += elapsed; _staffTestTime.Ticks += elapsed.Ticks; }
+        internal void OpenStaffManuallyTest() => OpenStaffWindow(activate: true);
         internal void StopStaffTest() => StopStaffAuthentication();
+        private sealed class StaffTestMonotonicTime : TimeProvider
+        {
+            public long Ticks;
+            public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+            public override long GetTimestamp() => Ticks;
+        }
+
     }
 
     // The real window is independently exercised by App.Ui.Tests. These boundaries

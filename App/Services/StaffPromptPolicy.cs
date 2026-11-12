@@ -6,6 +6,20 @@ namespace CustomerDisplay.Services;
 
 public enum StaffPromptBypassReason { ServiceUnavailable, SmsUnavailable, SmsWait, IdentityUnavailable }
 
+/// <summary>Presentation budget independent of security generations; never delays grant invalidation.</summary>
+public sealed class StaffPromptThrottle(TimeProvider? time = null)
+{
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
+    private long? _lastShown;
+    public bool TryShowAutomatically()
+    {
+        if (_lastShown is { } shown && _time.GetElapsedTime(shown) < TimeSpan.FromMinutes(2)) return false;
+        RecordShown();
+        return true;
+    }
+    public void RecordShown() => _lastShown = _time.GetTimestamp();
+}
+
 /// <summary>A cashier-screen prompt policy, not Windows lockdown or financial identity proof.</summary>
 public sealed class StaffPromptPolicy
 {

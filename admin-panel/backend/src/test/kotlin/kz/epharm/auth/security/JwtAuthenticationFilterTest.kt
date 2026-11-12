@@ -11,6 +11,10 @@ import kz.epharm.auth.entity.AdminUserEntity
 import kz.epharm.auth.repository.AdminUserRepository
 import kz.epharm.auth.service.JwtService
 import kz.epharm.mobile.auth.security.PharmacistPrincipal
+import kz.epharm.mobile.auth.security.PharmacistSessionLoader
+import kz.epharm.pharmacists.entity.PharmacistEntity
+import kz.epharm.pharmacists.entity.PharmacistStatus
+import kz.epharm.pharmacists.repository.PharmacistRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterEach
@@ -31,7 +35,8 @@ class JwtAuthenticationFilterTest {
     private val secret = "synthetic-filter-test-secret-at-least-32-bytes-long"
     private val jwt = JwtService(secret, 15)
     private val users = mockk<AdminUserRepository>()
-    private val filter = JwtAuthenticationFilter(jwt, AdminSessionLoader(users))
+    private val pharmacists = mockk<PharmacistRepository>()
+    private val filter = JwtAuthenticationFilter(jwt, AdminSessionLoader(users), PharmacistSessionLoader(pharmacists), jacksonObjectMapper().findAndRegisterModules())
     private val user = AdminUserEntity(
         id = UUID.fromString("00000000-0000-4000-8000-000000000002"),
         email = "old-admin@example.test", name = "Old name", company = "Old company",
@@ -41,7 +46,7 @@ class JwtAuthenticationFilterTest {
     @AfterEach
     fun clearContext() = SecurityContextHolder.clearContext()
 
-    private fun authenticate(token: String? = null, posmKey: Boolean = false): Authentication? {
+    private fun authenticate(token: String? = null, posmKey: Boolean = false, rejectedStatus: Int? = null, rejectedCode: String? = null): Authentication? {
         val request = MockHttpServletRequest("GET", "/api/admin/auth/me")
         if (token != null) request.addHeader("Authorization", "Bearer $token")
         if (posmKey) {
@@ -51,11 +56,19 @@ class JwtAuthenticationFilterTest {
         }
         var called = false
         var authentication: Authentication? = null
-        filter.doFilter(request, MockHttpServletResponse()) { _, _ ->
+        val response = MockHttpServletResponse()
+        filter.doFilter(request, response) { _, _ ->
             called = true
             authentication = SecurityContextHolder.getContext().authentication
         }
-        assertThat(called).isTrue()
+        if (rejectedStatus == null) assertThat(called).isTrue()
+        else {
+            assertThat(called).isFalse()
+            assertThat(response.status).isEqualTo(rejectedStatus)
+            assertThat(jacksonObjectMapper().readTree(response.contentAsString)["code"].asText()).isEqualTo(rejectedCode)
+            assertThat(response.getHeader("Cache-Control")).isEqualTo("no-store")
+            assertThat(SecurityContextHolder.getContext().authentication).isNull()
+        }
         return authentication
     }
 
@@ -166,6 +179,9 @@ class JwtAuthenticationFilterTest {
 
     @Test
     fun `pharmacist token keeps its original principal and never loads an admin with the same UUID`() {
+        every { pharmacists.findById(user.id.toString()) } returns Optional.of(
+            PharmacistEntity(id = user.id.toString(), name = "Test pharmacist", phone = "+77000000000", statusRaw = "active"),
+        )
         val token = jwt.issuePharmacistToken(user.id.toString(), "Test pharmacist", "+77000000000")
         val auth = authenticate(token)!!
         assertThat(auth.principal).isEqualTo(PharmacistPrincipal(user.id.toString(), "Test pharmacist", "+77000000000"))
@@ -175,11 +191,54 @@ class JwtAuthenticationFilterTest {
 
     @Test
     fun `pharmacist token cannot acquire admin authority through extra signed role claims`() {
+        every { pharmacists.findById(user.id.toString()) } returns Optional.of(
+            PharmacistEntity(id = user.id.toString(), name = "Test pharmacist", phone = "+77000000000", statusRaw = "active"),
+        )
         val token = signedClaims(mapOf("typ" to JwtService.TYP_PHARMACIST, "phone" to "+77000000000"))
         val auth = authenticate(token)!!
         assertThat(auth.principal).isInstanceOf(PharmacistPrincipal::class.java)
         assertThat(auth.authorities.map { it.authority }).containsExactly("ROLE_PHARMACIST")
         verify(exactly = 0) { users.findById(any()) }
+    }
+
+    @Test
+    fun `pharmacist JWT stops authenticating after blocking deletion or unknown account status`() {
+        val person = PharmacistEntity(id = "ph_current", name = "Current pharmacist", phone = "+77000000000", statusRaw = "active")
+        val token = jwt.issuePharmacistToken(person.id, person.name, person.phone)
+        every { pharmacists.findById(person.id) } returns Optional.of(person)
+        assertThat(authenticate(token)).isNotNull()
+        SecurityContextHolder.clearContext()
+        person.status = PharmacistStatus.blocked
+        assertThat(authenticate(token, rejectedStatus = 403, rejectedCode = "USER_NOT_ACTIVE")).isNull()
+        person.statusRaw = "unknown_status"
+        assertThat(authenticate(token, rejectedStatus = 403, rejectedCode = "USER_NOT_ACTIVE")).isNull()
+        every { pharmacists.findById(person.id) } returns Optional.empty()
+        assertThat(authenticate(token, rejectedStatus = 401, rejectedCode = "USER_NOT_FOUND")).isNull()
+        verify(exactly = 4) { pharmacists.findById(person.id) }
+        verify(exactly = 0) { users.findById(any()) }
+    }
+
+    @Test
+    fun `pending pharmacist retains onboarding access with current profile and pharmacist role only`() {
+        val person = PharmacistEntity(id = "ph_pending", name = "Current name", phone = "+77000000002", statusRaw = "pending")
+        every { pharmacists.findById(person.id) } returns Optional.of(person)
+        val auth = authenticate(jwt.issuePharmacistToken(person.id, "Old name", "+77000000001"))!!
+        assertThat(auth.principal).isEqualTo(PharmacistPrincipal(person.id, person.name, person.phone))
+        assertThat(auth.authorities.map { it.authority }).containsExactly("ROLE_PHARMACIST")
+        verify(exactly = 1) { pharmacists.findById(person.id) }
+    }
+
+    @Test
+    fun `pharmacist database outage never authorizes a valid JWT or executes downstream code`() {
+        every { pharmacists.findById("ph_outage") } throws DataAccessResourceFailureException("Database unavailable")
+        val token = jwt.issuePharmacistToken("ph_outage", "Test pharmacist", "+77000000000")
+        val request = MockHttpServletRequest("GET", "/api/mobile/training").apply { addHeader("Authorization", "Bearer $token") }
+        var called = false
+        assertThatThrownBy {
+            filter.doFilter(request, MockHttpServletResponse()) { _, _ -> called = true }
+        }.isInstanceOf(DataAccessResourceFailureException::class.java)
+        assertThat(called).isFalse()
+        assertThat(SecurityContextHolder.getContext().authentication).isNull()
     }
 
     @Test

@@ -1,11 +1,13 @@
 package kz.epharm
 
 import com.ninjasquad.springmockk.MockkBean
+import io.mockk.verify
 import kz.epharm.auth.access.UnifiedAccessStore
 import kz.epharm.auth.access.UnifiedAdminCatalog
 import kz.epharm.auth.security.AdminSessionLoader
 import kz.epharm.auth.security.JwtAuthenticationFilter
 import kz.epharm.auth.service.JwtService
+import kz.epharm.mobile.auth.security.PharmacistSessionLoader
 import kz.epharm.shared.ApiAccessDeniedHandler
 import kz.epharm.shared.ApiAuthenticationEntryPoint
 import kz.epharm.merch.producer.auth.ProducerAuthService
@@ -44,6 +46,8 @@ class HealthControllerTest(@Autowired val mvc: MockMvc) {
     @MockkBean
     lateinit var adminSessionLoader: AdminSessionLoader
 
+    @MockkBean lateinit var pharmacistSessionLoader: PharmacistSessionLoader
+
     @MockkBean lateinit var producerSessions: ProducerAuthService
 
     @MockkBean lateinit var accessStore: UnifiedAccessStore
@@ -55,5 +59,6 @@ class HealthControllerTest(@Autowired val mvc: MockMvc) {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("ok"))
             .andExpect(jsonPath("$.service").value("epharm-backend"))
+        verify(exactly = 0) { pharmacistSessionLoader.load(any()) }
     }
 }

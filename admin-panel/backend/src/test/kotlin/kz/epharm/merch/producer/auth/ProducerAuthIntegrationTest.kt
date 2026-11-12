@@ -109,7 +109,13 @@ class ProducerAuthIntegrationTest {
         mvc.perform(get("/api/admin/pharmacists").header("Authorization","Bearer ${auth.accessToken}")).andExpect(status().isUnauthorized)
         mvc.perform(get("/api/admin/pharmacists").header("Authorization","Bearer ${jwt.issueAccessToken(admin)}")).andExpect(status().isOk)
         me(jwt.issueAccessToken(admin)).andExpect(status().isForbidden)
-        me(jwt.issuePharmacistToken(customer.toString(),"Synthetic","+77000000001")).andExpect(status().isForbidden)
+        jdbc.update("""insert into pharmacists(id,name,iin,phone,city,tier,status,joined_at)
+            values(?,'Synthetic','900101400096','+77000000001','','Silver','active',current_date)""", customer.toString())
+        try {
+            me(jwt.issuePharmacistToken(customer.toString(),"Synthetic","+77000000001")).andExpect(status().isForbidden)
+        } finally {
+            jdbc.update("delete from pharmacists where id=?", customer.toString())
+        }
         me(auth.accessToken).andExpect(status().isOk).andExpect(jsonPath("$.id").value(customer.toString()))
         assertThat(jdbc.queryForObject("SELECT access_token_hash FROM merch_producer_sessions",String::class.java)).isEqualTo(ProducerTokenCodec.hash(auth.accessToken))
         assertThat(jdbc.queryForObject("SELECT token_hash FROM merch_producer_refresh_tokens",String::class.java)).isEqualTo(ProducerTokenCodec.hash(auth.refreshToken))

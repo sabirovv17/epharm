@@ -139,8 +139,12 @@ api.interceptors.response.use(
             `Bearer ${tokens.accessToken}`
           return api.request(original)
         }
-      } catch {
-        // fallthrough to logout
+      } catch (refreshError) {
+        if (epoch !== adminSessionEpoch)
+          return Promise.reject(new axios.CanceledError('Сессия изменилась.'))
+        // A temporary refresh outage is not proof that this account was signed out.
+        // Surface that failure so callers do not treat the original 401 as a denial.
+        return Promise.reject(refreshError)
       }
       if (epoch === adminSessionEpoch) fireLogout()
     }
@@ -162,9 +166,12 @@ async function ensureRefreshing(refreshToken: string, epoch: number): Promise<Au
       currentTokens = data.tokens
       tokenRefreshHandlers.forEach((handler) => handler(data.tokens))
       return data.tokens
-    } catch {
-      if (epoch === adminSessionEpoch) currentTokens = null
-      return null
+    } catch (error) {
+      if (axios.isAxiosError(error) && [401, 403].includes(error.response?.status ?? 0)) {
+        if (epoch === adminSessionEpoch) currentTokens = null
+        return null
+      }
+      throw error
     } finally {
       if (refreshInFlight === flight) refreshInFlight = null
     }
