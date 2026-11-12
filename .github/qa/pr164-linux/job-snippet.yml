@@ -1,0 +1,80 @@
+# Root-owned integration example for a TEMPORARY QA workflow/branch, never main.
+# Root supplies artifact-inputs.json next to these helpers only after image build.
+jobs:
+  pr164-isolated-acceptance:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'sabirovv17/epharm' && startsWith(github.ref, 'refs/heads/codex/pr164-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+    concurrency:
+      group: pr164-official-isolated-acceptance
+      cancel-in-progress: false
+    env:
+      QA_SOURCE_ROOT: ${{ github.workspace }}/source
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: harness
+          persist-credentials: false
+      - name: Read root-reviewed artifact coordinates
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,re
+          helpers=pathlib.Path('harness/.github/qa/pr164-linux').resolve()
+          config=helpers/'artifact-inputs.json'
+          value=json.loads(config.read_text())
+          commit=value['candidate']['commit']
+          assert re.fullmatch(r'[a-f0-9]{40}',commit)
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              f.write('CANDIDATE_COMMIT='+commit+'\n')
+              f.write('QA_HARNESS_ROOT='+str(helpers)+'\n')
+              f.write('QA_ARTIFACT_CONFIG='+str(config)+'\n')
+              f.write('QA_PRIVATE_ROOT='+str(pathlib.Path(os.environ['RUNNER_TEMP'])/'pr164-isolated-qa')+'\n')
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ env.CANDIDATE_COMMIT }}
+          path: source
+          persist-credentials: false
+      - name: Private evidence directory and offline harness contracts
+        run: |
+          umask 077
+          mkdir -m 700 "$QA_PRIVATE_ROOT"
+          python3 -m unittest discover -s "$QA_HARNESS_ROOT" -p test_contracts.py -v
+      - name: Verify official previous and candidate image artifacts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 "$QA_HARNESS_ROOT/fetch-official.py"
+      - name: Recheck exact current main PUSH CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: source
+        run: python3 tools/release/verify-release-source.py "$CANDIDATE_COMMIT"
+      - name: Run preserved staff load and distinct learner JWT acceptance
+        env:
+          ROOT_CANDIDATE_READY: APPROVED_OFFICIAL_CANDIDATE
+        run: python3 "$QA_HARNESS_ROOT/run-linux-acceptance.py"
+      - name: Reconcile only recorded owned disposable resources
+        if: always()
+        env:
+          ROOT_CANDIDATE_READY: APPROVED_OFFICIAL_CANDIDATE
+        run: |
+          if [ -n "${QA_PRIVATE_ROOT:-}" ] && [ -f "$QA_PRIVATE_ROOT/assessment.json" ]; then
+            python3 "$QA_HARNESS_ROOT/run-linux-acceptance.py" --cleanup-only
+          fi
+      - name: Upload only sanitized aggregate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: pr164-isolated-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/pr164-isolated-qa/assessment.json
+            ${{ runner.temp }}/pr164-isolated-qa/results/rps-*.json
+            ${{ runner.temp }}/pr164-isolated-qa/results/learner-jwt-summary.json
+            ${{ runner.temp }}/pr164-isolated-qa/artifacts/verified-identities.json
+          retention-days: 14
+          if-no-files-found: error

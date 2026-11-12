@@ -1,0 +1,45 @@
+{
+  "state": "PREPARED_OFFLINE_ONLY_NOT_DISPATCHED",
+  "baseMain": "addb2c97bf752038688e91a6902369da5194009b",
+  "baseBranch": "codex/pr164-qualification-20261112",
+  "productAndMandatoryCiByteIdentical": true,
+  "trackedFilesComparedExcludingPrivateWorkflow": 2273,
+  "frozenLinuxManifestFilesUnchanged": 10,
+  "frozenUiFiles": {
+    "Epharm.PrivateStaffPilot.csproj": "79e16617ad7bfbba05fa0e8a88b62edde0fef7c08e2d3c5121b79e2ee6a4ff7f",
+    "NuGet.Config": "f545a7e2ea14ac53cdfb91217cae67b8ff14275313f6298f9a3331d205b6c948",
+    "Program.cs": "a0d2e2b1caca6c6e9fbd4eaaebdf549072eae63ad1934093c21f1db30990ed21",
+    "README.md": "5232ca8c1ec4224d181e580236a4124c6f92f1fe0a5b3aaf442dd474197b5d2f"
+  },
+  "offlineChecks": [
+    "actionlint PASS",
+    "config positive + five negative guard cases PASS",
+    "both official84/85 outerZIP SHA/CRC/provenance + five-file bridge SHA/CRC/DLL PASS",
+    "frozen Linux6 trust-boundary checks PASS",
+    "Python AST PASS",
+    "node syntax PASS"
+  ],
+  "actualDockerVmServerApplicationOrCiExecution": false,
+  "PowerShellParse": "NOT_RUN_LOCALLY_NO_PWSH; required Windows AST step before preparation",
+  "privateOnlyFiles": [
+    ".github/qa/README-pr164-qualification.md",
+    ".github/qa/pr164-candidate.json",
+    ".github/qa/pr164-linux/README.md",
+    ".github/qa/pr164-linux/delivery.json",
+    ".github/qa/pr164-linux/fetch-official.py",
+    ".github/qa/pr164-linux/job-snippet.yml",
+    ".github/qa/pr164-linux/jwt_workload.py",
+    ".github/qa/pr164-linux/learner-jwt.mjs",
+    ".github/qa/pr164-linux/legacy-run-isolated.py",
+    ".github/qa/pr164-linux/legacy-scaffold.diff",
+    ".github/qa/pr164-linux/legacy-source-sha256.txt",
+    ".github/qa/pr164-linux/run-linux-acceptance.py",
+    ".github/qa/pr164-linux/test_contracts.py",
+    ".github/qa/pr164-prepare-windows.ps1",
+    ".github/qa/pr164-qualify.py",
+    ".github/qa/pr164-ui/Epharm.PrivateStaffPilot.csproj",
+    ".github/qa/pr164-ui/NuGet.Config",
+    ".github/qa/pr164-ui/Program.cs",
+    ".github/qa/pr164-ui/README.md"
+  ]
+}

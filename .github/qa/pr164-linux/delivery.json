@@ -1,0 +1,23 @@
+{
+  "state": "FROZEN_HELPER_ONLY_APPLICATION_ACCEPTANCE_NOT_RUN",
+  "createdUtc": "2026-11-12T04:10:59.294894+00:00",
+  "offlineChecks": [
+    "6 unittest trust-boundary checks PASS",
+    "Python AST parse PASS",
+    "node --check learner-jwt.mjs PASS"
+  ],
+  "actualDockerOrVmOrServerOrApplicationExecution": false,
+  "productionSourceOrGitChanges": false,
+  "files": {
+    "README.md": "89b90791be699c9b0ac6c6cb2ea65fbd764e3f7b024200d721d7e1f55afe0f01",
+    "fetch-official.py": "c9b3d30d5befd968f19c701134369d0c2cb6c0b875f4b866138738373437fccf",
+    "job-snippet.yml": "d0abededdbff6e1fb94be0f03bead8dc504818e9f958a9e7978140c8c4ec7a13",
+    "jwt_workload.py": "b41768166a464050e8690a8be9813618591a08fdb1c0f5f842d29ccb842a1fa8",
+    "learner-jwt.mjs": "090d324b9d8d2d045e726f322aa2cc08fb094b4fa3a65b83cfaa94c7e2b42cae",
+    "legacy-run-isolated.py": "8373f42169661603a7f995eb679e942d175d939fb12da8c199cf6777f7a8b650",
+    "legacy-scaffold.diff": "d3e8d4b94caff6949601ef7d5fabb96da3e7842aaf8f813fb218410520250b5f",
+    "legacy-source-sha256.txt": "220a8158523181ba25202d306b65c1fc45ac686f6a5ffc2114967baa60b58acb",
+    "run-linux-acceptance.py": "d68bb4f4e4c14233b91e26288864135c3b0b592628e1c271750bc8642669a368",
+    "test_contracts.py": "f34d76c878f8be76f70f9a809aff5ed4a8d941bebe34ab4f7603f73d74e11ac9"
+  }
+}

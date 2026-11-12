@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "mode": {
+    "windows": true,
+    "linux": false
+  },
+  "exactMain": "addb2c97bf752038688e91a6902369da5194009b",
+  "releaseId": "v0.2.16",
+  "main": {
+    "version": "1.0.85",
+    "commit": "addb2c97bf752038688e91a6902369da5194009b",
+    "ciRun": 43153930079,
+    "ciWindowsJob": 130969355166,
+    "artifactId": 13915316619,
+    "outerSha256": "43eecf4d200b9d8acfce26bae6406913fbe3e8c572ad9b64e62bc2b3cce716d2",
+    "sha256": "dc41228626e0a0cc7970d0aee070605ec244a1ee639ae42932ee177e189f6d38",
+    "dllSha256": "0f373ab83deafceafbcb982578429f7ef3eb20208848e11b46a1a574ee61e6c4",
+    "bytes": 546164,
+    "files": [
+      "CustomerDisplay.deps.json",
+      "CustomerDisplay.dll",
+      "CustomerDisplay.exe",
+      "CustomerDisplay.runtimeconfig.json",
+      "QRCoder.dll"
+    ],
+    "fullMainCiRequiredBeforePromotion": true
+  },
+  "previous": {
+    "version": "1.0.84",
+    "commit": "464352af46872de6edcb474b5b78390325a4b076",
+    "ciRun": 43006872150,
+    "artifactId": 13848089054,
+    "outerSha256": "2a957776d3c72136e440312459bb563f72ca4cd40e42a6b2cb067cf91eca9e45",
+    "sha256": "42c70a59386bf7ce2ac05194be96dc7ce65667416eae04359bf5f3be659e7ad9",
+    "dllSha256": "a090eb42a63204916d22e3ca73e14a01a98cf90cacb3681453f5c3245ad09ca0",
+    "runtimeVersion": "10.0.15",
+    "ciWindowsJob": null
+  },
+  "qualification": {
+    "fullMainCiRequiredBeforePromotion": true,
+    "windowsOnlyMayStartWhileMainCiRuns": true,
+    "newRuntimeAcceptance": "PENDING",
+    "trueOsReboot": "PENDING_SEPARATE_OWNED_VM"
+  },
+  "server": {
+    "previous": {
+      "version": "v0.2.15",
+      "commit": "464352af46872de6edcb474b5b78390325a4b076",
+      "imagesRun": 43010008595,
+      "artifactId": 13850451121
+    },
+    "candidate": {
+      "version": "v0.2.16",
+      "commit": "addb2c97bf752038688e91a6902369da5194009b",
+      "imagesRun": 0,
+      "artifactId": 0
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "vendor": "Amyuni Technologies Inc.",
+  "officialSource": "https://www.amyuni.com/downloads/usbmmidd_v2.zip",
+  "sha256": "629b51e9944762bae73948171c65d09a79595cf4c771a82ebc003fbba5b24f51",
+  "archiveUnmodified": true,
+  "licensePreservedAt": "usbmmidd_v2/License.txt",
+  "purpose": "Disposable CI display fixture only; not part of POSM release",
+  "retrievedUtc": "2026-11-11T11:05:12.575834+00:00"
+}

@@ -1,0 +1,38 @@
+--- 7037b1b5/.github/qa/run-isolated.py
++++ legacy-run-isolated.py
+@@ -18,7 +18,7 @@
+ ROOT = pathlib.Path(os.environ['QA_PRIVATE_ROOT']).resolve()
+ SOURCE = pathlib.Path(os.environ['QA_SOURCE_ROOT']).resolve()
+ DOCKER = shutil.which('docker')
+-OWNER = 'pr160-' + uuid.uuid4().hex[:12]
++OWNER = 'pr164-' + uuid.uuid4().hex[:12]
+ LABEL = 'epharm.isolated-qa.owner'
+ OWNED = []
+ NET = None
+@@ -285,7 +285,7 @@
+         assert image['Config']['Labels']['org.opencontainers.image.revision'] == item['commit']
+         assert image['RootFS']['Layers'] == provenance['images']['backend']['rootfs']
+         # Extraction uses a labelled stopped container without a network; the app never runs here.
+-        identifier = docker('create', '--network', 'none', '--label', LABEL + '=' + OWNER, image['Id']).stdout.strip()
++        identifier = docker('create', '--name', OWNER + '-artifact-extraction-' + which, '--network', 'none', '--label', LABEL + '=' + OWNER, image['Id']).stdout.strip()
+         own(identifier, 'artifact-extraction-' + which)
+         extracted = ROOT / (which + '-image-app.jar')
+         docker('cp', identifier + ':/app/app.jar', str(extracted), timeout=90)
+@@ -299,7 +299,7 @@
+         IMAGES[role] = json.loads(docker('image', 'inspect', tag).stdout)[0]['Id']
+     REPORT['runtimeImages'] = dict(IMAGES, **loaded)
+     REPORT['stage'] = 'prepare-owned-fixture-and-network'
+-    run_id = 'pr160_' + secrets.token_hex(5)
++    run_id = 'pr164_' + secrets.token_hex(5)
+     command([sys.executable, str(SOURCE / 'load-tests/build-rps-fixture.py'), '--run-id', run_id, '--desks', '500', '--output-dir', str(ROOT / 'fixture')])
+     fixture = json.loads((ROOT / 'fixture/fixture.private.json').read_text())
+     DATABASE = fixture['expectedDatabase']
+@@ -437,7 +437,7 @@
+         assert sys.platform.startswith('linux') and os.environ.get('GITHUB_ACTIONS') == 'true'
+         REPORT = json.loads(path.read_text())
+         OWNER = REPORT['owner']
+-        assert re.fullmatch(r'pr160-[a-f0-9]{12}', OWNER)
++        assert re.fullmatch(r'pr164-[a-f0-9]{12}', OWNER)
+         OWNED = [item['containerId'] for item in REPORT['resources']]
+         assert all(re.fullmatch(r'[a-f0-9]{64}', item) for item in OWNED)
+         NET = REPORT.get('networkId')
