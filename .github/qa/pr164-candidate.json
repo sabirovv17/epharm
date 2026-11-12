@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "mode": {
-    "windows": true,
-    "linux": false
+    "windows": false,
+    "linux": true
   },
   "exactMain": "addb2c97bf752038688e91a6902369da5194009b",
   "releaseId": "v0.2.16",
@@ -52,8 +52,8 @@
     "candidate": {
       "version": "v0.2.16",
       "commit": "addb2c97bf752038688e91a6902369da5194009b",
-      "imagesRun": 0,
-      "artifactId": 0
+      "imagesRun": 43156668298,
+      "artifactId": 13916033151
     }
   }
 }
