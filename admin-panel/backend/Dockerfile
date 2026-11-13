@@ -30,4 +30,5 @@ EXPOSE 8080
 # Старт может занять время (Flyway-миграции) → start-period.
 HEALTHCHECK --interval=15s --timeout=5s --retries=10 --start-period=90s \
     CMD curl -fsS http://localhost:8080/api/health || exit 1
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+# Bound heap within the 2 GiB production budget even when JVM ergonomics see host RAM.
+ENTRYPOINT ["java", "-Xmx1280m", "-jar", "/app/app.jar"]
