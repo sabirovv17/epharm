@@ -11,7 +11,7 @@ All notable production changes to Epharm are recorded here. The format follows
 
 - Bound the backend runtime heap to 1280 MiB inside its 2 GiB container. The
   explicit JVM limit prevents host-sized heap ergonomics from causing a cgroup
-  OOM; application behavior, frontend, POSM and protected configuration stay unchanged.
+  OOM; application behavior, frontend source, POSM and protected configuration stay unchanged.
 
 ## [0.2.16] - 2026-11-12
 
