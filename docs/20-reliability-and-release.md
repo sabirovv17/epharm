@@ -195,6 +195,22 @@ use the existing archive verifier and record actual destination IDs. Downloaded
 artifacts are build evidence, not acceptance: main OCI recovery and all migration,
 file, identity, POSM and single-writer gates still apply before application cutover.
 
+### Backend JVM memory budget
+
+The backend image starts Java with `-Xmx1280m` for the production container's 2 GiB
+memory limit, leaving 768 MiB outside the maximum heap for native memory. The explicit
+heap cap applies alongside the existing `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=65.0`;
+it does not depend on JVM ergonomics correctly detecting the container memory limit.
+Keep the container limit, JRE and unrelated configuration unchanged for this fix.
+
+Before promotion, probe the exact candidate image's Java on the actual deployment host
+under the production Docker/cgroup memory limit and JVM options. Record its image ID,
+`MaxHeapSize=1342177280` and the 2147483648-byte container limit; a successful CI probe
+on another host does not prove this boundary. After switching, verify the running
+backend's heap limit and cgroup memory, health and restart/OOM counters throughout the
+acceptance window. Preserve any earlier OOM/restart evidence separately from the new
+container's baseline. Heap size alone is not proof that total process memory stays bounded.
+
 ## Monetary release boundary
 
 The unified wallet release adds forward-only financial migrations. Keep the CRM reward and
