@@ -75,12 +75,9 @@ public partial class MainWindow
                     { process = new("process_changing"); observation = new("process_changing"); }
                     else if (checkedProcess.Status != process.Status)
                     { process = checkedProcess; observation = new(checkedProcess.Status); }
-                    if (_staffProcessStability.Confirm(process, _staffClock()) != null)
-                    {
-                        await Dispatcher.InvokeAsync(() => ApplyStaffObservation(process, observation));
-                        await ValidateStaffGrant(ct).ConfigureAwait(false);
-                    }
-                    else await Dispatcher.InvokeAsync(ApplyUnconfirmedStaffProcess);
+                    var validate = false;
+                    await Dispatcher.InvokeAsync(() => { validate = ApplyStaffProcessObservation(process, observation); });
+                    if (validate) await ValidateStaffGrant(ct).ConfigureAwait(false);
                 }
                 await Task.Delay(TimeSpan.FromSeconds(2), ct).ConfigureAwait(false);
             }
@@ -121,6 +118,19 @@ public partial class MainWindow
             return;
         }
         SetStaffAuthenticationStatus("process_unavailable");
+    }
+
+    private bool ApplyStaffProcessObservation(StaffProcessPresence process, StaffSessionObservation observation)
+    {
+        if (_staffProcessStability.Confirm(process, _staffClock()) == null) {
+            ApplyUnconfirmedStaffProcess();
+            return false;
+        }
+        var trusted = process.Status is "resolved" or "ambiguous_process";
+        // A readable identity can coexist with an unreadable peer. Preserve real
+        // identity changes, but do not verify or prompt from that partial proof.
+        ApplyStaffObservation(process, observation, uncertainProcess: !trusted && process.Status != "no_process");
+        return trusted;
     }
 
     private static StaffProcessPresence ObserveStaffProcess()
@@ -172,7 +182,7 @@ public partial class MainWindow
         Log("Вход сотрудника ePharm включён сервером; кассовые функции продолжают работать независимо.");
     }
 
-    private void ApplyStaffObservation(StaffProcessPresence process, StaffSessionObservation observation)
+    private void ApplyStaffObservation(StaffProcessPresence process, StaffSessionObservation observation, bool uncertainProcess = false)
     {
         if (_staffStop.IsCancellationRequested || !_staffEnabled) return;
         _staffSession.IsAuthenticated(_staffClock());
@@ -190,6 +200,10 @@ public partial class MainWindow
         // Presentation follows the CURRENT source, not the last reliable binding retained
         // for grant security. Losing DB identity must not trap the existing filled form.
         _staffWindow?.UpdateSourceContext(_staffSession.CurrentSource);
+        if (uncertainProcess) {
+            ApplyUnconfirmedStaffProcess();
+            return;
+        }
         RefreshStaffStatus();
         if (_staffSession.NeedsPrompt(_staffClock()))
         {

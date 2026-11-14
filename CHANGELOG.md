@@ -10,7 +10,8 @@ All notable production changes to Epharm are recorded here. The format follows
 - Recover a confirmed created POSM profile into explicit manual sign-in when fresh
   local process confirmation rejects the login handoff. Preserve form-only credentials,
   clear confirmation fields, revoke rejected grants and never replay registration.
-- Bound a retained staff grant when Windows cannot confirm the cashier process;
+- Bound a retained staff grant when Windows cannot confirm the cashier process,
+  including partially readable process enumeration;
   recovery still requires fresh server verification and cannot extend its deadline.
 - Distinguish existing-profile activation from new SMS-free registration in RU/KK.
 - Prepare signed POSM 1.0.86 as a separate client release, gated on exact-main

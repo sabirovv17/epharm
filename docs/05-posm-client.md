@@ -27,7 +27,9 @@ relax process proof, pharmacy assignment, pending-account status or OTP recovery
 Synthetic tests do not identify the cause on an uninspected pharmacy workstation.
 
 An empty/unknown OS-process observation also suspends an already verified grant
-while the observation loop waits for stable process proof. The existing two-minute
+while the observation loop waits for stable process proof. This includes a readable
+process identity with an unreadable peer: partial enumeration cannot retain verified
+authentication or open a prompt; a confirmed identity change still revokes immediately. The existing two-minute
 recovery deadline is not extended by repeated uncertainty. Merely seeing the old
 process again does not authenticate it: a fresh server check is required. The first
 uncertain observation permits that check immediately when proof returns, rather

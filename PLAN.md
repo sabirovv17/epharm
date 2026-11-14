@@ -12,6 +12,15 @@
 не допускается. Backend/frontend и `-Xmx1280m` остаются без изменений; новый backend
 релиз не требуется для правки двух клиентских файлов.
 
+Независимое ревью обнаружило частично читаемый процесс с известным Identity: старый
+маршрут сохранял подтверждённый grant до очередной проверки. Пять тестов фактического
+маршрута воспроизвели4FAIL/1PASS до исправления; после общего маршрутизатора проходят
+все34 orchestration cases. Смена identity по-прежнему отзывает grant сразу, выход
+стабилизируется прежние2с; частичная неопределённость не вызывает окно и не продлевает
+восстановление. Локальный Mac core:694PASS/15Windows-specificSKIP/0FAIL (709всего);
+обязательный Windows CI должен исполнить полный набор. Первое падение Mac-прогона из-за
+/var symlink сохранено; повтор использовал canonical/private/tmp, без ослабления guard.
+
 Перед merge нужен полный обязательный CI на финальном HEAD. После merge — exact-main
 Windows production artifact, полный core/native прогон и disposable Windows85→86,
 failed-start/locked-file/helper-interruption/reboot/watchdog/offline, два экрана и
