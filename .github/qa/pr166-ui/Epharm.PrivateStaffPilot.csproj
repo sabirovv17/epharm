@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>Epharm.PrivateStaffPilot</AssemblyName>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <PublishSingleFile>false</PublishSingleFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <!-- Read the immutable official DLL; never build the product project or copy a replacement. -->
+    <Reference Include="CustomerDisplay">
+      <HintPath>$(AppArtifactRoot)/CustomerDisplay.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <Target Name="RequireOfficialProductReference" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(AppArtifactRoot)' == '' Or !Exists('$(AppArtifactRoot)/CustomerDisplay.dll')"
+           Text="Set AppArtifactRoot to the extracted official product artifact, not a source project." />
+  </Target>
+  <Target Name="RefuseProductCopyInPrivatePublish" AfterTargets="Publish">
+    <Error Condition="Exists('$(PublishDir)CustomerDisplay.dll')"
+           Text="Product DLL appeared in private host publish output; use a fresh separate output folder." />
+  </Target>
+</Project>

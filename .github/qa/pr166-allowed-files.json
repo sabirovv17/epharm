@@ -1,0 +1,18 @@
+[
+  ".github/qa/pr166-allowed-files.json",
+  ".github/qa/pr166-candidate.json",
+  ".github/qa/pr166-prepare-windows.ps1",
+  ".github/qa/pr166-qualify.py",
+  ".github/qa/pr166-ui/Epharm.PrivateStaffPilot.csproj",
+  ".github/qa/pr166-ui/NuGet.Config",
+  ".github/qa/pr166-ui/Program.cs",
+  ".github/qa/test_pr166_qualify.py",
+  ".github/workflows/release-images.yml",
+  "tools/release/ci-display-pilot-assets/driver-source.json",
+  "tools/release/ci-display-pilot-assets/pilot-customer-display.mp4",
+  "tools/release/ci-display-pilot-assets/usbmmidd_v2.zip",
+  "tools/release/ci-display-pilot-prepare.ps1",
+  "tools/release/ci-display-render.ps1",
+  "tools/release/ci-display-topology-native.cs",
+  "tools/release/ci-display-topology.ps1"
+]
