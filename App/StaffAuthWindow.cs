@@ -378,12 +378,12 @@ public sealed class StaffAuthWindow : Window
         _forgot.Visibility = _newStaff.Visibility = _activate.Visibility = login ? Visibility.Visible : Visibility.Collapsed;
         _heading.Text = _mode.SelectedIndex switch {
             1 => T("Новый сотрудник", "Жаңа қызметкер"), 2 => T("Восстановление пароля", "Құпиясөзді қалпына келтіру"),
-            3 => T("Создайте пароль", "Құпиясөз жасаңыз"), _ => T("Вход для фармацевта", "Фармацевттің кіруі"),
+            3 => T("Активация профиля", "Профильді белсендіру"), _ => T("Вход для фармацевта", "Фармацевттің кіруі"),
         };
         _intro.Text = _mode.SelectedIndex switch {
             1 => T("Заполните ИИН, ФИО, телефон и пароль. SMS не требуется; номер телефона пока не подтверждён.", "ЖСН, аты-жөніңізді, телефон мен құпиясөзді енгізіңіз. SMS қажет емес; телефон нөмірі әлі расталмаған."),
             2 => T("Укажите ИИН и ранее привязанный телефон. Подтвердите SMS-код и задайте новый пароль.", "ЖСН мен тіркелген телефонды көрсетіңіз. SMS кодын растап, жаңа құпиясөз орнатыңыз."),
-            3 => T("Подтвердите ранее привязанный телефон и создайте пароль для существующего профиля.", "Тіркелген телефонды растап, бар профиль үшін құпиясөз жасаңыз."),
+            3 => T("Это не регистрация нового сотрудника. SMS-код подтверждает доступ к ранее привязанному телефону, чтобы создать пароль для существующего профиля. Новому сотруднику: «К входу» → «Новый сотрудник? Регистрация» — без SMS.", "Бұл жаңа қызметкерді тіркеу емес. SMS коды бұрын тіркелген телефонға қолжетімділікті растайды, содан кейін бар профиль үшін құпиясөз жасайсыз. Жаңа қызметкерге: «Кіруге оралу» → «Жаңа қызметкерсіз бе? Тіркелу» — SMS-сіз."),
             _ => T("Введите ИИН и пароль. Если вы впервые в ePharm, выберите регистрацию нового сотрудника.", "ЖСН мен құпиясөзді енгізіңіз. ePharm жүйесіне алғаш кірсеңіз, жаңа қызметкер ретінде тіркеліңіз."),
         };
         _passwordHint.Text = T("Новый пароль: 4–128 символов и не более 72 байт UTF-8.", "Жаңа құпиясөз: 4–128 таңба, UTF-8 форматында ең көбі 72 байт.");
@@ -487,13 +487,18 @@ public sealed class StaffAuthWindow : Window
     {
         if (registered.Status is not ("authenticated" or "registered" or "pending")) throw new StaffApiException("INVALID_RESPONSE");
         ClearChallenge(); _code.Clear();
-        if (registered.Status == "authenticated" &&
-            (_deviceContext != null ? registered.DeviceContext == _deviceContext : registered.Context == _context && _context != null) &&
-            registered.Pharmacist != null && !string.IsNullOrWhiteSpace(registered.SessionToken) &&
-            registered.ExpiresAt > DateTimeOffset.UtcNow)
+        if (IsValidAuthenticatedRegistration(registered))
         {
+            var awaitedParent = AuthenticationCompletion != null;
+            var statusBeforeHandoff = _statusMessage;
             await CompleteAuthentication(new StaffAuthResponse(registered.Status, registered.SessionToken,
-                registered.ExpiresAt, registered.Pharmacist, _context, registered.DeviceContext));
+                registered.ExpiresAt, registered.Pharmacist!, _context, registered.DeviceContext));
+            // The server has created the account, even if fresh process confirmation
+            // rejects its grant. The awaited parent dismisses accepted windows; a live
+            // form must offer login, not a second account-creation request. Preserve
+            // its exact process diagnostic and never replay credentials automatically.
+            if (awaitedParent)
+                PrepareLoginAfterCreatedAccount(ReferenceEquals(statusBeforeHandoff, _statusMessage) ? null : _statusMessage);
             return;
         }
         if (registered.Status == "authenticated") throw new StaffApiException("INVALID_RESPONSE");
@@ -516,6 +521,25 @@ public sealed class StaffAuthWindow : Window
         else Authenticated?.Invoke(response); // Legacy embedding/tests retain their synchronous contract.
     }
 
+    private bool IsValidAuthenticatedRegistration(StaffRegistrationResponse response) =>
+        response.Status == "authenticated" &&
+        (_deviceContext != null ? response.DeviceContext == _deviceContext : response.Context == _context && _context != null) &&
+        !string.IsNullOrWhiteSpace(response.Pharmacist?.Id) && !string.IsNullOrWhiteSpace(response.SessionToken) &&
+        response.ExpiresAt > DateTimeOffset.UtcNow;
+
+    private void PrepareLoginAfterCreatedAccount(Func<string>? parentStatus)
+    {
+        if (_stop.IsCancellationRequested || !IsVisible || !RegistrationWithoutSms) return;
+        var password = _password.Password;
+        _mode.SelectedIndex = 0;
+        _password.Password = password;
+        _statusMessage = () => T("Профиль создан. Вход ещё не подтверждён. Повторная регистрация не нужна.",
+            "Профиль жасалды. Кіру әлі расталған жоқ. Қайта тіркелудің қажеті жоқ.") +
+            (parentStatus == null ? "" : " " + parentStatus());
+        RefreshStatus();
+        RevealError();
+    }
+
     private async Task<bool> DiscardChangedRegistration(long generation, StaffRegistrationResponse response)
     {
         if (_registrationPolicy.IsCurrent(generation)) return false;
@@ -524,6 +548,7 @@ public sealed class StaffAuthWindow : Window
         if (_deviceContext != null && !string.IsNullOrWhiteSpace(response.SessionToken)) {
             try { await _client.DeviceLogoutAsync(response.SessionToken, _stop.Token); } catch { }
         }
+        if (IsValidAuthenticatedRegistration(response)) PrepareLoginAfterCreatedAccount(_statusMessage);
         return true;
     }
 

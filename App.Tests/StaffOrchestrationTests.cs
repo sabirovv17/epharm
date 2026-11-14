@@ -199,7 +199,40 @@ namespace CustomerDisplay.Core.Tests
             shell.StaffProbeTest = () => { reads++; return new("resolved", "different-process"); };
             await shell.AcceptStaffTest();
             Assert.False(shell.StaffVerifiedTest); Assert.True(shell.StaffWindowTest!.IsVisible);
+            Assert.Contains("Кассовый процесс изменился", shell.StaffWindowTest.ReleaseMessage);
+            Assert.Contains("касса процесі өзгерді", shell.StaffWindowTest.ReleaseKazakhMessage);
             Assert.Equal(1, reads); Assert.Equal(1, http.Logouts); shell.StopStaffTest();
+        }
+
+        [Fact]
+        public async Task UnreadablePeerCannotAcceptAValidGrantAndExplainsTheLocalBlockWithoutReplay()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http); var prompt = shell.StaffWindowTest!;
+            shell.StaffProbeTest = () => new("process_unavailable", shell.StaffPresenceTest.Identity);
+            await shell.AcceptStaffTest();
+            Assert.False(shell.StaffVerifiedTest); Assert.Null(shell.StaffStateTest.Grant);
+            Assert.Same(prompt, shell.StaffWindowTest); Assert.True(prompt.IsVisible); Assert.False(prompt.Required);
+            Assert.Contains("Windows не позволила полностью проверить", prompt.ReleaseMessage);
+            Assert.Contains("Повторная регистрация не нужна", prompt.ReleaseMessage);
+            Assert.Contains("POSM", prompt.ReleaseMessage);
+            Assert.Contains("Windows", prompt.ReleaseKazakhMessage);
+            Assert.Contains("Қайта тіркелудің қажеті жоқ", prompt.ReleaseKazakhMessage);
+            Assert.Equal(1, http.Logouts); Assert.Equal(0, http.Validations);
+            shell.ObserveStaffTest(); Assert.Same(prompt, shell.StaffWindowTest);
+            Assert.Equal(1, http.Logouts); shell.StopStaffTest();
+        }
+
+        [Fact]
+        public async Task MissingProcessProofDoesNotClaimThatWindowsDeniedAKnownProcess()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http); shell.StaffProbeTest = () => new("process_unavailable");
+            await shell.AcceptStaffTest();
+            Assert.False(shell.StaffVerifiedTest); Assert.Null(shell.StaffStateTest.Grant);
+            Assert.DoesNotContain("Сервис ePharm подтвердил данные", shell.StaffWindowTest!.ReleaseMessage);
+            Assert.Contains("Форма сохранена", shell.StaffWindowTest.ReleaseMessage);
+            Assert.Equal(1, http.Logouts); shell.StopStaffTest();
         }
 
         [Fact]
@@ -359,6 +392,8 @@ namespace CustomerDisplay
         public bool Required { get; private set; }
         public bool IsRequestPending { get; private set; }
         public bool WasDismissed { get; private set; }
+        public string? ReleaseMessage { get; private set; }
+        public string? ReleaseKazakhMessage { get; private set; }
         public async Task Reply(StaffAuthResponse response)
         {
             IsRequestPending = true; AuthenticationStarted?.Invoke();
@@ -367,7 +402,11 @@ namespace CustomerDisplay
         public void Pending() { AssignmentPending?.Invoke(); ReleaseWork(); }
         public void SetRegistrationSmsRequired(bool required) { }
         public void UpdateSourceContext(StaffAuthContext? context) { }
-        public void ReleaseWork(string? message = null, string? kazakhMessage = null) => Required = false;
+        public void ReleaseWork(string? message = null, string? kazakhMessage = null)
+        {
+            Required = false;
+            ReleaseMessage = message; ReleaseKazakhMessage = kazakhMessage;
+        }
         public void Dismiss() { WasDismissed = true; Close(); }
     }
 }
