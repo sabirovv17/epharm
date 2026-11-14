@@ -80,7 +80,7 @@ public partial class MainWindow
                         await Dispatcher.InvokeAsync(() => ApplyStaffObservation(process, observation));
                         await ValidateStaffGrant(ct).ConfigureAwait(false);
                     }
-                    else await Dispatcher.InvokeAsync(() => SetStaffAuthenticationStatus("process_unavailable"));
+                    else await Dispatcher.InvokeAsync(ApplyUnconfirmedStaffProcess);
                 }
                 await Task.Delay(TimeSpan.FromSeconds(2), ct).ConfigureAwait(false);
             }
@@ -100,6 +100,27 @@ public partial class MainWindow
         if (_staffAuthenticationStatus == safeStatus) return;
         _staffAuthenticationStatus = safeStatus;
         Log("Состояние входа сотрудника ePharm: " + safeStatus);
+    }
+
+    private void ApplyUnconfirmedStaffProcess()
+    {
+        if (!_staffEnabled || _staffStop.IsCancellationRequested) return;
+        var now = _staffClock();
+        var wasAuthenticated = _staffSession.IsAuthenticated(now);
+        // A single empty enumeration is not a confirmed exit, but neither it nor
+        // a persistent access failure may leave an old grant verified forever.
+        // Reuse the bounded recovery state without accepting unknown OS proof.
+        if (_staffSession.MarkTransportFailure(now)) {
+            if (wasAuthenticated) _staffLastValidation = DateTimeOffset.MinValue;
+            RefreshStaffStatus();
+            return;
+        }
+        if (_staffSession.RecoveryExpired) {
+            // Do not extend the deadline or display a window without a real process.
+            RefreshStaffStatus();
+            return;
+        }
+        SetStaffAuthenticationStatus("process_unavailable");
     }
 
     private static StaffProcessPresence ObserveStaffProcess()

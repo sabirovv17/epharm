@@ -68,6 +68,7 @@ internal static class Program
             try
             {
                 _screen = Screen.PrimaryScreen ?? throw new InvalidOperationException("No primary display.");
+                await Run("fresh-login-never-displays-registration-or-sms-controls", FreshLoginPresentation);
                 await Run("known-source-window-preserves-cashier-focus-and-can-minimize-or-close", NonblockingBoundsAndDismiss);
                 await Run("known-source-errors-and-pending-requests-never-trap-cashier", NonblockingErrorsAndPendingRequests);
                 await Run("registration-local-and-api-errors-retain-passwords-until-success", RegistrationPasswordRetention);
@@ -131,7 +132,7 @@ internal static class Program
                 watchdog.Stop();
                 foreach (var window in Windows) if (window.IsVisible) window.Dismiss();
                 foreach (var window in RecommendationWindows) if (window.IsVisible) window.Close();
-                var success = Results.Count == 53 && Results.All(result => result.Passed);
+                var success = Results.Count == 54 && Results.All(result => result.Passed);
                 WriteProof(success, null);
                 application.Shutdown(success ? 0 : 1);
             }
@@ -620,6 +621,37 @@ internal static class Program
         window.Closed += (_, _) => state.Bypass(StaffPromptBypassReason.IdentityUnavailable);
         window.Close(); await Idle();
         Check(proof, "pending-profile-can-close-without-forging-login", !window.IsVisible && !state.IsAuthenticated(DateTimeOffset.UtcNow) && !state.NeedsPrompt(DateTimeOffset.UtcNow));
+    }
+
+    private static async Task FreshLoginPresentation(Dictionary<string, bool> proof)
+    {
+        foreach (var device in new[] { false, true })
+        foreach (var kazakh in new[] { false, true })
+        {
+            var state = DeviceState();
+            using var handler = new FakeHandler { DeviceContext = device ? state.Context : null };
+            using var client = new StaffAuthClient(Config(), handler);
+            var window = new StaffAuthWindow(client, device ? null : Context(), _screen,
+                deviceContext: device ? state.Context : null, registrationSmsRequired: false, kazakh: kazakh);
+            Windows.Add(window);
+            var prefix = $"device-{device}-kk-{kazakh}-";
+            Check(proof, prefix + "constructor-selects-login-without-navigation", Field<ComboBox>(window, "_mode").SelectedIndex == 0 &&
+                Field<TextBlock>(window, "_heading").Text == (kazakh ? "Фармацевттің кіруі" : "Вход для фармацевта"));
+            Check(proof, prefix + "constructor-hides-sms-and-registration-only-fields",
+                Field<Button>(window, "_request").Visibility == Visibility.Collapsed &&
+                Field<StackPanel>(window, "_codeRow").Visibility == Visibility.Collapsed &&
+                Field<StackPanel>(window, "_phoneRow").Visibility == Visibility.Collapsed &&
+                Field<StackPanel>(window, "_nameRow").Visibility == Visibility.Collapsed &&
+                Field<StackPanel>(window, "_passwordConfirmationRow").Visibility == Visibility.Collapsed);
+            window.Show(); await Idle();
+            Check(proof, prefix + "first-render-hides-sms-and-preserves-login", Field<Button>(window, "_request").Visibility == Visibility.Collapsed &&
+                Field<StackPanel>(window, "_codeRow").Visibility == Visibility.Collapsed && Field<Button>(window, "_submit").IsEnabled);
+            Click(Field<Button>(window, kazakh ? "_languageRu" : "_languageKk")); await Idle();
+            Check(proof, prefix + "language-change-does-not-show-sms-or-send-request", Field<ComboBox>(window, "_mode").SelectedIndex == 0 &&
+                Field<Button>(window, "_request").Visibility == Visibility.Collapsed && Field<StackPanel>(window, "_codeRow").Visibility == Visibility.Collapsed &&
+                handler.TotalCalls == 0);
+            window.Close(); await Idle();
+        }
     }
 
     private static async Task RegistrationNeverSms(Dictionary<string, bool> proof)

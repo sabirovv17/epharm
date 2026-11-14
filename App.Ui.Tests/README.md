@@ -12,7 +12,7 @@ can explicitly pass `--allow-noninteractive`; the JSON then records the actual
 visible window on a real cashier's desktop. The existing Windows/Standard-N
 pilot is still required before enabling the production staff feature.
 
-Fifty-three cases exercise the actual `StaffAuthWindow` and `RecommendationWindow`
+Fifty-four cases exercise the actual `StaffAuthWindow` and `RecommendationWindow`
 assemblies through their own in-process controls. They include nonblocking close,
 parent-accepted grants, rejected foreign/stale contexts, fail-open cash work, source
 loss on an existing filled window, single-flight submits, local login password policy,
@@ -38,6 +38,9 @@ confirmation cleared and the parent's bilingual diagnostic preserved. The test
 proves no automatic replay, one explicit login (not re-registration), and secret
 cleanup on close. Policy rollback follows the same recovery only for a validated
 created-account response; malformed responses do not claim success.
+Fresh-window checks additionally cover device/legacy context and RU/KK before any
+navigation, after first render and after language changes: login has no SMS or
+registration-only fields, and opening/switching language makes no auth requests.
 
 Five recommendation cases cover empty/failed refresh, partial cart removal in the same
 native window, stock uncertainty with unchanged financial quote, expiry semantics and
@@ -51,7 +54,7 @@ focus theft, window activation or lost passwords. Countdown ticks do not trigger
 product error-reveal path.
 A 90-second WPF watchdog closes test windows and returns exit code 3 on timeout.
 
-Exit code 0 means all 53 cases passed; 1 is a test failure; 2 is a missing
+Exit code 0 means all 54 cases passed; 1 is a test failure; 2 is a missing
 interactive session or invalid arguments. Output defaults to `proof` beside the
 executable and includes `qa-proof.json` and fourteen renders of its own WPF content.
 Error screenshots scroll the form to the actual status; they do not imply all fields

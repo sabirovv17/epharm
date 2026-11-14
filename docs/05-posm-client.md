@@ -26,6 +26,14 @@ Standard-N process. Rejected grants are revoked as before. These changes do not
 relax process proof, pharmacy assignment, pending-account status or OTP recovery.
 Synthetic tests do not identify the cause on an uninspected pharmacy workstation.
 
+An empty/unknown OS-process observation also suspends an already verified grant
+while the observation loop waits for stable process proof. The existing two-minute
+recovery deadline is not extended by repeated uncertainty. Merely seeing the old
+process again does not authenticate it: a fresh server check is required. The first
+uncertain observation permits that check immediately when proof returns, rather
+than waiting for the normal thirty-second validation interval. A stable process
+exit still invalidates as before; no popup is opened without a real process.
+
 ## Nonblocking staff login candidate — 2026-11-11
 
 Staff sign-in is an ordinary closable/minimizable window, including when Standard-N

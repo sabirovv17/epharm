@@ -279,6 +279,44 @@ namespace CustomerDisplay.Core.Tests
         }
 
         [Fact]
+        public async Task UnconfirmedObservationSuspendsGrantAndRecoveryRequiresFreshServerValidation()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http); await shell.AcceptStaffTest(); await shell.ValidateStaffTest();
+            var token = shell.StaffStateTest.Grant;
+            Assert.Equal(1, http.Validations); Assert.True(shell.StaffVerifiedTest);
+            shell.UnconfirmedStaffProcessTest();
+            Assert.False(shell.StaffVerifiedTest); Assert.Equal(token, shell.StaffStateTest.Grant);
+            Assert.Equal("session_revalidating", shell.StaffAuthenticationStatus);
+            Assert.Null(shell.StaffWindowTest); Assert.Equal(0, http.Logouts);
+            // A transient empty/failed OS read is not a confirmed process exit.
+            // Merely seeing the old process again cannot authorize the retained token.
+            shell.AdvanceStaffTest(TimeSpan.FromSeconds(3)); shell.ObserveStaffTest();
+            Assert.False(shell.StaffVerifiedTest);
+            await shell.ValidateStaffTest();
+            Assert.Equal(2, http.Validations); Assert.True(shell.StaffVerifiedTest);
+            Assert.Equal(token, shell.StaffStateTest.Grant); Assert.Null(shell.StaffWindowTest);
+        }
+
+        [Fact]
+        public async Task PersistentUnknownProcessCannotKeepVerifiedGrantOrExtendRecoveryDeadline()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http); await shell.AcceptStaffTest();
+            shell.UnconfirmedStaffProcessTest(); var deadline = shell.StaffStateTest.RecoveryDeadline;
+            Assert.NotNull(deadline); Assert.False(shell.StaffVerifiedTest);
+            shell.AdvanceStaffTest(TimeSpan.FromSeconds(61)); shell.UnconfirmedStaffProcessTest();
+            Assert.Equal(deadline, shell.StaffStateTest.RecoveryDeadline);
+            shell.AdvanceStaffTest(TimeSpan.FromSeconds(60)); shell.UnconfirmedStaffProcessTest();
+            Assert.Null(shell.StaffStateTest.Grant); Assert.False(shell.StaffVerifiedTest);
+            Assert.True(shell.StaffStateTest.RecoveryExpired); Assert.Null(shell.StaffWindowTest);
+            Assert.Equal(0, http.Validations);
+            shell.ObserveStaffTest(); var prompt = shell.StaffWindowTest;
+            Assert.NotNull(prompt); Assert.False(prompt.Required); Assert.False(shell.StaffVerifiedTest);
+            prompt.Close(); shell.ObserveStaffTest(); Assert.Null(shell.StaffWindowTest);
+        }
+
+        [Fact]
         public void PendingAssignmentSurvivesClosingAndDoesNotBecomeIdentityUnavailable()
         {
             using var http = new StaffHttp(); using var shell = new MainWindow();
@@ -350,6 +388,7 @@ namespace CustomerDisplay
         internal Task AcceptStaffTest() => _staffWindow!.Reply(new("authenticated", "synthetic-grant-not-valid-on-any-server",
             _staffTestNow.AddHours(8), new("synthetic-person", "Synthetic Person"), DeviceContext: _staffSession.Context));
         internal void ObserveStaffTest() => ApplyStaffObservation(StaffPresenceTest, _staffTestObservation);
+        internal void UnconfirmedStaffProcessTest() => ApplyUnconfirmedStaffProcess();
         internal void InvalidateStaffTest(string change)
         {
             switch (change) {
