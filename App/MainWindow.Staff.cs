@@ -75,12 +75,9 @@ public partial class MainWindow
                     { process = new("process_changing"); observation = new("process_changing"); }
                     else if (checkedProcess.Status != process.Status)
                     { process = checkedProcess; observation = new(checkedProcess.Status); }
-                    if (_staffProcessStability.Confirm(process, _staffClock()) != null)
-                    {
-                        await Dispatcher.InvokeAsync(() => ApplyStaffObservation(process, observation));
-                        await ValidateStaffGrant(ct).ConfigureAwait(false);
-                    }
-                    else await Dispatcher.InvokeAsync(() => SetStaffAuthenticationStatus("process_unavailable"));
+                    var validate = false;
+                    await Dispatcher.InvokeAsync(() => { validate = ApplyStaffProcessObservation(process, observation); });
+                    if (validate) await ValidateStaffGrant(ct).ConfigureAwait(false);
                 }
                 await Task.Delay(TimeSpan.FromSeconds(2), ct).ConfigureAwait(false);
             }
@@ -100,6 +97,40 @@ public partial class MainWindow
         if (_staffAuthenticationStatus == safeStatus) return;
         _staffAuthenticationStatus = safeStatus;
         Log("Состояние входа сотрудника ePharm: " + safeStatus);
+    }
+
+    private void ApplyUnconfirmedStaffProcess()
+    {
+        if (!_staffEnabled || _staffStop.IsCancellationRequested) return;
+        var now = _staffClock();
+        var wasAuthenticated = _staffSession.IsAuthenticated(now);
+        // A single empty enumeration is not a confirmed exit, but neither it nor
+        // a persistent access failure may leave an old grant verified forever.
+        // Reuse the bounded recovery state without accepting unknown OS proof.
+        if (_staffSession.MarkTransportFailure(now)) {
+            if (wasAuthenticated) _staffLastValidation = DateTimeOffset.MinValue;
+            RefreshStaffStatus();
+            return;
+        }
+        if (_staffSession.RecoveryExpired) {
+            // Do not extend the deadline or display a window without a real process.
+            RefreshStaffStatus();
+            return;
+        }
+        SetStaffAuthenticationStatus("process_unavailable");
+    }
+
+    private bool ApplyStaffProcessObservation(StaffProcessPresence process, StaffSessionObservation observation)
+    {
+        if (_staffProcessStability.Confirm(process, _staffClock()) == null) {
+            ApplyUnconfirmedStaffProcess();
+            return false;
+        }
+        var trusted = process.Status is "resolved" or "ambiguous_process";
+        // A readable identity can coexist with an unreadable peer. Preserve real
+        // identity changes, but do not verify or prompt from that partial proof.
+        ApplyStaffObservation(process, observation, uncertainProcess: !trusted && process.Status != "no_process");
+        return trusted;
     }
 
     private static StaffProcessPresence ObserveStaffProcess()
@@ -151,7 +182,7 @@ public partial class MainWindow
         Log("Вход сотрудника ePharm включён сервером; кассовые функции продолжают работать независимо.");
     }
 
-    private void ApplyStaffObservation(StaffProcessPresence process, StaffSessionObservation observation)
+    private void ApplyStaffObservation(StaffProcessPresence process, StaffSessionObservation observation, bool uncertainProcess = false)
     {
         if (_staffStop.IsCancellationRequested || !_staffEnabled) return;
         _staffSession.IsAuthenticated(_staffClock());
@@ -169,6 +200,10 @@ public partial class MainWindow
         // Presentation follows the CURRENT source, not the last reliable binding retained
         // for grant security. Losing DB identity must not trap the existing filled form.
         _staffWindow?.UpdateSourceContext(_staffSession.CurrentSource);
+        if (uncertainProcess) {
+            ApplyUnconfirmedStaffProcess();
+            return;
+        }
         RefreshStaffStatus();
         if (_staffSession.NeedsPrompt(_staffClock()))
         {
@@ -275,12 +310,18 @@ public partial class MainWindow
     private async Task CompleteStaffAuthentication(StaffAuthWindow window, long generation, StaffDeviceContext context, StaffAuthResponse response)
     {
         var accepted = false;
+        StaffProcessPresence? confirmationProcess = null;
+        var serverConfirmed = response.Status == "authenticated" && response.DeviceContext == context &&
+            !string.IsNullOrWhiteSpace(response.Pharmacist?.Id) && !string.IsNullOrWhiteSpace(response.SessionToken) &&
+            response.ExpiresAt > _staffClock();
         bool Current() => _staffWindow == window && _staffEnabled && !_staffStop.IsCancellationRequested &&
             !window.WasDismissed && _staffSession.Generation == generation && _staffSession.ProcessInstanceId == context.ProcessInstanceId;
         try
         {
             if (!await StaffProcessConfirmation.ConfirmAsync(context.ProcessInstanceId,
-                    ct => Task.Run(_staffProcessProbe, ct), Current, window.ClosedToken) ||
+                    ct => Task.Run(() => {
+                        var observed = _staffProcessProbe(); confirmationProcess = observed; return observed;
+                    }, ct), Current, window.ClosedToken) ||
                 !Current() || !_staffSession.Accept(generation, context, response, _staffClock())) return;
             accepted = true;
             _staffLastValidation = DateTimeOffset.MinValue;
@@ -293,8 +334,17 @@ public partial class MainWindow
             if (!accepted) {
                 if (response.SessionToken != null) _ = RevokeOldStaffGrant(response.SessionToken);
                 if (_staffWindow == window) {
-                    window.ReleaseWork("Вход не подтверждён для текущего процесса. Форма сохранена; повторите вход после проверки Standard-N.",
-                        "Ағымдағы процесс үшін кіру расталмады. Нысан сақталды; Standard-N тексерілген соң қайта кіріңіз.");
+                    if (serverConfirmed && confirmationProcess is { Status: "process_unavailable" } &&
+                        confirmationProcess.Identity == context.ProcessInstanceId)
+                        window.ReleaseWork("Сервис ePharm подтвердил данные, но Windows не позволила полностью проверить кассовый процесс. Вход пока не завершён. Повторная регистрация не нужна. Можно закрыть окно и продолжить работу в Standard-N; администратору нужно проверить доступ POSM к кассовым процессам.",
+                            "ePharm сервисі деректерді растады, бірақ Windows касса процесін толық тексеруге мүмкіндік бермеді. Кіру әлі аяқталған жоқ. Қайта тіркелудің қажеті жоқ. Терезені жауып, Standard-N жүйесінде жұмысты жалғастыруға болады; әкімші POSM бағдарламасының касса процестеріне қолжетімділігін тексеруі керек.");
+                    else if (serverConfirmed && confirmationProcess is { Status: "resolved" or "ambiguous_process", Identity: not null } &&
+                        confirmationProcess.Identity != context.ProcessInstanceId)
+                        window.ReleaseWork("Кассовый процесс изменился во время входа. Вход не завершён; повторная регистрация не нужна. Закройте это окно и откройте «Вход / регистрация сотрудника» через значок ePharm в трее для текущего процесса Standard-N.",
+                            "Кіру кезінде касса процесі өзгерді. Кіру аяқталған жоқ; қайта тіркелудің қажеті жоқ. Осы терезені жауып, ағымдағы Standard-N процесі үшін трейдегі ePharm белгішесі арқылы «Қызметкердің кіруі / тіркелуі» тармағын ашыңыз.");
+                    else
+                        window.ReleaseWork("Вход не подтверждён для текущего процесса. Форма сохранена; повторите вход после проверки Standard-N. Если профиль уже создан, повторная регистрация не нужна.",
+                            "Ағымдағы процесс үшін кіру расталмады. Нысан сақталды; Standard-N тексерілген соң қайта кіріңіз. Профиль жасалған болса, қайта тіркелудің қажеті жоқ.");
                     SetStaffAuthenticationStatus("login_visible");
                 }
             }

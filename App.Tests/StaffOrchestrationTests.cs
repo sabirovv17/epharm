@@ -199,7 +199,40 @@ namespace CustomerDisplay.Core.Tests
             shell.StaffProbeTest = () => { reads++; return new("resolved", "different-process"); };
             await shell.AcceptStaffTest();
             Assert.False(shell.StaffVerifiedTest); Assert.True(shell.StaffWindowTest!.IsVisible);
+            Assert.Contains("Кассовый процесс изменился", shell.StaffWindowTest.ReleaseMessage);
+            Assert.Contains("касса процесі өзгерді", shell.StaffWindowTest.ReleaseKazakhMessage);
             Assert.Equal(1, reads); Assert.Equal(1, http.Logouts); shell.StopStaffTest();
+        }
+
+        [Fact]
+        public async Task UnreadablePeerCannotAcceptAValidGrantAndExplainsTheLocalBlockWithoutReplay()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http); var prompt = shell.StaffWindowTest!;
+            shell.StaffProbeTest = () => new("process_unavailable", shell.StaffPresenceTest.Identity);
+            await shell.AcceptStaffTest();
+            Assert.False(shell.StaffVerifiedTest); Assert.Null(shell.StaffStateTest.Grant);
+            Assert.Same(prompt, shell.StaffWindowTest); Assert.True(prompt.IsVisible); Assert.False(prompt.Required);
+            Assert.Contains("Windows не позволила полностью проверить", prompt.ReleaseMessage);
+            Assert.Contains("Повторная регистрация не нужна", prompt.ReleaseMessage);
+            Assert.Contains("POSM", prompt.ReleaseMessage);
+            Assert.Contains("Windows", prompt.ReleaseKazakhMessage);
+            Assert.Contains("Қайта тіркелудің қажеті жоқ", prompt.ReleaseKazakhMessage);
+            Assert.Equal(1, http.Logouts); Assert.Equal(0, http.Validations);
+            shell.ObserveStaffTest(); Assert.Same(prompt, shell.StaffWindowTest);
+            Assert.Equal(1, http.Logouts); shell.StopStaffTest();
+        }
+
+        [Fact]
+        public async Task MissingProcessProofDoesNotClaimThatWindowsDeniedAKnownProcess()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http); shell.StaffProbeTest = () => new("process_unavailable");
+            await shell.AcceptStaffTest();
+            Assert.False(shell.StaffVerifiedTest); Assert.Null(shell.StaffStateTest.Grant);
+            Assert.DoesNotContain("Сервис ePharm подтвердил данные", shell.StaffWindowTest!.ReleaseMessage);
+            Assert.Contains("Форма сохранена", shell.StaffWindowTest.ReleaseMessage);
+            Assert.Equal(1, http.Logouts); shell.StopStaffTest();
         }
 
         [Fact]
@@ -243,6 +276,112 @@ namespace CustomerDisplay.Core.Tests
             shell.StaffProbeTest = () => shell.StaffPresenceTest;
             shell.AdvanceStaffTest(TimeSpan.FromSeconds(31)); await shell.ValidateStaffTest();
             Assert.True(shell.StaffVerifiedTest); Assert.Null(shell.StaffWindowTest);
+        }
+
+        [Fact]
+        public async Task UnconfirmedObservationSuspendsGrantAndRecoveryRequiresFreshServerValidation()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http); await shell.AcceptStaffTest(); await shell.ValidateStaffTest();
+            var token = shell.StaffStateTest.Grant;
+            Assert.Equal(1, http.Validations); Assert.True(shell.StaffVerifiedTest);
+            shell.UnconfirmedStaffProcessTest();
+            Assert.False(shell.StaffVerifiedTest); Assert.Equal(token, shell.StaffStateTest.Grant);
+            Assert.Equal("session_revalidating", shell.StaffAuthenticationStatus);
+            Assert.Null(shell.StaffWindowTest); Assert.Equal(0, http.Logouts);
+            // A transient empty/failed OS read is not a confirmed process exit.
+            // Merely seeing the old process again cannot authorize the retained token.
+            shell.AdvanceStaffTest(TimeSpan.FromSeconds(3)); shell.ObserveStaffTest();
+            Assert.False(shell.StaffVerifiedTest);
+            await shell.ValidateStaffTest();
+            Assert.Equal(2, http.Validations); Assert.True(shell.StaffVerifiedTest);
+            Assert.Equal(token, shell.StaffStateTest.Grant); Assert.Null(shell.StaffWindowTest);
+        }
+
+        [Fact]
+        public async Task PersistentUnknownProcessCannotKeepVerifiedGrantOrExtendRecoveryDeadline()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http); await shell.AcceptStaffTest();
+            shell.UnconfirmedStaffProcessTest(); var deadline = shell.StaffStateTest.RecoveryDeadline;
+            Assert.NotNull(deadline); Assert.False(shell.StaffVerifiedTest);
+            shell.AdvanceStaffTest(TimeSpan.FromSeconds(61)); shell.UnconfirmedStaffProcessTest();
+            Assert.Equal(deadline, shell.StaffStateTest.RecoveryDeadline);
+            shell.AdvanceStaffTest(TimeSpan.FromSeconds(60)); shell.UnconfirmedStaffProcessTest();
+            Assert.Null(shell.StaffStateTest.Grant); Assert.False(shell.StaffVerifiedTest);
+            Assert.True(shell.StaffStateTest.RecoveryExpired); Assert.Null(shell.StaffWindowTest);
+            Assert.Equal(0, http.Validations);
+            shell.ObserveStaffTest(); var prompt = shell.StaffWindowTest;
+            Assert.NotNull(prompt); Assert.False(prompt.Required); Assert.False(shell.StaffVerifiedTest);
+            prompt.Close(); shell.ObserveStaffTest(); Assert.Null(shell.StaffWindowTest);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task PartiallyReadableProcessSuspendsThroughTheObservationRouteAndRequiresFreshValidation(bool knownSource)
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http, knownSource); await shell.AcceptStaffTest(); await shell.ValidateStaffTest();
+            var token = shell.StaffStateTest.Grant;
+            var validate = shell.ObserveStaffProcessTest(new("process_unavailable", shell.StaffPresenceTest.Identity));
+            Assert.False(shell.StaffVerifiedTest); Assert.False(validate);
+            Assert.Equal(token, shell.StaffStateTest.Grant); Assert.NotNull(shell.StaffStateTest.RecoveryDeadline);
+            Assert.Equal("session_revalidating", shell.StaffAuthenticationStatus);
+            Assert.Null(shell.StaffWindowTest); Assert.Equal(0, http.Logouts); Assert.Equal(1, http.Validations);
+            shell.AdvanceStaffTest(TimeSpan.FromSeconds(3));
+            Assert.True(shell.ObserveStaffProcessTest(shell.StaffPresenceTest));
+            Assert.False(shell.StaffVerifiedTest);
+            await shell.ValidateStaffTest();
+            Assert.True(shell.StaffVerifiedTest); Assert.Equal(token, shell.StaffStateTest.Grant);
+            Assert.Equal(2, http.Validations); Assert.Equal(0, http.Logouts); Assert.Null(shell.StaffWindowTest);
+        }
+
+        [Fact]
+        public async Task PartialProcessUncertaintyCannotExtendRecoveryOrOpenAWindowWithoutTrustedProof()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http); await shell.AcceptStaffTest(); await shell.ValidateStaffTest();
+            var partial = new StaffProcessPresence("process_unavailable", shell.StaffPresenceTest.Identity);
+            Assert.False(shell.ObserveStaffProcessTest(partial));
+            var deadline = shell.StaffStateTest.RecoveryDeadline; Assert.NotNull(deadline);
+            shell.AdvanceStaffTest(TimeSpan.FromSeconds(61)); Assert.False(shell.ObserveStaffProcessTest(partial));
+            Assert.Equal(deadline, shell.StaffStateTest.RecoveryDeadline);
+            shell.AdvanceStaffTest(TimeSpan.FromSeconds(60)); Assert.False(shell.ObserveStaffProcessTest(partial));
+            Assert.Null(shell.StaffStateTest.Grant); Assert.True(shell.StaffStateTest.RecoveryExpired);
+            Assert.False(shell.StaffVerifiedTest); Assert.Null(shell.StaffWindowTest);
+            Assert.Equal(1, http.Validations); Assert.Equal(0, http.Logouts);
+            Assert.True(shell.ObserveStaffProcessTest(shell.StaffPresenceTest));
+            var prompt = shell.StaffWindowTest; Assert.NotNull(prompt); Assert.False(prompt.Required);
+            prompt.Close(); shell.ObserveStaffProcessTest(shell.StaffPresenceTest); Assert.Null(shell.StaffWindowTest);
+        }
+
+        [Fact]
+        public async Task AChangedReadableIdentityStillRevokesImmediatelyWhenAPeerCannotBeRead()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http); await shell.AcceptStaffTest();
+            shell.AdvanceStaffTest(TimeSpan.FromMinutes(3));
+            Assert.False(shell.ObserveStaffProcessTest(new("process_unavailable", "different-readable-process")));
+            Assert.Null(shell.StaffStateTest.Grant); Assert.False(shell.StaffVerifiedTest);
+            Assert.Equal("different-readable-process", shell.StaffStateTest.ProcessInstanceId);
+            Assert.Equal(1, http.Logouts); Assert.Null(shell.StaffWindowTest);
+        }
+
+        [Fact]
+        public async Task TheObservationRouteStillRequiresTwoSecondsBeforeConfirmingAnExit()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http); await shell.AcceptStaffTest();
+            var token = shell.StaffStateTest.Grant; var generation = shell.StaffStateTest.Generation;
+            Assert.False(shell.ObserveStaffProcessTest(new("no_process")));
+            shell.AdvanceStaffTest(TimeSpan.FromSeconds(1)); Assert.False(shell.ObserveStaffProcessTest(new("no_process")));
+            Assert.Equal(token, shell.StaffStateTest.Grant); Assert.Equal(generation, shell.StaffStateTest.Generation);
+            Assert.False(shell.StaffVerifiedTest); Assert.Equal(0, http.Logouts);
+            shell.AdvanceStaffTest(TimeSpan.FromMilliseconds(1100)); shell.ObserveStaffProcessTest(new("no_process"));
+            Assert.Null(shell.StaffStateTest.Grant); Assert.Null(shell.StaffStateTest.ProcessInstanceId);
+            Assert.True(shell.StaffStateTest.Generation > generation); Assert.Equal(1, http.Logouts);
+            Assert.Null(shell.StaffWindowTest);
         }
 
         [Fact]
@@ -317,6 +456,9 @@ namespace CustomerDisplay
         internal Task AcceptStaffTest() => _staffWindow!.Reply(new("authenticated", "synthetic-grant-not-valid-on-any-server",
             _staffTestNow.AddHours(8), new("synthetic-person", "Synthetic Person"), DeviceContext: _staffSession.Context));
         internal void ObserveStaffTest() => ApplyStaffObservation(StaffPresenceTest, _staffTestObservation);
+        internal bool ObserveStaffProcessTest(StaffProcessPresence process) => ApplyStaffProcessObservation(process,
+            process.Status == "resolved" ? _staffTestObservation : new(process.Status));
+        internal void UnconfirmedStaffProcessTest() => ApplyUnconfirmedStaffProcess();
         internal void InvalidateStaffTest(string change)
         {
             switch (change) {
@@ -359,6 +501,8 @@ namespace CustomerDisplay
         public bool Required { get; private set; }
         public bool IsRequestPending { get; private set; }
         public bool WasDismissed { get; private set; }
+        public string? ReleaseMessage { get; private set; }
+        public string? ReleaseKazakhMessage { get; private set; }
         public async Task Reply(StaffAuthResponse response)
         {
             IsRequestPending = true; AuthenticationStarted?.Invoke();
@@ -367,7 +511,11 @@ namespace CustomerDisplay
         public void Pending() { AssignmentPending?.Invoke(); ReleaseWork(); }
         public void SetRegistrationSmsRequired(bool required) { }
         public void UpdateSourceContext(StaffAuthContext? context) { }
-        public void ReleaseWork(string? message = null, string? kazakhMessage = null) => Required = false;
+        public void ReleaseWork(string? message = null, string? kazakhMessage = null)
+        {
+            Required = false;
+            ReleaseMessage = message; ReleaseKazakhMessage = kazakhMessage;
+        }
         public void Dismiss() { WasDismissed = true; Close(); }
     }
 }

@@ -5,6 +5,37 @@ Path: `App/` and `Models/`.
 Current client is C#/WPF/.NET 10. Older Electron references are historical and no longer describe the
 implementation.
 
+## Registration recovery candidate — 2026-11-14
+
+New-employee registration remains permanently SMS-free. Existing-profile activation
+is explicitly labelled as activation, not new registration; activation and password
+recovery keep their existing SMS proof. Both distinctions are shown in RU and KK.
+
+Account creation and acceptance of its device grant are separate operations. If a
+valid authenticated registration response is followed by a rejected parent handoff,
+the still-open form offers manual sign-in, not another registration. It retains the
+IIN and password only in memory, clears password confirmation, and preserves the
+parent's bilingual process diagnostic. No login or registration is automatically
+replayed. Closing the form still clears secrets. Invalid responses must not be
+presented as successful account creation.
+
+An incomplete fresh Windows process check cannot authorize a grant even when one
+process identity is readable. The UI explains that local verification failed;
+confirmed process changes instead instruct reopening sign-in for the current
+Standard-N process. Rejected grants are revoked as before. These changes do not
+relax process proof, pharmacy assignment, pending-account status or OTP recovery.
+Synthetic tests do not identify the cause on an uninspected pharmacy workstation.
+
+An empty/unknown OS-process observation also suspends an already verified grant
+while the observation loop waits for stable process proof. This includes a readable
+process identity with an unreadable peer: partial enumeration cannot retain verified
+authentication or open a prompt; a confirmed identity change still revokes immediately. The existing two-minute
+recovery deadline is not extended by repeated uncertainty. Merely seeing the old
+process again does not authenticate it: a fresh server check is required. The first
+uncertain observation permits that check immediately when proof returns, rather
+than waiting for the normal thirty-second validation interval. A stable process
+exit still invalidates as before; no popup is opened without a real process.
+
 ## Nonblocking staff login candidate — 2026-11-11
 
 Staff sign-in is an ordinary closable/minimizable window, including when Standard-N
