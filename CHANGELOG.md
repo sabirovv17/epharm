@@ -5,6 +5,18 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Recover a confirmed created POSM profile into explicit manual sign-in when fresh
+  local process confirmation rejects the login handoff. Preserve form-only credentials,
+  clear confirmation fields, revoke rejected grants and never replay registration.
+- Bound a retained staff grant when Windows cannot confirm the cashier process;
+  recovery still requires fresh server verification and cannot extend its deadline.
+- Distinguish existing-profile activation from new SMS-free registration in RU/KK.
+- Prepare signed POSM 1.0.86 as a separate client release, gated on exact-main
+  Windows update/recovery, registration and two-display acceptance. Backend/frontend
+  v0.2.17 and their explicit JVM heap bound are unchanged by this client-only release.
+
 ## [0.2.17] - 2026-11-13
 
 ### Fixed
