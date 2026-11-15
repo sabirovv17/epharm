@@ -109,11 +109,11 @@ def build_stage(db, manifest, artifact, run_id):
         'product_daily_summary': f"SELECT snapshot_date,ware_id,argMax(sname,length(sname)),argMax(supplier,length(supplier)),count(),uniqExact(profile_id),sum(sales),sum(revenue),sum(goods_received),sum(stock_end),now64(3) FROM {fact} WHERE ware_id!='' GROUP BY snapshot_date,ware_id"}
     for target, query in summary_queries.items():
         db.query(f'INSERT INTO {db.table(tables[target])} {query}')
-    result = json.loads(db.query(f"SELECT count() rows,uniqExactIf(ware_id,{VALID_WARE_SQL}) valid_unique_ware_ids,uniqExact(profile_id) pharmacies,countIf(ware_id='') blank_ware_rows,countIf(ware_id!='' AND NOT {VALID_WARE_SQL}) invalid_ware_rows,countIf(source_retail_price IS NULL) missing_retail_price,countIf(source_cost_price IS NULL) missing_cost_price,countIf(source_revenue IS NULL) missing_revenue,countIf(expiration_date IS NULL) missing_expiration_date,countIf(source_retail_price IS NOT NULL AND source_retail_price!=round(source_retail_price,2)) noncent_price_rows,countIf(profile_id=0) zero_pharmacy_rows,countIf(trimBoth(caption)='') blank_caption_rows FROM {fact} FORMAT JSONEachRow"))
+    result = json.loads(db.query(f"SELECT count() rows,uniqExactIf(ware_id,{VALID_WARE_SQL}) valid_unique_ware_ids,uniqExact(profile_id) pharmacies,countIf(ware_id='') blank_ware_rows,countIf(ware_id!='' AND NOT {VALID_WARE_SQL}) invalid_ware_rows,countIf({VALID_WARE_SQL} AND trimBoth(sname)='') unnamed_valid_ware_rows,countIf(source_retail_price IS NULL) missing_retail_price,countIf(source_cost_price IS NULL) missing_cost_price,countIf(source_revenue IS NULL) missing_revenue,countIf(expiration_date IS NULL) missing_expiration_date,countIf(source_retail_price IS NOT NULL AND source_retail_price!=round(source_retail_price,2)) noncent_price_rows,countIf(profile_id=0) zero_pharmacy_rows,countIf(trimBoth(caption)='') blank_caption_rows FROM {fact} FORMAT JSONEachRow"))
     for field in ('rows', 'valid_unique_ware_ids', 'pharmacies'):
         if int(result[field]) != int(manifest[field]):
             raise ValidationError(f'staged ClickHouse {field} differs from validated source')
-    for field in ('blank_ware_rows', 'invalid_ware_rows', 'missing_retail_price', 'missing_cost_price', 'missing_revenue', 'missing_expiration_date'):
+    for field in ('blank_ware_rows', 'invalid_ware_rows', 'unnamed_valid_ware_rows', 'missing_retail_price', 'missing_cost_price', 'missing_revenue', 'missing_expiration_date'):
         if int(result[field]) != int(manifest['quality'].get(field, 0)):
             raise ValidationError(f'staged source missingness differs for {field}')
     if result['zero_pharmacy_rows'] or result['blank_caption_rows']:
@@ -257,7 +257,7 @@ def export_catalog(db, table, source_manifest, artifact):
     date = source_manifest['snapshot_date']
     fact = f"(SELECT * FROM {db.table(table)} WHERE snapshot_date=toDate('{date}'))"
     sellability_date = datetime.now(ZoneInfo('Asia/Almaty')).date().isoformat()
-    valid = VALID_WARE_SQL
+    named_valid = f"({VALID_WARE_SQL} AND trimBoth(sname)!='')"
     # Missing/expired dates are not positively asserted as sellable stock.
     cent_precision = 'abs(source_retail_price-round(source_retail_price,2))<=0.000001'
     eligible = f"source_retail_price>0 AND ({cent_precision}) AND expiration_date IS NOT NULL AND toDate(expiration_date)>=toDate('{sellability_date}')"
@@ -265,7 +265,7 @@ def export_catalog(db, table, source_manifest, artifact):
     products = artifact / 'products.ndjson'
     pharmacies = artifact / 'pharmacies.ndjson'
     offers = artifact / 'pharmacy-offers.ndjson'
-    db.export(f"SELECT ware_id,argMax(sname,length(sname)) name FROM {fact} WHERE {valid} GROUP BY ware_id ORDER BY ware_id FORMAT JSONEachRow", products)
+    db.export(f"SELECT ware_id,argMax(sname,length(sname)) name FROM {fact} WHERE {named_valid} GROUP BY ware_id ORDER BY ware_id FORMAT JSONEachRow", products)
     db.export(f"SELECT toString(profile_id) pharmacy_id,argMax(caption,length(caption)) name FROM {fact} GROUP BY profile_id ORDER BY profile_id FORMAT JSONEachRow", pharmacies)
     db.export(f"""SELECT ware_id,toString(profile_id) pharmacy_id,
         if(countIf(({eligible}) AND stock_end>0)>0,greatest(0.,sumIf(stock_end,({eligible}) OR stock_end<0)),0.) quantity,
@@ -274,13 +274,15 @@ def export_catalog(db, table, source_manifest, artifact):
         countIf(source_retail_price IS NULL) missing_price_batches,
         countIf(expiration_date IS NULL) missing_expiry_batches,
         countIf(expiration_date IS NOT NULL AND toDate(expiration_date)<toDate('{sellability_date}')) expired_batches
-        FROM {fact} WHERE {valid} GROUP BY ware_id,profile_id ORDER BY ware_id,profile_id FORMAT JSONEachRow""", offers)
+        FROM {fact} WHERE {VALID_WARE_SQL} GROUP BY ware_id,profile_id
+        HAVING countIf(trimBoth(sname)='')=0
+        ORDER BY ware_id,profile_id FORMAT JSONEachRow""", offers)
     def info(path):
         with path.open('rb') as f: count = sum(1 for _ in f)
         return {'file': path.name, 'sha256': sha256(path), 'count': count, 'bytes': path.stat().st_size}
     products_info, offers_info, pharmacies_info = info(products), info(offers), info(pharmacies)
-    snapshot_id = hashlib.sha256((source_manifest['source_sha256']+'|'+sellability_date+'|'+offers_info['sha256']+'|v2').encode()).hexdigest()
-    manifest = {'schema_version': 1, 'export_policy_version': 2, 'snapshot_id': snapshot_id,
+    snapshot_id = hashlib.sha256((source_manifest['source_sha256']+'|'+sellability_date+'|'+offers_info['sha256']+'|v3').encode()).hexdigest()
+    manifest = {'schema_version': 1, 'export_policy_version': 3, 'snapshot_id': snapshot_id,
         'source_date': date, 'sellability_date': sellability_date, 'observed_at': date + 'T23:59:59+05:00',
         'valid_until': (datetime.fromisoformat(date + 'T23:59:59+05:00') + timedelta(hours=48)).isoformat(),
         'observation_time_semantics': 'derived end-of-day Asia/Almaty from source_date, not an exact source timestamp',
@@ -290,12 +292,29 @@ def export_catalog(db, table, source_manifest, artifact):
         'products': products_info, 'offers': offers_info, 'pharmacies': pharmacies_info,
         'validation': {**source_manifest['quality'], **money_quality,
             'discarded_pim_rows': 0,
-            'quarantined_rows': source_manifest['quality'].get('blank_ware_rows',0) + source_manifest['quality'].get('invalid_ware_rows',0)},
-        'stock_semantics': 'max(0,sum(known-positive-price nonexpired batch stock plus all negative batch stock)); a positive eligible priced batch is required',
+            'quarantined_rows': source_manifest['quality'].get('blank_ware_rows',0) + source_manifest['quality'].get('invalid_ware_rows',0) + source_manifest['quality'].get('unnamed_valid_ware_rows',0)},
+        'stock_semantics': 'max(0,sum(known-positive-price nonexpired batch stock plus all negative batch stock)); a positive eligible priced batch is required; any unnamed batch suppresses the whole product-pharmacy offer',
         'price_semantics': 'maximum cent-precision retail price among eligible positive-stock batches; only floating-point noise <=0.000001 KZT normalized to nearest cent with audited count; genuine subcent prices remain in PIM but unsellable without pricing confirmation',
         'not_a_master_catalog': True}
     durable_json(artifact / 'catalog-manifest.json', manifest)
     return manifest
+
+
+def catalog_artifact_intact(artifact, catalog, source, sellability_date):
+    if (catalog.get('complete') is not True or catalog.get('export_policy_version') != 3
+            or catalog.get('sellability_date') != sellability_date
+            or catalog.get('source_date') != source['snapshot_date']
+            or catalog.get('source_sha256') != source['source_sha256']):
+        return False
+    for group, filename in (('products','products.ndjson'),('offers','pharmacy-offers.ndjson'),
+                            ('pharmacies','pharmacies.ndjson')):
+        member = catalog.get(group)
+        path = artifact / filename
+        if (not isinstance(member, dict) or member.get('file') != filename
+                or not path.is_file() or path.is_symlink()
+                or sha256(path) != member.get('sha256')):
+            return False
+    return True
 
 
 def refresh_published_catalog(db, artifact_root, clock=None):
@@ -315,7 +334,7 @@ def refresh_published_catalog(db, artifact_root, clock=None):
     today = current.astimezone(ZoneInfo('Asia/Almaty')).date().isoformat()
     catalog_path = artifact/'catalog-manifest.json'
     catalog = json.loads(catalog_path.read_text()) if catalog_path.exists() else {}
-    if catalog.get('sellability_date') == today and catalog.get('export_policy_version') == 2:
+    if catalog_artifact_intact(artifact,catalog,source,today):
         return artifact
     if db.count(TABLES[0],source['snapshot_date']) != source['rows']:
         raise ValidationError('published source rowcount changed before expiry projection')
