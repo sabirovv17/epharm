@@ -1,5 +1,17 @@
 # Admin Console
 
+## Seller attribution repair candidate — 2026-11-16
+
+HQ → Pharmacists → Standard-N sellers now distinguishes missing native USER_ID,
+missing names/accounts, inactive recipients and source conflicts. Different observed
+names under one USER_ID warn about shared/reused accounts. The displayed name is the
+last observation, not an alphabetical maximum. A blank USER_ID is diagnostic-only.
+HQ must explicitly select and confirm an active same-pharmacy person; stale candidates
+cannot be submitted. No historical reassignment or payment occurs on confirmation.
+An empty queue does not claim complete fleet attribution. Connected registers show
+native context health separately from RPS login; `resolved` is not a financial identity
+proof. Old clients without the field show unknown, not successful source verification.
+
 ## Registration, analytics and pharmacy computers — candidate 2026-11-16
 
 The separate `/learn` login cancels outstanding identity/authentication requests when

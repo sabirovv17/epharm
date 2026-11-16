@@ -2,6 +2,12 @@
 
 Database: PostgreSQL 16.
 
+Candidate V105 (`sale_seller_source`) adds nullable JSONB `pos_sales.seller_source`
+for the immutable namespace/native USER/SESSION/workstation of ordinary receipts.
+It does not backfill identities or rewrite financial records. Server rejects source,
+device and receipt-time changes on retries. Roll out the server migration/reader
+before the new POSM writer; clearing provenance is not a rollback operation.
+
 Candidate V104 (`pharmacy_device_inventory`) adds nullable count/source/observation-time
 columns to `pharmacies`. A CHECK permits only an all-null unknown inventory or a complete
 nonnegative count and nonblank/control-character-free source with timestamp. No inventory

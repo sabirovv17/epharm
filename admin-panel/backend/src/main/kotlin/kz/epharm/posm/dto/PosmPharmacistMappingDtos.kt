@@ -36,4 +36,8 @@ data class UnmappedPosmSellerDto(
     val externalUserName: String?,
     val salesCount: Long,
     val lastSeenAt: Instant,
+    /** Diagnostic only; never an automatically selected bonus recipient. */
+    val reason: String = "confirmation_required",
+    val activePharmacistCount: Long = 0,
+    val observedNameCount: Long = 0,
 )

@@ -42,6 +42,7 @@ class DevicePresenceService(
         private const val MONITOR_COUNT_KEY = "epharm:posm:presence:monitor-count"
         private const val APP_VERSION_KEY = "epharm:posm:presence:app-version"
         private const val STAFF_AUTH_STATUS_KEY = "epharm:posm:presence:staff-auth-status"
+        private const val STAFF_SOURCE_STATUS_KEY = "epharm:posm:presence:staff-source-status"
         private const val REDIS_WARNING_INTERVAL_MS = 60_000L
         private const val STORAGE_SEPARATOR = "\u001F"
 
@@ -59,6 +60,10 @@ class DevicePresenceService(
         val appVersion: String? = null,
         /** Untrusted client diagnostic only, never proof of employee authentication. */
         val staffAuthStatus: String? = null,
+        /** Native session observation, not a claim that the seller has been verified. */
+        val staffSourceStatus: String? = null,
+        /** Distinguishes an omitted latest heartbeat diagnostic from database-only activity. */
+        internal val diagnosticsObservedAt: Instant? = null,
         internal val storageKey: String = presenceKey(deviceId, pharmacyId),
     )
 
@@ -71,6 +76,7 @@ class DevicePresenceService(
         monitorCount: Int? = null,
         appVersion: String? = null,
         staffAuthStatus: String? = null,
+        staffSourceStatus: String? = null,
     ) {
         val normalizedPharmacy = pharmacyId?.takeIf { it.isNotBlank() }
         val key = presenceKey(deviceId, normalizedPharmacy)
@@ -79,6 +85,7 @@ class DevicePresenceService(
         val effectiveMonitorCount = monitorCount ?: prev?.monitorCount
         val effectiveAppVersion = appVersion ?: prev?.appVersion
         val safeStaffStatus = StaffAuthStatus.normalize(staffAuthStatus)
+        val safeSourceStatus = StaffSourceStatus.normalize(staffSourceStatus)
         seen[key] = Presence(
             deviceId = deviceId,
             pharmacyId = normalizedPharmacy,
@@ -86,6 +93,8 @@ class DevicePresenceService(
             monitorCount = effectiveMonitorCount,
             appVersion = effectiveAppVersion,
             staffAuthStatus = safeStaffStatus,
+            staffSourceStatus = safeSourceStatus,
+            diagnosticsObservedAt = now,
             storageKey = key,
         )
 
@@ -102,6 +111,8 @@ class DevicePresenceService(
             // Do not retain another build's old login status when a client omits diagnostics.
             if (safeStaffStatus != null) redis.opsForHash<String, String>().put(STAFF_AUTH_STATUS_KEY, key, safeStaffStatus)
             else redis.opsForHash<String, String>().delete(STAFF_AUTH_STATUS_KEY, key)
+            if (safeSourceStatus != null) redis.opsForHash<String, String>().put(STAFF_SOURCE_STATUS_KEY, key, safeSourceStatus)
+            else redis.opsForHash<String, String>().delete(STAFF_SOURCE_STATUS_KEY, key)
         }
 
         if (wasOffline) {
@@ -121,10 +132,18 @@ class DevicePresenceService(
                 combined[candidate.storageKey] = candidate
             } else {
                 val latest = if (stored.lastSeen.isBefore(candidate.lastSeen)) candidate else stored
+                val diagnostics = when {
+                    stored.diagnosticsObservedAt == null -> candidate
+                    candidate.diagnosticsObservedAt == null -> stored
+                    stored.diagnosticsObservedAt.isBefore(candidate.diagnosticsObservedAt) -> candidate
+                    else -> stored
+                }
                 combined[candidate.storageKey] = latest.copy(
                     monitorCount = candidate.monitorCount ?: stored.monitorCount,
                     appVersion = candidate.appVersion ?: stored.appVersion,
-                    staffAuthStatus = latest.staffAuthStatus ?: if (latest === stored) candidate.staffAuthStatus else null,
+                    staffAuthStatus = diagnostics.staffAuthStatus,
+                    staffSourceStatus = diagnostics.staffSourceStatus,
+                    diagnosticsObservedAt = diagnostics.diagnosticsObservedAt,
                 )
             }
         }
@@ -193,6 +212,7 @@ class DevicePresenceService(
                 hash.delete(MONITOR_COUNT_KEY, *expiredIds.toTypedArray())
                 hash.delete(APP_VERSION_KEY, *expiredIds.toTypedArray())
                 hash.delete(STAFF_AUTH_STATUS_KEY, *expiredIds.toTypedArray())
+                hash.delete(STAFF_SOURCE_STATUS_KEY, *expiredIds.toTypedArray())
             }
 
             val tuples = zset.rangeByScoreWithScores(
@@ -211,6 +231,7 @@ class DevicePresenceService(
             val monitorCounts = if (keys.isEmpty()) emptyList() else hash.multiGet(MONITOR_COUNT_KEY, keys).orEmpty()
             val appVersions = if (keys.isEmpty()) emptyList() else hash.multiGet(APP_VERSION_KEY, keys).orEmpty()
             val staffStatuses = if (keys.isEmpty()) emptyList() else hash.multiGet(STAFF_AUTH_STATUS_KEY, keys).orEmpty()
+            val sourceStatuses = if (keys.isEmpty()) emptyList() else hash.multiGet(STAFF_SOURCE_STATUS_KEY, keys).orEmpty()
             result = values.mapIndexed { index, (key, score) ->
                 Presence(
                     // Records created before the composite-key fix have no DEVICE_KEY entry.
@@ -221,6 +242,8 @@ class DevicePresenceService(
                     monitorCount = monitorCounts.getOrNull(index)?.toIntOrNull(),
                     appVersion = appVersions.getOrNull(index)?.takeIf { it.isNotBlank() },
                     staffAuthStatus = StaffAuthStatus.normalize(staffStatuses.getOrNull(index)),
+                    staffSourceStatus = StaffSourceStatus.normalize(sourceStatuses.getOrNull(index)),
+                    diagnosticsObservedAt = Instant.ofEpochMilli(score.toLong()),
                     storageKey = key,
                 )
             }

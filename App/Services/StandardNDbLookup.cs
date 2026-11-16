@@ -81,7 +81,7 @@ namespace CustomerDisplay.Services
         public string? RewardSourceNamespace => _rewardSourceNamespace;
         private string? _loggedConnectionSource;
         private string? _loggedActiveUserShape;
-        private readonly Dictionary<string, string?> _userNameCache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly StandardNUserNameCache _userNameCache = new();
         private bool _disposed;
 
         public StandardNDbLookup(EpharmConfig cfg, Action<string> log, string? machineName = null)
@@ -936,14 +936,15 @@ namespace CustomerDisplay.Services
         {
             if (string.IsNullOrWhiteSpace(id)) return null;
 
+            var sourceNamespace = ReceiptConnectionNamespace(conn);
             var actionName = TryResolveUserNameFromActions(conn, rawId, id, sessionId);
             if (!string.IsNullOrWhiteSpace(actionName))
             {
-                _userNameCache[id] = actionName;
+                _userNameCache.Store(sourceNamespace, id, actionName);
                 return actionName;
             }
 
-            if (_userNameCache.TryGetValue(id, out var cached)) return cached;
+            if (_userNameCache.TryGet(sourceNamespace, id, out var cached)) return cached;
 
             var queriedUserDirectory = false;
             foreach (var table in UserTables)
@@ -964,7 +965,7 @@ namespace CustomerDisplay.Services
                         var rowId = ValueToString(ReadValue(reader, idOrdinal));
                         if (!IdsEqual(rowId, id, rawId)) continue;
                         var name = ReadDisplayName(reader, columns);
-                        _userNameCache[id] = name;
+                        _userNameCache.Store(sourceNamespace, id, name);
                         return name;
                     }
                 }
@@ -975,9 +976,16 @@ namespace CustomerDisplay.Services
             }
 
             // Cache a real "not found", but retry after transient Firebird/schema errors.
-            if (queriedUserDirectory) _userNameCache[id] = null;
+            if (queriedUserDirectory) _userNameCache.Store(sourceNamespace, id, null);
             return null;
         }
+
+        internal const string ExactSessionUserNameSql = @"
+            select first 1 USER_SNAME
+            from HUMAN_ACTION_LOGS
+            where SESSION_ID = @sessionId and USER_ID = @userId
+              and USER_SNAME is not null
+            order by INSERTDT desc";
 
         private string? TryResolveUserNameFromActions(
             FbConnection conn,
@@ -991,13 +999,9 @@ namespace CustomerDisplay.Services
                 {
                     using var bySession = conn.CreateCommand();
                     bySession.CommandTimeout = TimeoutSec();
-                    bySession.CommandText = @"
-                        select first 1 USER_SNAME
-                        from HUMAN_ACTION_LOGS
-                        where SESSION_ID = @sessionId
-                          and USER_SNAME is not null
-                        order by INSERTDT desc";
+                    bySession.CommandText = ExactSessionUserNameSql;
                     bySession.Parameters.AddWithValue("@sessionId", sessionId.Value);
+                    bySession.Parameters.AddWithValue("@userId", rawId ?? id);
                     var value = ValueToString(bySession.ExecuteScalar());
                     if (!string.IsNullOrWhiteSpace(value)) return value;
                 }

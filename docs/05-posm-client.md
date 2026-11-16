@@ -2,6 +2,16 @@
 
 Path: `App/` and `Models/`.
 
+Ordinary receipt attribution candidate (2026-11-16): `sellerSource` travels with the
+queued sale independently of reward enrollment. Only a mutually consistent observed
+receipt group, native user/session/workstation and database namespace can produce it;
+current logged-in ePharm identity is never substituted. Missing/conflicting source
+leaves the field absent and the legacy receipt deliverable. Name lookup is source-scoped
+and expires (30 seconds for missing names, five minutes for found names); action-log
+lookup requires both SESSION_ID and USER_ID. These labels remain non-financial evidence.
+Heartbeat additionally reports fixed-code `staffSourceStatus`, even when RPS login is
+successful, so absent/ambiguous/stale native context is visible without exporting PII.
+
 Current client is C#/WPF/.NET 10. Older Electron references are historical and no longer describe the
 implementation.
 

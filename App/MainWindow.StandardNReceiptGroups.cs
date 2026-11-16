@@ -212,7 +212,7 @@ public partial class MainWindow
                 }
                 else if (StandardNReceiptProjection.IsPostedPhysicalSale(document))
                 {
-                    if (!OnReceiptFinalized("standardn-print-log", document, session, printedAt, state))
+                    if (!OnReceiptFinalized("standardn-print-log", document, session, printedAt, state, group))
                     {
                         _physicalReceiptRetryAfter[key] = now.AddSeconds(30);
                         continue;
@@ -330,7 +330,7 @@ public partial class MainWindow
         var group = previous == null
             ? new StandardNObservedReceiptGroup(1, _posmConfig?.PharmacyId ?? "", effective, _session.SessionId,
                 receipt.Pharmacist.Id, receipt.Pharmacist.Name, false, Array.Empty<long>())
-                { SourceNamespace = _standardNDb?.RewardSourceNamespace,
+                { SourceNamespace = effective.ObservedSourceNamespace ?? _standardNDb?.RewardSourceNamespace,
                     ObservedActiveDocumentIds = documents.Where(document => document.Status == 0).Select(document => document.DocumentId).ToArray(),
                     InitiallyPostedDocumentIds = documents.Where(StandardNReceiptProjection.HasPostedFiscalHeader).Select(document => document.DocumentId).ToArray() }
             : previous with { Snapshot = effective, ObservedActiveDocumentIds = previous.ObservedActiveDocumentIds.Concat(

@@ -348,7 +348,8 @@ namespace CustomerDisplay
         /// закрывает popup, открывает новую сессию.
         /// </summary>
         private bool OnReceiptFinalized(string captureSource, StandardNReceiptDocument proof,
-            CheckoutSession capturedSession, DateTimeOffset markerAt, StandardNReceiptSnapshot? completionSource = null)
+            CheckoutSession capturedSession, DateTimeOffset markerAt, StandardNReceiptSnapshot? completionSource = null,
+            StandardNObservedReceiptGroup? capturedGroup = null)
         {
             var sourceDocumentId = proof.DocumentId;
             if (!ReceiptFinalizationRules.IsConfirmedPrint(captureSource) ||
@@ -370,6 +371,8 @@ namespace CustomerDisplay
                 markerAt);
             if (sale != null)
             {
+                sale.SellerSource = StandardNSellerSource.FromObservedGroup(capturedGroup, capturedSession, proof,
+                    completionSource);
                 AttachRewardSale(sale, capturedSession, proof, completionSource, markerAt);
                 FiscalReceiptCaptureResult? fiscalCapture = null;
                 try

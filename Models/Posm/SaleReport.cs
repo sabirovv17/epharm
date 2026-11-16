@@ -3,6 +3,9 @@ using System.Collections.Generic;
 
 namespace CustomerDisplay.Models.Posm
 {
+    /// <summary>Native receipt provenance only; this does not authenticate an employee or authorize a bonus.</summary>
+    public sealed record SaleSellerSource(string SourceNamespace, string RawUserId, long NativeSessionId, string WorkstationId);
+
     /// <summary>Позиция в отчёте о продаже (источник №1 сверки).</summary>
     public sealed class SaleReportItem
     {
@@ -48,6 +51,8 @@ namespace CustomerDisplay.Models.Posm
         public DateTimeOffset PrintedAt { get; set; } = DateTimeOffset.UtcNow;
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public RewardSaleEvidence? RewardEvidence { get; set; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public SaleSellerSource? SellerSource { get; set; }
     }
 
     /// <summary>Полезная нагрузка для отложенной отправки результата рекомендации (в outbox).</summary>

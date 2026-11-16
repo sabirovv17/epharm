@@ -144,6 +144,56 @@ namespace CustomerDisplay.Core.Tests
         }
 
         [Fact]
+        public void OrdinarySaleCarriesExactNativeSourceWithoutEnablingRewards()
+        {
+            using var window = new MainWindow();
+            var receipt = RewardReceipt(100, 1) with { ObservedSourceNamespace = new string('a', 64) };
+            window.Observe(receipt);
+            window.PrintWithStates(Posted(receipt, 100));
+            var sale = Assert.Single(window.Reports);
+            Assert.Null(sale.RewardEvidence);
+            Assert.Equal(new SaleSellerSource(new string('a', 64), receipt.Pharmacist.Id,
+                receipt.SessionId, receipt.WorkstationId!), sale.SellerSource);
+        }
+
+        [Fact]
+        public void NewGroupUsesObservedConnectionInsteadOfMutableGlobalNamespace()
+        {
+            using var window = new MainWindow();
+            var receipt = RewardReceipt(100, 1) with { ObservedSourceNamespace = new string('b', 64) };
+            window.Observe(receipt);
+            window.PrintWithStates(Posted(receipt, 100));
+            var sale = Assert.Single(window.Reports);
+            Assert.Equal(new string('b', 64), sale.SellerSource?.SourceNamespace);
+            Assert.Null(sale.RewardEvidence);
+        }
+
+        [Fact]
+        public void ChangedDatabaseCannotRelabelAnOrdinarySaleWithOldNativeIdentity()
+        {
+            using var window = new MainWindow();
+            var receipt = RewardReceipt(100, 1) with { ObservedSourceNamespace = new string('a', 64) };
+            window.Observe(receipt);
+            window.PrintWithStates(Posted(receipt, 100) with { ObservedSourceNamespace = new string('b', 64) });
+            var sale = Assert.Single(window.Reports);
+            Assert.Null(sale.SellerSource);
+            Assert.Null(sale.RewardEvidence);
+        }
+
+        [Fact]
+        public void LegacyGroupDoesNotBorrowCurrentDatabaseNamespaceForOrdinarySale()
+        {
+            using var window = new MainWindow();
+            var receipt = RewardReceipt(100, 1);
+            var legacy = new StandardNObservedReceiptGroup(1, "synthetic-pharmacy", receipt, "sess_legacy",
+                receipt.Pharmacist.Id, receipt.Pharmacist.Name, false, []) { ObservedActiveDocumentIds = [100] };
+            Assert.True(window.Artifacts.SaveObservedGroup(legacy));
+            window.Observe(receipt);
+            window.PrintWithStates(Posted(receipt, 100));
+            Assert.Null(Assert.Single(window.Reports).SellerSource);
+        }
+
+        [Fact]
         public void FreshExactCartSendsItsNamespaceWithoutEnablingMoneyCapture()
         {
             using var window = new MainWindow();

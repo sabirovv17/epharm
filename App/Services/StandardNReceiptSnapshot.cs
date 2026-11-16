@@ -67,6 +67,8 @@ public sealed record StandardNReceiptSnapshot(
     public long? LinkId { get; init; }
     public IReadOnlyList<StandardNReceiptDocument>? Documents { get; init; }
     public string? WorkstationId { get; init; }
+    // Provenance of the exact connection used to read this snapshot; absent in legacy observations.
+    public string? ObservedSourceNamespace { get; init; }
 }
 
 // Private on-device observation, never an authorization token or a public sale payload.

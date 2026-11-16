@@ -64,6 +64,8 @@
     <Compile Include="..\App\Services\StandardNQuantityUnits.cs" Link="Services\StandardNQuantityUnits.cs" />
     <Compile Include="..\App\Services\StandardNFinalLineLinker.cs" Link="Services\StandardNFinalLineLinker.cs" />
     <Compile Include="..\App\Services\StandardNDbLookup.cs" Link="Services\StandardNDbLookup.cs" />
+    <Compile Include="..\App\Services\StandardNUserNameCache.cs" Link="Services\StandardNUserNameCache.cs" />
+    <Compile Include="..\App\Services\StandardNSellerSource.cs" Link="Services\StandardNSellerSource.cs" />
     <Compile Include="..\App\Services\StandardNDbLookup.Receipts.cs" Link="Services\StandardNDbLookup.Receipts.cs" />
     <Compile Include="..\App\Services\StandardNDbLookup.Refunds.cs" Link="Services\StandardNDbLookup.Refunds.cs" />
     <Compile Include="..\App\Services\NativeRefundCapture.cs" Link="Services\NativeRefundCapture.cs" />

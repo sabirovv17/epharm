@@ -60,29 +60,54 @@ class PosmPharmacistMappingService(
     @Transactional(readOnly = true)
     fun unmapped(): List<UnmappedPosmSellerDto> = jdbc.query(
         """
-        SELECT s.pharmacy_id,
-               COALESCE(p.name, s.pharmacy_id) AS pharmacy_name,
-               s.reported_pharmacist_id,
-               MAX(NULLIF(s.reported_pharmacist_name, '')) AS reported_name,
-               COUNT(*) AS sales_count,
-               MAX(s.printed_at) AS last_seen_at
-        FROM pos_sales s
-        LEFT JOIN pharmacies p ON p.id = s.pharmacy_id
-        WHERE (s.pharmacist_source = 'standardn_unmapped'
+        WITH eligible AS (
+          SELECT s.pharmacy_id,
+                 COALESCE(NULLIF(BTRIM(s.reported_pharmacist_id), ''), '') AS reported_pharmacist_id,
+                 NULLIF(BTRIM(s.reported_pharmacist_name), '') AS reported_name,
+                 s.printed_at, s.id
+          FROM pos_sales s
+          WHERE (s.pharmacist_source IN ('standardn_unmapped', 'unresolved')
           OR (s.pharmacist_source IN ('standardn_name_match', 'posm_internal')
               AND s.capture_source = 'standardn-print-log'
               AND s.source_document_id > 0
               AND NULLIF(BTRIM(s.device_id), '') IS NOT NULL
               AND s.reported_pharmacist_id ~ '^-?[0-9]+$'))
-          AND NULLIF(s.reported_pharmacist_id, '') IS NOT NULL
-          AND NOT EXISTS (
-              SELECT 1 FROM posm_pharmacist_mappings m
-              WHERE m.pharmacy_id = s.pharmacy_id
-                AND m.external_user_id = s.reported_pharmacist_id
-                AND m.active = true
-          )
-        GROUP BY s.pharmacy_id, p.name, s.reported_pharmacist_id
-        ORDER BY MAX(s.printed_at) DESC
+        ), latest AS (
+          SELECT DISTINCT ON (pharmacy_id,reported_pharmacist_id)
+            pharmacy_id,reported_pharmacist_id,reported_name
+          FROM eligible ORDER BY pharmacy_id,reported_pharmacist_id,printed_at DESC,id DESC
+        ), totals AS (
+          SELECT pharmacy_id,reported_pharmacist_id,COUNT(*) AS sales_count,
+            COUNT(DISTINCT LOWER(reported_name)) AS observed_name_count,MAX(printed_at) AS last_seen_at
+          FROM eligible GROUP BY pharmacy_id,reported_pharmacist_id
+        ), observed AS (
+          SELECT t.*,l.reported_name FROM totals t JOIN latest l USING (pharmacy_id,reported_pharmacist_id)
+        ), diagnostics AS (
+          SELECT s.*, COALESCE(p.name, s.pharmacy_id) AS pharmacy_name,
+                 m.id IS NOT NULL AS has_mapping,
+                 recipient.status = 'active' AND recipient.pharmacy_id = s.pharmacy_id AS valid_recipient,
+                 (SELECT COUNT(*) FROM pharmacists a WHERE a.pharmacy_id=s.pharmacy_id AND a.status='active') AS active_count,
+                 EXISTS(SELECT 1 FROM posm_source_staff_bindings b
+                   WHERE b.pharmacy_id=s.pharmacy_id AND b.native_user_id=s.reported_pharmacist_id
+                     AND b.state='conflict' AND (m.id IS NULL OR m.updated_at<=b.conflict_at)) AS source_conflict,
+                 EXISTS(SELECT 1 FROM pharmacists a WHERE a.pharmacy_id=s.pharmacy_id AND a.status='active'
+                   AND LOWER(a.name)=LOWER(s.reported_name)) AS name_match
+          FROM observed s LEFT JOIN pharmacies p ON p.id=s.pharmacy_id
+          LEFT JOIN posm_pharmacist_mappings m ON m.pharmacy_id=s.pharmacy_id
+            AND m.external_user_id=s.reported_pharmacist_id AND m.active=true
+          LEFT JOIN pharmacists recipient ON recipient.id=m.pharmacist_id
+        )
+        SELECT *, CASE
+          WHEN reported_pharmacist_id='' THEN 'missing_user_id'
+          WHEN source_conflict THEN 'source_conflict'
+          WHEN has_mapping AND NOT COALESCE(valid_recipient,false) THEN 'inactive_recipient'
+          WHEN active_count=0 THEN 'no_active_profiles'
+          WHEN reported_name IS NULL THEN 'missing_name'
+          WHEN NOT name_match THEN 'name_not_matched'
+          ELSE 'confirmation_required' END AS reason
+        FROM diagnostics
+        WHERE NOT (has_mapping AND COALESCE(valid_recipient,false) AND NOT source_conflict)
+        ORDER BY last_seen_at DESC, pharmacy_id, reported_pharmacist_id
         """.trimIndent(),
     ) { rs, _ ->
         UnmappedPosmSellerDto(
@@ -92,6 +117,9 @@ class PosmPharmacistMappingService(
             externalUserName = rs.getString("reported_name"),
             salesCount = rs.getLong("sales_count"),
             lastSeenAt = rs.getTimestamp("last_seen_at").toInstant(),
+            reason = rs.getString("reason"),
+            activePharmacistCount = rs.getLong("active_count"),
+            observedNameCount = rs.getLong("observed_name_count"),
         )
     }
 

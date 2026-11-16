@@ -5,6 +5,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kz.epharm.posm.service.DevicePresenceService
 import kz.epharm.posm.service.StaffAuthStatus
+import kz.epharm.posm.service.StaffSourceStatus
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.data.redis.core.DefaultTypedTuple
 import org.springframework.data.redis.core.HashOperations
@@ -88,6 +89,21 @@ class DevicePresenceServiceTest {
     }
 
     @Test
+    fun `source diagnostics remain independent from successful login and cannot contain private data`() {
+        svc.heartbeat("source-device", "ph_a", t0, staffAuthStatus="authenticated", staffSourceStatus="no_session")
+        val present = svc.connected(t0.plusSeconds(1)).single()
+        assertEquals("authenticated", present.staffAuthStatus)
+        assertEquals("no_session", present.staffSourceStatus)
+        svc.heartbeat("source-device", "ph_a", t0.plusSeconds(2), staffAuthStatus="authenticated")
+        assertEquals(null, svc.connected(t0.plusSeconds(3)).single().staffSourceStatus)
+        assertEquals(null, StaffSourceStatus.normalize("resolved\nprivate"))
+        assertEquals(null, StaffSourceStatus.normalize("iin=000101500011"))
+        assertEquals(null, StaffSourceStatus.normalize("authenticated"))
+        assertEquals("resolved", StaffSourceStatus.normalize("resolved"))
+        assertEquals("unknown", StaffSourceStatus.normalize("unknown"))
+    }
+
+    @Test
     fun `heartbeat persists and connected restores device from redis`() {
         val provider = mockk<ObjectProvider<StringRedisTemplate>>()
         val redis = mockk<StringRedisTemplate>()
@@ -106,6 +122,7 @@ class DevicePresenceServiceTest {
         every { hash.multiGet("epharm:posm:presence:monitor-count", any()) } returns listOf("2")
         every { hash.multiGet("epharm:posm:presence:app-version", any()) } returns listOf("1.0.46.0")
         every { hash.multiGet("epharm:posm:presence:staff-auth-status", any()) } returns listOf("database_unavailable")
+        every { hash.multiGet("epharm:posm:presence:staff-source-status", any()) } returns listOf("no_session")
 
         val writer = DevicePresenceService(ttlSeconds = 90, redisProvider = provider)
         writer.heartbeat(
@@ -115,6 +132,7 @@ class DevicePresenceServiceTest {
             monitorCount = 2,
             appVersion = "1.0.46.0",
             staffAuthStatus = "database_unavailable",
+            staffSourceStatus = "no_session",
         )
         val key = "ph_redis\u001Fkassa-redis"
         verify { zset.add("epharm:posm:presence:last-seen", key, t0.toEpochMilli().toDouble()) }
@@ -123,6 +141,7 @@ class DevicePresenceServiceTest {
         verify { hash.put("epharm:posm:presence:monitor-count", key, "2") }
         verify { hash.put("epharm:posm:presence:app-version", key, "1.0.46.0") }
         verify { hash.put("epharm:posm:presence:staff-auth-status", key, "database_unavailable") }
+        verify { hash.put("epharm:posm:presence:staff-source-status", key, "no_session") }
 
         val afterRestart = DevicePresenceService(ttlSeconds = 90, redisProvider = provider)
         val restored = afterRestart.connected(t0.plusSeconds(10))
@@ -132,6 +151,7 @@ class DevicePresenceServiceTest {
         assertEquals(2, restored.single().monitorCount)
         assertEquals("1.0.46.0", restored.single().appVersion)
         assertEquals("database_unavailable", restored.single().staffAuthStatus)
+        assertEquals("no_session", restored.single().staffSourceStatus)
     }
 
     @Test
@@ -142,6 +162,7 @@ class DevicePresenceServiceTest {
         val hash = mockk<HashOperations<String, String, String>>(relaxed = true)
         val jdbc = mockk<JdbcTemplate>()
         var staffStatus: String? = "authenticated"
+        var sourceStatus: String? = "resolved"
         val key = "ph_merge\u001Fkassa-merge"
         every { provider.getIfAvailable() } returns redis
         every { redis.opsForZSet() } returns zset
@@ -152,16 +173,44 @@ class DevicePresenceServiceTest {
         every { hash.multiGet("epharm:posm:presence:device", any()) } returns listOf("kassa-merge")
         every { hash.multiGet("epharm:posm:presence:staff-auth-status", any()) } answers { listOf(staffStatus) }
         every { hash.delete("epharm:posm:presence:staff-auth-status", key) } answers { staffStatus = null; 1L }
+        every { hash.multiGet("epharm:posm:presence:staff-source-status", any()) } answers { listOf(sourceStatus) }
+        every { hash.delete("epharm:posm:presence:staff-source-status", key) } answers { sourceStatus = null; 1L }
         every { jdbc.query(any<String>(), any<RowMapper<DevicePresenceService.Presence>>(), any<Timestamp>()) } returns listOf(
             DevicePresenceService.Presence("kassa-merge", "ph_merge", t0.plusSeconds(15)),
         )
         val writer = DevicePresenceService(90, provider, jdbc)
         assertEquals("authenticated", writer.connected(t0.plusSeconds(16)).single().staffAuthStatus)
+        assertEquals("resolved", writer.connected(t0.plusSeconds(16)).single().staffSourceStatus)
         writer.heartbeat("kassa-merge", "ph_merge", t0.plusSeconds(20))
         assertEquals(null, writer.connected(t0.plusSeconds(21)).single().staffAuthStatus)
         assertEquals(null, DevicePresenceService(90, provider, jdbc).connected(t0.plusSeconds(21)).single().staffAuthStatus)
+        assertEquals(null, DevicePresenceService(90, provider, jdbc).connected(t0.plusSeconds(21)).single().staffSourceStatus)
         staffStatus = "iin=000101500011"
         assertEquals(null, DevicePresenceService(90, provider, jdbc).connected(t0.plusSeconds(21)).single().staffAuthStatus)
+    }
+
+    @Test
+    fun `newer remote heartbeat clearing diagnostics beats stale local values on another backend`() {
+        val provider = mockk<ObjectProvider<StringRedisTemplate>>()
+        val redis = mockk<StringRedisTemplate>()
+        val zset = mockk<ZSetOperations<String, String>>(relaxed = true)
+        val hash = mockk<HashOperations<String, String, String>>(relaxed = true)
+        val key = "ph_a\u001Fkassa"
+        every { provider.getIfAvailable() } returns redis
+        every { redis.opsForZSet() } returns zset
+        every { redis.opsForHash<String, String>() } returns hash
+        val firstBackend = DevicePresenceService(90, provider)
+        firstBackend.heartbeat("kassa", "ph_a", t0, staffAuthStatus="authenticated", staffSourceStatus="resolved")
+        every { zset.rangeByScoreWithScores(any(), any(), any()) } returns
+            setOf(DefaultTypedTuple(key, t0.plusSeconds(10).toEpochMilli().toDouble()))
+        every { hash.multiGet("epharm:posm:presence:pharmacy", any()) } returns listOf("ph_a")
+        every { hash.multiGet("epharm:posm:presence:device", any()) } returns listOf("kassa")
+        every { hash.multiGet("epharm:posm:presence:staff-auth-status", any()) } returns listOf(null)
+        every { hash.multiGet("epharm:posm:presence:staff-source-status", any()) } returns listOf(null)
+        val result = firstBackend.connected(t0.plusSeconds(11)).single()
+        assertEquals(null, result.staffAuthStatus)
+        assertEquals(null, result.staffSourceStatus)
+        assertEquals(t0.plusSeconds(10), result.lastSeen)
     }
 
     @Test

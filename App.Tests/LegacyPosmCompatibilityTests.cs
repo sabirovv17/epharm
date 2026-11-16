@@ -20,6 +20,21 @@ public sealed class LegacyPosmCompatibilityTests
     private const string Origin = "https://epharm.inkar.kz";
 
     [Theory]
+    [InlineData("unsupported_session_time", "unsupported_session_time")]
+    [InlineData("private-user-name", "unknown")]
+    public async Task HeartbeatSeparatesNativeSourceDiagnosticsFromOwnAuthentication(string source, string expected)
+    {
+        await using var server = new LoopbackServer([(HttpStatusCode.OK, JsonNode.Parse("{\"ok\":true}")!)]);
+        using var api = new EpharmApiClient(new CustomerDisplay.Config.EpharmConfig { BackendBaseUrl = server.Origin });
+        Assert.True(await api.HeartbeatAsync("cash", "pharmacy", 1, "synthetic", TestContext.Current.CancellationToken,
+            staffAuthStatus: "authenticated", staffSourceStatus: source));
+        var request = Assert.Single(server.Requests);
+        Assert.Contains("staffAuthStatus=authenticated", request.Path);
+        Assert.Contains("staffSourceStatus=" + expected, request.Path);
+        Assert.DoesNotContain("private-user-name", request.Path);
+    }
+
+    [Theory]
     [InlineData("{\"ok\":true,\"deviceId\":\"cash\",\"rewardEvidenceProtocol\":1}", 1)]
     [InlineData("{\"ok\":true,\"deviceId\":\"cash\"}", null)]
     [InlineData("{\"ok\":true,\"rewardEvidenceProtocol\":2}", null)]

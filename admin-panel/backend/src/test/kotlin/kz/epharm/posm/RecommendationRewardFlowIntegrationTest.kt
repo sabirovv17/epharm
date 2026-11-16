@@ -254,6 +254,27 @@ class RecommendationRewardFlowIntegrationTest {
         assertThat(mapper.readTree(body).path("balanceKzt").asLong()).isEqualTo(400)
     }
 
+    @Test fun `ordinary receipt source resolves a proven RPS seller without reward evidence or credit and survives retry`() {
+        val login = sourceLogin()
+        val native = login.context.standardNContext!!
+        val source = SaleSellerSource(native.sourceNamespace!!, native.standardNUserId,
+            native.standardNSessionId.toLong(), native.workstationId)
+        val request = PosSaleRequest(saleId = "ordinary_${token()}", pharmacyId = login.employee.pharmacy,
+            pharmacistId = login.employee.rawUser, printedAt = Instant.now(), sellerSource = source)
+        val response = postDevice("/api/posm/sales", login.employee, request)
+        assertThat(response.path("accepted").asBoolean()).isTrue()
+        val stored = sales.findById(request.saleId).orElseThrow()
+        assertThat(stored.pharmacistId).isEqualTo(login.employee.person)
+        assertThat(stored.pharmacistSource).isEqualTo("standardn_rps_binding")
+        assertThat(stored.sellerSource).isEqualTo(source)
+        assertThat(stored.rewardEvidence).isNull()
+        assertThat(stored.reportedPharmacistId).isEqualTo(login.employee.rawUser)
+        assertThat(postDevice("/api/posm/sales", login.employee, request).path("accepted").asBoolean()).isFalse()
+        assertThat(balance(login.employee)).isZero()
+        assertThat(number("SELECT count(*) FROM pending_bonuses WHERE pharmacist_id=?", login.employee.person)).isZero()
+        assertThat(number("SELECT count(*) FROM recommendation_sale_rewards WHERE source_sale_id=?", request.saleId)).isZero()
+    }
+
     @Test fun `two full normalized name words bind only when IIN is absent and unique in that pharmacy`() {
         for (status in listOf("missing","unavailable")) {
             val login=sourceLogin(status=status,name="  САБИРОВ   АМИР ")

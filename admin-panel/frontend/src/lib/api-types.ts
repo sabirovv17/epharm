@@ -409,6 +409,9 @@ export interface UnmappedPosmSellerDto {
   externalUserName: string | null
   salesCount: number
   lastSeenAt: string
+  reason?: string
+  activePharmacistCount?: number
+  observedNameCount?: number
 }
 
 export interface UpsertPosmPharmacistMappingRequest {
@@ -1051,6 +1054,8 @@ export interface ConnectedDeviceDto {
   appVersion: string | null
   /** Client-reported diagnostic only, never proof of a trusted employee identity. */
   staffAuthStatus?: string | null
+  /** Native cashier context diagnostic, independent of login and financial identity proof. */
+  staffSourceStatus?: string | null
   lastSeen: string
 }
 

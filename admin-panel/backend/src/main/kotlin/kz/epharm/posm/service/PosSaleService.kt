@@ -43,6 +43,7 @@ class PosSaleService(
 
     @Transactional
     fun record(req: PosSaleRequest, identity: PosmPharmacistIdentity, deviceId: String? = null): Boolean {
+        val sellerSource = req.validatedSellerSource(identity.reportedPharmacistId)
         saleBonuses.beforeSale(req.sessionId)
         val fiscalArtifact = validateFiscalArtifact(req)
         val existing = posSaleRepository.findById(req.saleId).orElse(null)
@@ -51,6 +52,11 @@ class PosSaleService(
             // A retry with the same id may enrich only fiscal evidence; reconciliation and sale
             // attribution must not run twice.
             validateExistingSaleIdentity(existing, req)
+            if (existing.sellerSource != sellerSource || sellerSource != null &&
+                (existing.reportedPharmacistId != identity.reportedPharmacistId || existing.deviceId != deviceId ||
+                    java.time.Duration.between(existing.printedAt, req.printedAt).abs() > java.time.Duration.ofMillis(1))) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Immutable receipt seller source conflicts with the stored sale")
+            }
             if (existing.rewardEvidence != null || req.rewardEvidence != null) {
                 val sameItems = existing.items.size == req.items.size && existing.items.zip(req.items).all { (a, b) ->
                     a.sku == b.sku.orEmpty() && a.barcode == b.barcode && a.name == b.name && a.qty == b.qty &&
@@ -132,6 +138,7 @@ class PosSaleService(
                 printedAt = req.printedAt,
                 rewardEvidence = req.rewardEvidence,
                 deviceId = deviceId,
+                sellerSource = sellerSource,
             ),
         )
         if (identity.pharmacistId.isBlank()) {
@@ -150,7 +157,10 @@ class PosSaleService(
 
         // Сверка/начисление допустимы только для доверенного внутреннего pharmacistId.
         // Сырой Standard-N USER_ID всё равно сохранён выше и отображается в аналитике.
-        if (req.pharmacistId.isNotBlank() && req.rewardEvidence == null) {
+        // Receipt-time RPS attribution is independent of reward enrollment. It must not
+        // introduce an alternative legacy payout route without complete reward evidence.
+        if (req.pharmacistId.isNotBlank() && req.rewardEvidence == null &&
+            identity.source != PharmacistIdentitySource.STANDARDN_RPS_BINDING) {
             reconcileService.ingestLogSale(
                 LogSaleInput(
                     pharmacistId = req.pharmacistId,

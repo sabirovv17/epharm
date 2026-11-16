@@ -296,6 +296,7 @@ describe('ScreensPage — онлайн-кассы', () => {
             appVersion: '1.0.71.0',
             lastSeen: '2026-10-21T10:00:00Z',
             staffAuthStatus,
+            staffSourceStatus: ['database_unavailable', 'resolved', rawStatus, null][index],
           }),
         ),
       },
@@ -316,6 +317,10 @@ describe('ScreensPage — онлайн-кассы', () => {
       'Вход РПС: нет диагностики (обновите POSM)',
     )
     expect(screen.getByTestId('connected-registers').outerHTML).not.toContain(rawStatus)
+    expect(screen.getByTestId('connected-staff-0')).toHaveTextContent('Источник Standard-N: нет доступа к базе Стандарт‑Н')
+    expect(screen.getByTestId('connected-staff-1')).toHaveTextContent('личность для бонусов не подтверждена этим статусом')
+    expect(screen.getByTestId('connected-staff-2')).toHaveTextContent('Источник Standard-N: нет диагностики контекста (обновите POSM)')
+    expect(screen.getByTestId('connected-staff-3')).toHaveTextContent('Источник Standard-N: нет диагностики контекста (обновите POSM)')
     expect(screen.queryByText(/SMS secret/)).not.toBeInTheDocument()
     expect(screen.getByTestId('connected-export-excel')).toBeEnabled()
   })

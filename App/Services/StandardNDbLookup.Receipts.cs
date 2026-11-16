@@ -110,7 +110,8 @@ public sealed partial class StandardNDbLookup
                     (document.DeviceNumber!.ToUpperInvariant(), document.FiscalShift, document.FiscalNumber)).ToArray();
                 if (counters.Distinct().Count() != counters.Length)
                     throw new InvalidDataException("Physical fiscal counter identity is ambiguous.");
-                result.Add(observed with { Documents = documents, Lines = lines, WorkstationId = verifiedWorkstationId });
+                result.Add(observed with { Documents = documents, Lines = lines, WorkstationId = verifiedWorkstationId,
+                    ObservedSourceNamespace = ReceiptConnectionNamespace(connection) });
             }
             states = result;
             return true;
@@ -160,6 +161,12 @@ public sealed partial class StandardNDbLookup
                 members.Select(row => row.Id).OrderBy(id => id)) || members.Any(row => row.Status != 1)) return false;
         StandardNReceiptProjection.ValidateMembers(known.SessionId, known.DocumentId, known.LinkId is > 0, members);
         return true;
+    }
+
+    private string ReceiptConnectionNamespace(FbConnection connection)
+    {
+        var source = new FbConnectionStringBuilder(connection.ConnectionString);
+        return RecommendationRewardJournal.SourceNamespace(source.DataSource, source.Port, source.Database, _machineName);
     }
 
     private bool TryReadCurrentReceiptGroup(out StandardNReceiptSnapshot? receipt, out bool posting,
@@ -215,7 +222,8 @@ public sealed partial class StandardNDbLookup
             EnrichReceiptProductIdentity(connection, transaction, lines);
             receipt = StandardNReceiptProjection.Current(session.SessionId, session.WorkstationName!,
                 new(session.UserId, session.UserName, session.SessionId), active, members, lines) with
-                { WorkstationId = session.WorkstationId?.ToString(System.Globalization.CultureInfo.InvariantCulture) };
+                { WorkstationId = session.WorkstationId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ObservedSourceNamespace = ReceiptConnectionNamespace(connection) };
             return true;
         }
         catch (Exception error)
@@ -244,7 +252,7 @@ public sealed partial class StandardNDbLookup
         }
         var selected = StandardNReceiptProjection.ExactLocalSession(machine, rows, heartbeatTimestamp);
         if (selected == null) return null;
-        _userNameCache.TryGetValue(selected.UserId, out var name);
+        _userNameCache.TryGet(ReceiptConnectionNamespace(connection), selected.UserId, out var name);
         return new(selected.SessionId, selected.UserId, name, selected.WorkstationId, selected.WorkstationName, true);
     }
 

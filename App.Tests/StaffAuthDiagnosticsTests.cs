@@ -8,6 +8,16 @@ namespace CustomerDisplay.Core.Tests;
 public sealed class StaffAuthDiagnosticsTests
 {
     [Theory]
+    [InlineData("resolved", "resolved")]
+    [InlineData("unsupported_session_time", "unsupported_session_time")]
+    [InlineData("session_predates_process", "session_predates_process")]
+    [InlineData("authenticated", "unknown")]
+    [InlineData("iin=000000000001", "unknown")]
+    [InlineData(null, "unknown")]
+    public void SourceStatusIsIndependentAndOnlyFixedCodesCanLeaveTheClient(string? input, string expected) =>
+        Assert.Equal(expected, StaffAuthDiagnostics.NormalizeSource(input));
+
+    [Theory]
     [InlineData("network_unavailable")]
     [InlineData("endpoint_unavailable")]
     [InlineData("device_auth_required")]

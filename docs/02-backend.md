@@ -1,5 +1,24 @@
 # Backend
 
+## Ordinary sale seller-source candidate — 2026-11-16
+
+`POST /api/posm/sales` accepts optional `sellerSource` with `sourceNamespace`,
+`rawUserId`, `nativeSessionId` and `workstationId`. It is frozen receipt provenance,
+not a substitute for an authenticated employee grant. Validate it before identity
+resolution; when reward completion is also present, all four fields must agree.
+Existing source-binding checks still require the matching individual device, pharmacy,
+native session/workstation and proof valid at receipt time. Legacy requests may omit it.
+V105 persists the source; retries cannot add/remove/change it or its device/time.
+New ordinary `standardn_rps_binding` attribution bypasses legacy reconciliation,
+so this repair cannot create a second money path with reward evidence disabled.
+
+Heartbeat `staffSourceStatus` is a fixed non-personal diagnostic independent of
+`staffAuthStatus`. Unknown strings are discarded; omitted diagnostics clear the
+previous heartbeat value even across instances. Database-only presence does not
+manufacture a login or source observation. HQ discovery includes missing USER_ID,
+inactive mapping recipients and unreviewed source conflicts; last observed names
+replace alphabetical maxima. Reads never create mappings or repair historical sales.
+
 ## Pharmacy inventory and analytics audit — candidate 2026-11-16
 
 Pharmacy DTOs expose nullable `inventoryDeviceCount`, `inventorySource` and

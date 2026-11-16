@@ -172,6 +172,14 @@ data class PosSaleItemDto(
  * или маркером печати в кассовом логе. saleId детерминирован по аптеке и DOCS.ID
  * (fallback — по сессии чека), поэтому повторный сигнал и outbox-retry не двоят данные.
  */
+/** Frozen native receipt context, independent of optional reward evidence. Not a login or payment proof. */
+data class SaleSellerSource(
+    val sourceNamespace: String = "",
+    val rawUserId: String = "",
+    val nativeSessionId: Long = 0,
+    val workstationId: String = "",
+)
+
 data class PosSaleRequest(
     @field:NotBlank
     val saleId: String,
@@ -211,6 +219,7 @@ data class PosSaleRequest(
     @field:Valid val rewardEvidence: RewardSaleEvidence? = null,
     @field:NotNull
     val printedAt: java.time.Instant,
+    @field:Valid val sellerSource: SaleSellerSource? = null,
 )
 
 data class PosSaleResponse(val saleId: String, val accepted: Boolean)

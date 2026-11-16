@@ -226,7 +226,8 @@ namespace CustomerDisplay.Services
             int monitorCount,
             string appVersion,
             CancellationToken ct = default,
-            string? staffAuthStatus = null)
+            string? staffAuthStatus = null,
+            string? staffSourceStatus = null)
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(_heartbeatTimeout);
@@ -240,6 +241,8 @@ namespace CustomerDisplay.Services
                     url += "&appVersion=" + Uri.EscapeDataString(appVersion);
                 if (StaffAuthDiagnostics.IsKnown(staffAuthStatus))
                     url += "&staffAuthStatus=" + Uri.EscapeDataString(staffAuthStatus!);
+                if (staffSourceStatus != null)
+                    url += "&staffSourceStatus=" + Uri.EscapeDataString(StaffAuthDiagnostics.NormalizeSource(staffSourceStatus));
                 using var resp = await _http.PostAsync(url, null, cts.Token).ConfigureAwait(false);
                 if (!resp.IsSuccessStatusCode)
                 {

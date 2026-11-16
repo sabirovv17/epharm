@@ -161,6 +161,7 @@ data class RegisterPresenceDto(
     val lastSeen: Instant,
     /** Self-reported operational state, not an authorization or financial identity. */
     val staffAuthStatus: String? = null,
+    val staffSourceStatus: String? = null,
 )
 
 data class SlideDto(

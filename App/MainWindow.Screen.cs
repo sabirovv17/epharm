@@ -183,7 +183,8 @@ namespace CustomerDisplay
                 var monitorCount = System.Windows.Forms.Screen.AllScreens.Length;
                 var appVersion = AppUpdater.CurrentVersion().ToString();
                 var delivered = await _epharm
-                    .HeartbeatAsync(deviceId, pharmacyId, monitorCount, appVersion, staffAuthStatus: StaffAuthenticationStatus)
+                    .HeartbeatAsync(deviceId, pharmacyId, monitorCount, appVersion,
+                        staffAuthStatus: StaffAuthenticationStatus, staffSourceStatus: StaffSourceStatus)
                     .ConfigureAwait(false);
                 Dispatcher.Invoke(() => ApplyRewardCapability(delivered ? _epharm.RewardEvidenceProtocol : null));
                 if (delivered && _heartbeatDelivered != true)

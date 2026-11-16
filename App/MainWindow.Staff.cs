@@ -28,12 +28,15 @@ public partial class MainWindow
     private Func<StaffProcessPresence> _staffProcessProbe = ObserveStaffProcess;
     private volatile string _staffAuthenticationStatus = "initializing";
     public string StaffAuthenticationStatus => _staffAuthenticationStatus;
+    private volatile string _staffSourceStatus = "initializing";
+    public string StaffSourceStatus => _staffSourceStatus;
 
     private void StartStaffAuthentication()
     {
         if (!EpharmConfig.StaffAuthenticationReleaseEnabled || _epharm == null || _posmConfig?.StaffAuthenticationEnabled != true)
         {
             SetStaffAuthenticationStatus("local_disabled");
+            _staffSourceStatus = "local_disabled";
             return;
         }
         try
@@ -42,7 +45,7 @@ public partial class MainWindow
             _staffLookup = new StandardNDbLookup(_posmConfig, _ => { });
             _ = Task.Run(() => StaffObservationLoop(_staffStop.Token));
         }
-        catch { SetStaffAuthenticationStatus("endpoint_unavailable"); }
+        catch { SetStaffAuthenticationStatus("endpoint_unavailable"); _staffSourceStatus = "unknown"; }
     }
 
     private async Task StaffObservationLoop(CancellationToken ct)
@@ -82,6 +85,7 @@ public partial class MainWindow
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
             catch
             {
+                _staffSourceStatus = "unknown";
                 // Optional sign-in cannot terminate the reader, sale queue, videos or watchdog.
                 try { await Task.Delay(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false); }
                 catch (OperationCanceledException) { return; }
@@ -100,6 +104,7 @@ public partial class MainWindow
     private void ApplyUnconfirmedStaffProcess()
     {
         if (!_staffEnabled || _staffStop.IsCancellationRequested) return;
+        _staffSourceStatus = "process_unavailable";
         var now = _staffClock();
         var wasAuthenticated = _staffSession.IsAuthenticated(now);
         // A single empty enumeration is not a confirmed exit, but neither it nor
@@ -158,6 +163,7 @@ public partial class MainWindow
 
     private void SetStaffCapability(bool enabled)
     {
+        if (!enabled) _staffSourceStatus = "service_disabled";
         if (_staffStop.IsCancellationRequested || enabled == _staffEnabled) return;
         _staffEnabled = enabled;
         if (!enabled)
@@ -183,6 +189,7 @@ public partial class MainWindow
     private void ApplyStaffObservation(StaffProcessPresence process, StaffSessionObservation observation, bool uncertainProcess = false)
     {
         if (_staffStop.IsCancellationRequested || !_staffEnabled) return;
+        _staffSourceStatus = StaffAuthDiagnostics.NormalizeSource(observation.Status);
         _staffSession.IsAuthenticated(_staffClock());
         var oldToken = _staffSession.Grant;
         var oldSource = _staffSession.LastKnownSource;

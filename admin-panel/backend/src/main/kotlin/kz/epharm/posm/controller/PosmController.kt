@@ -25,6 +25,7 @@ import kz.epharm.posm.service.DevicePresenceService
 import kz.epharm.posm.service.PosmDeviceAuthenticationService
 import kz.epharm.posm.service.PosmPharmacistIdentityService
 import kz.epharm.posm.service.PosSaleService
+import kz.epharm.posm.service.validatedSellerSource
 import kz.epharm.posm.service.RecommendationService
 import kz.epharm.posm.service.RecommendationRewardService
 import kz.epharm.screens.dto.ActivePlaylistDto
@@ -113,15 +114,16 @@ class PosmController(
         @Valid @RequestBody req: PosSaleRequest,
     ): PosSaleResponse {
         val device = deviceAuthentication.authenticate(key, claimedPharmacyId = req.pharmacyId)
+        val sellerSource = req.validatedSellerSource()
         val identity = pharmacistIdentityService.resolve(
             pharmacyId = req.pharmacyId,
             reportedPharmacistId = req.pharmacistId,
             reportedPharmacistName = req.pharmacistName,
             deviceId = device.deviceId,
-            sourceNamespace = req.rewardEvidence?.completion?.identity?.sourceNamespace,
+            sourceNamespace = sellerSource?.sourceNamespace ?: req.rewardEvidence?.completion?.identity?.sourceNamespace,
             at = req.rewardEvidence?.completion?.completedAt ?: req.printedAt,
-            nativeSession = req.rewardEvidence?.completion?.identity?.nativeSessionId?.toString(),
-            workstation = req.rewardEvidence?.completion?.identity?.workstationId,
+            nativeSession = (sellerSource?.nativeSessionId ?: req.rewardEvidence?.completion?.identity?.nativeSessionId)?.toString(),
+            workstation = sellerSource?.workstationId ?: req.rewardEvidence?.completion?.identity?.workstationId,
         )
         val effective = req.copy(
             pharmacistId = identity.pharmacistId,
@@ -176,6 +178,7 @@ class PosmController(
         @RequestParam(required = false) monitorCount: Int?,
         @RequestParam(required = false) appVersion: String?,
         @RequestParam(required = false) staffAuthStatus: String?,
+        @RequestParam(required = false) staffSourceStatus: String? = null,
     ): HeartbeatResponse {
         val device = deviceAuthentication.authenticate(
             key,
@@ -195,6 +198,7 @@ class PosmController(
                 ?.trim()
                 ?.takeIf { it.matches(Regex("[0-9A-Za-z.+-]{1,32}")) },
             staffAuthStatus = staffAuthStatus,
+            staffSourceStatus = staffSourceStatus,
         )
         return HeartbeatResponse(ok = true, deviceId = id, rewardEvidenceProtocol = rewards.protocol(device))
     }

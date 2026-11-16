@@ -36,6 +36,7 @@ import type { ActiveSlideDto, PharmacyDto } from '@/lib/api-types'
 import { useT } from '@/i18n'
 import { BannersPanel, type BannerEditing } from './BannersPanel'
 import { staffAuthStatusLabel } from './staffAuthStatus'
+import { staffSourceStatusLabel } from './staffSourceStatus'
 
 const BROADCAST_SLOT_COUNT = 12
 const DEFAULT_PROFILE_ID = 'pl_broadcast'
@@ -204,6 +205,9 @@ function ConnectedRegistersCard() {
                 )}
                 <span className="mt-0.5 block max-w-[300px] whitespace-normal text-[11px] font-medium text-ink-500">
                   {staffAuthStatusLabel(d.staffAuthStatus)}
+                </span>
+                <span className="mt-0.5 block max-w-[300px] whitespace-normal text-[11px] font-medium text-ink-500">
+                  {staffSourceStatusLabel(d.staffSourceStatus)}
                 </span>
               </span>
               {/* Аптека: название + адрес (резолв с бэка); если аптека не найдена — id/«без аптеки» */}

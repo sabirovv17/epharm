@@ -12,6 +12,21 @@ namespace CustomerDisplay.Core.Tests
     // OS-process observation boundary and HTTP are fakes; never starts the app/DB reader.
     public sealed class StaffOrchestrationTests
     {
+        [Fact]
+        public async Task SourceDiagnosticDoesNotDisappearAfterOwnLoginOrAuthorizeASeller()
+        {
+            using var http = new StaffHttp(); using var shell = new MainWindow();
+            shell.ConfigureStaffTest(http); await shell.AcceptStaffTest();
+            Assert.Equal("authenticated", shell.StaffAuthenticationStatus);
+            Assert.Equal("database_unavailable", shell.StaffSourceStatus);
+            shell.ObserveStaffDiagnosticTest("unsupported_session_time");
+            Assert.Equal("authenticated", shell.StaffAuthenticationStatus);
+            Assert.Equal("unsupported_session_time", shell.StaffSourceStatus);
+            Assert.Null(shell.StaffStateTest.CurrentSource);
+            Assert.Null(shell.StaffWindowTest);
+            shell.ObserveStaffDiagnosticTest("private database detail");
+            Assert.Equal("unknown", shell.StaffSourceStatus);
+        }
         [Theory]
         [InlineData(false, 503)]
         [InlineData(false, 429)]
@@ -523,6 +538,7 @@ namespace CustomerDisplay
         internal Task AcceptStaffTest() => _staffWindow!.Reply(new("authenticated", "synthetic-grant-not-valid-on-any-server",
             _staffTestNow.AddHours(8), new("synthetic-person", "Synthetic Person"), DeviceContext: _staffSession.Context));
         internal void ObserveStaffTest() => ApplyStaffObservation(StaffPresenceTest, _staffTestObservation);
+        internal void ObserveStaffDiagnosticTest(string status) => ApplyStaffObservation(StaffPresenceTest, new(status));
         internal void ObserveStaffSourceTest(string user = "user-1", string session = "session-1", string workstation = "workstation-1", string? process = null)
         {
             if (process != null) _staffTestCurrentProcess = process;

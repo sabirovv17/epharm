@@ -107,6 +107,7 @@ class ScreenPresenceService(
                 appVersion = device.appVersion,
                 lastSeen = device.lastSeen,
                 staffAuthStatus = device.staffAuthStatus,
+                staffSourceStatus = device.staffSourceStatus,
             )
         }.sortedWith(
             compareBy<RegisterPresenceDto>(

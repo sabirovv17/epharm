@@ -39,7 +39,11 @@ export function StandardNSellerMappingsModal({
   const save = (seller: UnmappedPosmSellerDto) => {
     const key = sellerKey(seller)
     const pharmacistId = selected[key]
-    if (!pharmacistId) return
+    const candidate = activeByPharmacy.get(seller.pharmacyId)?.find((p) => p.id === pharmacistId)
+    if (!candidate || !seller.externalUserId.trim() || seller.reason === 'missing_user_id' || upsert.isPending || revoke.isPending || unmapped.isFetching) return
+    if (!window.confirm(
+      `Подтвердить сопоставление?\nАптека: ${seller.pharmacyName}\nStandard-N USER_ID: ${seller.externalUserId}\nФармацевт ePharm: ${candidate.name}\n\nПроверьте личность продавца на кассе. Совпадения имени недостаточно. Сопоставление не начисляет бонусы и не переписывает старые продажи.`,
+    )) return
     upsert.mutate(
       {
         pharmacyId: seller.pharmacyId,
@@ -48,7 +52,14 @@ export function StandardNSellerMappingsModal({
         pharmacistId,
       },
       {
-        onSuccess: () => toast.push(`USER_ID ${seller.externalUserId} сопоставлен`),
+        onSuccess: () => {
+          setSelected((current) => {
+            const next = { ...current }
+            delete next[key]
+            return next
+          })
+          toast.push(`USER_ID ${seller.externalUserId} сопоставлен`)
+        },
         onError: (error) => toast.push(describeError(error)),
       },
     )
@@ -71,7 +82,7 @@ export function StandardNSellerMappingsModal({
           {unmapped.isLoading ? (
             <div className="py-6 text-center text-[13px] text-ink-500">Загружаем продажи…</div>
           ) : unmapped.isError ? (
-            <ErrorMessage error={unmapped.error} />
+            <ErrorMessage error={unmapped.error} retry={() => unmapped.refetch()} pending={unmapped.isFetching} />
           ) : unmapped.data?.length ? (
             <div className="max-h-72 overflow-auto rounded-lg border border-ink-100">
               <table className="w-full text-[12px]">
@@ -88,19 +99,29 @@ export function StandardNSellerMappingsModal({
                   {unmapped.data.map((seller) => {
                     const key = sellerKey(seller)
                     const candidates = activeByPharmacy.get(seller.pharmacyId) ?? []
+                    const canIdentify = !!seller.externalUserId.trim() && seller.reason !== 'missing_user_id'
+                    const validSelection = candidates.some((candidate) => candidate.id === selected[key])
                     return (
                       <tr key={key}>
                         <td className="px-3 py-2.5">
-                          <b className="block text-ink-800">USER_ID {seller.externalUserId}</b>
+                          <b className="block text-ink-800">{canIdentify ? `USER_ID ${seller.externalUserId}` : 'USER_ID не передан'}</b>
                           <span className="text-[11px] text-ink-500">
                             {seller.externalUserName || 'Имя не передано'}
                           </span>
+                          <p className="mt-1 text-[11px] text-ink-600">{sellerGuidance(seller)}</p>
+                          {(seller.observedNameCount ?? 0) > 1 && (
+                            <p className="mt-1 text-[11px] font-semibold text-accent-danger">
+                              Для этого USER_ID передавались разные имена ({seller.observedNameCount}). Проверьте, не используется ли общая учётная запись.
+                            </p>
+                          )}
                         </td>
                         <td className="px-3 py-2.5">{seller.pharmacyName}</td>
                         <td className="num px-3 py-2.5">{seller.salesCount}</td>
                         <td className="min-w-56 px-3 py-2.5">
                           <Select
-                            value={selected[key] || undefined}
+                            value={validSelection ? selected[key] : undefined}
+                            disabled={!canIdentify || candidates.length === 0 || upsert.isPending || revoke.isPending || unmapped.isFetching}
+                            ariaLabel={`Фармацевт для ${seller.pharmacyName}, USER_ID ${seller.externalUserId || 'не передан'}`}
                             onChange={(value) =>
                               setSelected((current) => ({ ...current, [key]: value }))
                             }
@@ -112,11 +133,17 @@ export function StandardNSellerMappingsModal({
                               candidates.length ? 'Выберите фармацевта' : 'Нет активных профилей'
                             }
                           />
+                          {selected[key] && !validSelection && (
+                            <p className="mt-1 text-[11px] text-accent-danger">Выбранный профиль больше не активен в этой аптеке. Выберите заново.</p>
+                          )}
+                          {candidates.length === 0 && (
+                            <p className="mt-1 text-[11px] text-ink-500">Проверьте загрузку реестра. Активируйте профиль и назначьте его в эту аптеку.</p>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           <Button
                             size="sm"
-                            disabled={!selected[key] || upsert.isPending}
+                            disabled={!canIdentify || !validSelection || upsert.isPending || revoke.isPending || unmapped.isFetching}
                             onClick={() => save(seller)}
                           >
                             Связать
@@ -130,8 +157,8 @@ export function StandardNSellerMappingsModal({
             </div>
           ) : (
             <Empty
-              title="Все продавцы сопоставлены"
-              body="Новых продаж с неизвестным Standard-N USER_ID нет."
+              title="Нет продавцов в очереди сопоставления"
+              body="Это не подтверждает личность всех продавцов. Продажи без данных кассира требуют отдельной диагностики POSM."
               icon={<IconUsers size={24} />}
             />
           )}
@@ -142,7 +169,7 @@ export function StandardNSellerMappingsModal({
           {mappings.isLoading ? (
             <div className="py-5 text-center text-[13px] text-ink-500">Загружаем правила…</div>
           ) : mappings.isError ? (
-            <ErrorMessage error={mappings.error} />
+            <ErrorMessage error={mappings.error} retry={() => mappings.refetch()} pending={mappings.isFetching} />
           ) : mappings.data?.length ? (
             <div className="max-h-56 overflow-auto rounded-lg border border-ink-100">
               <table className="w-full text-[12px]">
@@ -162,7 +189,7 @@ export function StandardNSellerMappingsModal({
                       <td className="px-3 py-2.5 text-right">
                         <button
                           type="button"
-                          disabled={revoke.isPending}
+                          disabled={revoke.isPending || upsert.isPending || mappings.isFetching}
                           onClick={() => {
                             if (
                               !window.confirm(
@@ -201,10 +228,24 @@ function sellerKey(seller: UnmappedPosmSellerDto) {
   return `${seller.pharmacyId}:${seller.externalUserId}`
 }
 
-function ErrorMessage({ error }: { error: unknown }) {
+function sellerGuidance(seller: UnmappedPosmSellerDto): string {
+  const guidance: Record<string, string> = {
+    missing_user_id: 'Касса не передала USER_ID. Проверьте захват пользователя Standard-N; привязка без идентификатора невозможна.',
+    source_conflict: 'Конфликт источника и профиля. Проверьте продавца на кассе и явно подтвердите правильный профиль.',
+    inactive_recipient: 'Прежний получатель неактивен или назначен в другую аптеку. Выберите действующего сотрудника этой аптеки.',
+    no_active_profiles: 'В аптеке нет активных профилей ePharm. Сначала активируйте сотрудника и назначьте аптеку.',
+    missing_name: 'Имя кассира не передано. Проверьте, кому принадлежит этот USER_ID, прежде чем выбирать профиль.',
+    name_not_matched: 'Имя не сопоставлено однозначно. Проверьте сотрудника на кассе; система не выбирает по похожему имени.',
+    confirmation_required: 'Требуется явное подтверждение HQ: проверьте USER_ID и сотрудника на кассе.',
+  }
+  return guidance[seller.reason ?? ''] ?? guidance.confirmation_required
+}
+
+function ErrorMessage({ error, retry, pending }: { error: unknown; retry: () => void; pending: boolean }) {
   return (
-    <div className="rounded-lg bg-surface-danger px-4 py-3 text-[13px] font-semibold text-accent-danger">
+    <div role="alert" className="rounded-lg bg-surface-danger px-4 py-3 text-[13px] font-semibold text-accent-danger">
       {describeError(error)}
+      <Button className="ml-3" size="sm" variant="outline" onClick={retry} disabled={pending}>Повторить</Button>
     </div>
   )
 }
